@@ -11,15 +11,55 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 /* =============================================
-   CSS Custom Properties (Design Tokens)
+   CSS Custom Properties (Design Tokens — Dark & Light Modes)
    ============================================= */
-:root {
+/* Default / Dark Theme Colors */
+html:not([data-theme="light"]), [data-theme="dark"] {
     /* Primary Colors */
     --color-primary: #4f6ef7;
     --color-primary-dark: #3b5de7;
     --color-primary-light: #7b93fa;
-    --color-primary-bg: rgba(79, 110, 247, 0.08);
-    --color-primary-border: rgba(79, 110, 247, 0.2);
+    --color-primary-bg: rgba(79, 110, 247, 0.12);
+    --color-primary-border: rgba(79, 110, 247, 0.25);
+
+    /* Accent Colors */
+    --color-success: #10b981;
+    --color-success-bg: rgba(16, 185, 129, 0.12);
+    --color-warning: #f59e0b;
+    --color-warning-bg: rgba(245, 158, 11, 0.12);
+    --color-danger: #ef4444;
+    --color-danger-bg: rgba(239, 68, 68, 0.12);
+    --color-info: #06b6d4;
+    --color-info-bg: rgba(6, 182, 212, 0.12);
+    --color-purple: #8b5cf6;
+    --color-purple-bg: rgba(139, 92, 246, 0.12);
+
+    /* Neutral Dark Theme Colors */
+    --color-bg: #0f1117;
+    --color-bg-secondary: #1a1d29;
+    --color-bg-tertiary: #232736;
+    --color-bg-card: #1e2132;
+    --color-bg-hover: #282c3e;
+    --color-bg-input: #1a1d29;
+
+    --color-border: #2a2e3f;
+    --color-border-light: #333750;
+
+    --color-text-main: #e4e6f0;
+    --color-text: #e4e6f0;
+    --color-text-secondary: #9ca3b8;
+    --color-text-muted: #6b7089;
+    --color-text-white: #ffffff;
+    --color-shadow: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"], html[data-theme="light"], body[data-theme="light"] {
+    /* Primary Colors */
+    --color-primary: #3b82f6;
+    --color-primary-dark: #2563eb;
+    --color-primary-light: #60a5fa;
+    --color-primary-bg: rgba(59, 130, 246, 0.08);
+    --color-primary-border: rgba(59, 130, 246, 0.2);
 
     /* Accent Colors */
     --color-success: #10b981;
@@ -33,21 +73,104 @@
     --color-purple: #8b5cf6;
     --color-purple-bg: rgba(139, 92, 246, 0.08);
 
-    /* Neutral Colors */
-    --color-bg: #0f1117;
-    --color-bg-secondary: #1a1d29;
-    --color-bg-tertiary: #232736;
-    --color-bg-card: #1e2132;
-    --color-bg-hover: #282c3e;
-    --color-bg-input: #1a1d29;
+    /* Neutral Light Theme Colors */
+    --color-bg: #f8fafc;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #f1f5f9;
+    --color-bg-card: #ffffff;
+    --color-bg-hover: #e2e8f0;
+    --color-bg-input: #ffffff;
 
-    --color-border: #2a2e3f;
-    --color-border-light: #333750;
+    --color-border: #cbd5e1;
+    --color-border-light: #e2e8f0;
 
-    --color-text: #e4e6f0;
-    --color-text-secondary: #9ca3b8;
-    --color-text-muted: #6b7089;
-    --color-text-white: #ffffff;
+    --color-text-main: #0f172a;
+    --color-text: #1e293b;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748b;
+    --color-text-white: #0f172a;
+    --color-shadow: rgba(0, 0, 0, 0.06);
+}
+
+/* Specific Light Theme Component Overrides */
+[data-theme="light"] body {
+    color: #1e293b !important;
+    background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .sidebar {
+    background: #ffffff !important;
+    border-right-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .top-header {
+    background: #ffffff !important;
+    border-bottom-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .card, 
+[data-theme="light"] .data-table-container,
+[data-theme="light"] .login-card,
+[data-theme="light"] .chat-app-container,
+[data-theme="light"] .chat-sidebar,
+[data-theme="light"] .chat-main,
+[data-theme="light"] .chat-main-header,
+[data-theme="light"] .chat-input-bar {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .chat-messages-area {
+    background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .chat-bubble-content {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .chat-bubble-row.is-self .chat-bubble-content {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .form-input,
+[data-theme="light"] .form-select,
+[data-theme="light"] .form-textarea {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] table.data-table th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    border-bottom-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] table.data-table td {
+    border-bottom-color: #cbd5e1 !important;
+    color: #1e293b !important;
+}
+
+[data-theme="light"] table.data-table tr:hover {
+    background-color: #f8fafc !important;
+}
+
+[data-theme="light"] h1, 
+[data-theme="light"] h2, 
+[data-theme="light"] h3, 
+[data-theme="light"] h4, 
+[data-theme="light"] .page-title,
+[data-theme="light"] .card-title,
+[data-theme="light"] .sidebar-brand-text,
+[data-theme="light"] .sidebar-user-name {
+    color: #0f172a !important;
+}
+
+:root {
 
     /* Typography */
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -1663,5 +1786,167 @@ h4 { font-size: var(--text-lg); }
 
     h1, .page-title {
         font-size: var(--text-xl);
+    }
+}
+
+/* =============================================
+   System-Wide Mobile & Tablet Responsiveness Enhancements
+   ============================================= */
+@media (max-width: 1024px) {
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: var(--radius-md);
+        margin-bottom: var(--space-4);
+    }
+    
+    .table-container table {
+        min-width: 650px;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-layout {
+        flex-direction: column;
+    }
+
+    /* Hide Logout text on mobile, keep vector icon only */
+    .btn-logout-text {
+        display: none !important;
+    }
+
+    .btn-logout {
+        padding: 8px 10px !important;
+        min-width: auto !important;
+    }
+
+    .btn-logout i {
+        margin-right: 0 !important;
+    }
+
+    /* Mobile Chat Adaptive Single-Pane View */
+    .chat-app-container {
+        height: calc(100vh - 100px);
+        flex-direction: column;
+    }
+
+    .chat-app-container .chat-sidebar {
+        width: 100% !important;
+        flex: 1;
+    }
+
+    .chat-app-container.room-active .chat-sidebar {
+        display: none !important;
+    }
+
+    .chat-app-container:not(.room-active) .chat-main {
+        display: none !important;
+    }
+
+    .chat-app-container.room-active .chat-main {
+        display: flex !important;
+        width: 100% !important;
+        flex: 1;
+    }
+
+    .chat-bubble-row {
+        max-width: 90% !important;
+    }
+
+    /* Touch Friendly Tap Targets */
+    .btn, .form-input, .form-select, .form-textarea {
+        min-height: 42px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .form-actions .btn {
+        width: 100% !important;
+    }
+
+    /* Attendance Card & Timers */
+    #shiftTimerWidget {
+        padding: 14px 16px !important;
+    }
+
+    #shiftTimerWidget #timer-work-display {
+        font-size: 32px !important;
+    }
+
+    /* Modals */
+    .modal-backdrop .card {
+        padding: var(--space-4) !important;
+    }
+}
+
+/* =============================================
+   Dedicated 375px Mobile Viewport Optimization
+   ============================================= */
+@media (max-width: 375px) {
+    html, body {
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    .main-content {
+        padding: 10px !important;
+    }
+
+    .top-header {
+        padding: 0 10px !important;
+    }
+
+    .header-greeting p {
+        display: none !important;
+    }
+
+    .header-user-name {
+        display: none !important;
+    }
+
+    .card {
+        padding: 12px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+
+    .stat-card {
+        padding: 12px !important;
+    }
+
+    .stat-value {
+        font-size: 1.25rem !important;
+    }
+
+    #shiftTimerWidget {
+        padding: 12px !important;
+    }
+
+    #shiftTimerWidget #timer-work-display {
+        font-size: 24px !important;
+    }
+
+    .chat-app-container {
+        height: calc(100vh - 75px) !important;
+    }
+
+    .chat-input-bar {
+        padding: 10px !important;
+    }
+
+    .chat-input-controls {
+        gap: 6px !important;
+    }
+
+    .modal-backdrop .card {
+        width: 92vw !important;
+        padding: 12px !important;
     }
 }

@@ -113,7 +113,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (!$managerId): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">👥</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
             <div class="empty-state-title">No Team Assigned</div>
             <div class="empty-state-text">You are not currently assigned to a manager's team. However, you can see global founder announcements below.</div>
         </div>
@@ -122,28 +122,28 @@ include __DIR__ . '/../includes/header.php';
     <!-- overall Task Status Metrics -->
     <div class="stats-grid mb-6">
         <div class="stat-card accent-blue fade-in stagger-1">
-            <div class="stat-icon bg-blue">📋</div>
+            <div class="stat-icon bg-blue"><i class="fa-solid fa-clipboard-user"></i></div>
             <div class="stat-content">
                 <div class="stat-value"><?php echo $stats['total'] ?: 0; ?></div>
                 <div class="stat-label">Total Team Tasks</div>
             </div>
         </div>
         <div class="stat-card accent-green fade-in stagger-2">
-            <div class="stat-icon bg-green">✅</div>
+            <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
             <div class="stat-content">
                 <div class="stat-value"><?php echo $stats['completed'] ?: 0; ?></div>
                 <div class="stat-label">Completed</div>
             </div>
         </div>
         <div class="stat-card accent-yellow fade-in stagger-3">
-            <div class="stat-icon bg-yellow">⏳</div>
+            <div class="stat-icon bg-yellow"><i class="fa-solid fa-hourglass-half"></i></div>
             <div class="stat-content">
                 <div class="stat-value"><?php echo $stats['in_progress'] ?: 0; ?></div>
                 <div class="stat-label">In Progress</div>
             </div>
         </div>
         <div class="stat-card accent-red fade-in stagger-4">
-            <div class="stat-icon bg-red">📋</div>
+            <div class="stat-icon bg-red"><i class="fa-solid fa-clipboard-user"></i></div>
             <div class="stat-content">
                 <div class="stat-value"><?php echo $stats['todo'] ?: 0; ?></div>
                 <div class="stat-label">To Do</div>
@@ -195,7 +195,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <?php if (empty($teamTasks)): ?>
                 <div class="empty-state">
-                    <div class="empty-state-icon">📋</div>
+                    <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
                     <div class="empty-state-text">No tasks assigned to this team yet.</div>
                 </div>
             <?php else: ?>
@@ -215,7 +215,7 @@ include __DIR__ . '/../includes/header.php';
                                 </div>
                             <?php endif; ?>
                             <div style="font-size: var(--text-xs); color: var(--color-text-muted); display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: var(--space-2);">
-                                <span>⏰ Due: <?php echo $task['deadline'] ? formatDate($task['deadline']) : 'No deadline'; ?></span>
+                                <span><i class="fa-solid fa-clock"></i> Due: <?php echo $task['deadline'] ? formatDate($task['deadline']) : 'No deadline'; ?></span>
                             </div>
                             <?php if ($task['comments']): ?>
                                 <div style="margin-top: var(--space-2); padding: var(--space-2); background: rgba(255,255,255,0.05); border-left: 3px solid var(--color-accent-blue); border-radius: 4px; font-size: var(--text-xs); color: var(--color-text-secondary);">
@@ -237,14 +237,14 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <?php if (empty($announcements)): ?>
         <div class="empty-state">
-            <div class="empty-state-icon">📢</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-bullhorn"></i></div>
             <div class="empty-state-text">No announcements posted yet.</div>
         </div>
     <?php else: ?>
         <div class="activity-list">
             <?php foreach ($announcements as $ann): ?>
                 <div class="activity-item" style="border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3); margin-bottom: var(--space-3);">
-                    <div class="activity-icon bg-purple" style="font-size: var(--text-base); padding: 8px;">📢</div>
+                    <div class="activity-icon bg-purple" style="font-size: var(--text-base); padding: 8px;"><i class="fa-solid fa-bullhorn"></i></div>
                     <div style="flex: 1;">
                         <div class="flex-between">
                             <h4 style="font-size: var(--text-sm); font-weight: 600; margin: 0;"><?php echo e($ann['title']); ?></h4>

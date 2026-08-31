@@ -349,3 +349,59 @@ function timeAgo(string $datetime): string {
     
     return formatDate($datetime);
 }
+
+// =============================================
+// In-App Notification System
+// =============================================
+
+/**
+ * Add an in-app notification for a specific user
+ */
+function createNotification(int $userId, string $title, string $message, ?string $link = null, string $type = 'info'): bool {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            INSERT INTO notifications (user_id, title, message, link, type, is_read, created_at) 
+            VALUES (?, ?, ?, ?, ?, 0, NOW())
+        ");
+        return $stmt->execute([$userId, $title, $message, $link, $type]);
+    } catch (PDOException $e) {
+        error_log("Error creating notification: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Get unread notifications for a user
+ */
+function getUnreadNotifications(int $userId, int $limit = 5): array {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT * FROM notifications 
+            WHERE user_id = ? 
+            ORDER BY is_read ASC, created_at DESC 
+            LIMIT ?
+        ");
+        $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Count unread notifications
+ */
+function countUnreadNotifications(int $userId): int {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return 0;
+    }
+}

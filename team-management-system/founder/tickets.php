@@ -109,7 +109,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($tickets)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">🎟️</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-headset"></i></div>
             <div class="empty-state-title">No support tickets found</div>
             <div class="empty-state-text">No requests correspond to the selected criteria.</div>
         </div>
@@ -134,7 +134,7 @@ include __DIR__ . '/../includes/header.php';
                         <td>
                             <?php if ($ticket['is_anonymous']): ?>
                                 <div class="table-user">
-                                    <div class="table-user-avatar" style="background: var(--color-purple);">🎭</div>
+                                    <div class="table-user-avatar" style="background: var(--color-purple);"><i class="fa-solid fa-mask"></i></div>
                                     <div>
                                         <div class="table-user-name">Anonymous Employee</div>
                                         <div class="table-user-email">Identity Hidden</div>
@@ -162,9 +162,9 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo formatDateTime($ticket['created_at']); ?></td>
                         <td>
                             <?php if ($ticket['status'] === 'pending'): ?>
-                                <span class="badge badge-warning">⏳ Pending</span>
+                                <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
                             <?php else: ?>
-                                <span class="badge badge-success">✅ Resolved</span>
+                                <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Resolved</span>
                             <?php endif; ?>
                         </td>
                         <td style="max-width: 300px; white-space: normal; font-size: var(--text-sm);">
@@ -173,7 +173,7 @@ include __DIR__ . '/../includes/header.php';
                         <td>
                             <?php if ($ticket['status'] === 'pending'): ?>
                                 <a href="?resolve=<?php echo $ticket['id']; ?>" class="btn btn-success btn-sm" title="Mark as Resolved">
-                                    ✓ Resolve
+                                    <i class="fa-solid fa-check"></i> Resolve
                                 </a>
                             <?php else: ?>
                                 <span class="text-muted" style="font-size: var(--text-xs);">N/A</span>

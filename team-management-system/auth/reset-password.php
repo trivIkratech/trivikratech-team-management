@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="login-card fade-in">
                 <!-- Brand -->
                 <div class="login-brand">
-                    <div class="login-brand-icon">🔒</div>
+                    <div class="login-brand-icon"><i class="fa-solid fa-lock"></i></div>
                     <h1>Reset Password</h1>
                     <p>Enter temporary and new password</p>
                 </div>

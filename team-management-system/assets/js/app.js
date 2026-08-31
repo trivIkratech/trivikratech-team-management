@@ -148,9 +148,9 @@ document.addEventListener('DOMContentLoaded', function() {
         toast.className = 'toast-notification toast-' + type;
         
         const icons = {
-            success: '✓',
+            success: '<i class="fa-solid fa-check"></i>',
             error: '✕',
-            warning: '⚠',
+            warning: '<i class="fa-solid fa-triangle-exclamation"></i>',
             info: 'ℹ'
         };
 
@@ -217,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="modal" style="max-width: 400px;">
                 <div class="modal-body">
                     <div class="confirm-dialog">
-                        <div class="confirm-dialog-icon">⚠️</div>
+                        <div class="confirm-dialog-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
                         <div class="confirm-dialog-title">Are you sure?</div>
                         <div class="confirm-dialog-text">${message}</div>
                         <div class="form-actions" style="justify-content: center;">
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (error) {
                         showToast(error, 'error');
                         btn.disabled = false;
-                        btn.innerHTML = '🟢 Check In';
+                        btn.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--color-success);"></i> Check In';
                         return;
                     }
 
@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         showToast(response.message, 'error');
                         btn.disabled = false;
-                        btn.innerHTML = '🟢 Check In';
+                        btn.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--color-success);"></i> Check In';
                     }
                 }
             );
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (error) {
                         showToast(error, 'error');
                         btn.disabled = false;
-                        btn.innerHTML = '🔴 Check Out';
+                        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> Check Out';
                         return;
                     }
 
@@ -318,7 +318,78 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         showToast(response.message, 'error');
                         btn.disabled = false;
-                        btn.innerHTML = '🔴 Check Out';
+                        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> Check Out';
+                    }
+                }
+            );
+        });
+    }
+
+    const startBreakBtn = document.getElementById('btn-start-break');
+    const endBreakBtn = document.getElementById('btn-end-break');
+
+    if (startBreakBtn) {
+        startBreakBtn.addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Starting Break...';
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const token = csrfToken ? csrfToken.content : '';
+
+            ajaxRequest(
+                window.BASE_URL + '/api/attendance.php',
+                'POST',
+                { action: 'start_break', csrf_token: token },
+                function(error, response) {
+                    if (error) {
+                        showToast(error, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-mug-hot"></i> Start Break';
+                        return;
+                    }
+
+                    if (response.success) {
+                        showToast(response.message, 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showToast(response.message, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-mug-hot"></i> Start Break';
+                    }
+                }
+            );
+        });
+    }
+
+    if (endBreakBtn) {
+        endBreakBtn.addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Ending Break...';
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const token = csrfToken ? csrfToken.content : '';
+
+            ajaxRequest(
+                window.BASE_URL + '/api/attendance.php',
+                'POST',
+                { action: 'end_break', csrf_token: token },
+                function(error, response) {
+                    if (error) {
+                        showToast(error, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-play"></i> End Break';
+                        return;
+                    }
+
+                    if (response.success) {
+                        showToast(response.message, 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showToast(response.message, 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-play"></i> End Break';
                     }
                 }
             );
@@ -501,5 +572,68 @@ document.addEventListener('DOMContentLoaded', function() {
         updateClock();
         setInterval(updateClock, 1000);
     }
+
+    // =============================================
+    // Password Visibility Eye Toggle
+    // =============================================
+    window.togglePasswordVisibility = function(inputId, btn) {
+        const input = typeof inputId === 'string' ? document.getElementById(inputId) : inputId;
+        if (!input) return;
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            if (icon) {
+                icon.className = 'fa-regular fa-eye-slash';
+            } else {
+                btn.innerText = '🙈';
+            }
+        } else {
+            input.type = 'password';
+            if (icon) {
+                icon.className = 'fa-regular fa-eye';
+            } else {
+                btn.innerText = '<i class="fa-solid fa-eye"></i>';
+            }
+        }
+    };
+
+    // Auto-attach Eye buttons to all input[type="password"] fields
+    function initPasswordToggles() {
+        document.querySelectorAll('input[type="password"]').forEach(function(input) {
+            if (input.dataset.hasToggle) return;
+            input.dataset.hasToggle = 'true';
+            
+            const parent = input.parentElement;
+            if (!parent) return;
+
+            parent.style.position = 'relative';
+            input.style.paddingRight = '44px';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-toggle-password-auto';
+            btn.setAttribute('title', 'Toggle Visibility');
+            btn.style.cssText = 'position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 15px; padding: 4px; z-index: 10;';
+            btn.innerHTML = '<i class="fa-regular fa-eye"></i>';
+
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                togglePasswordVisibility(input, btn);
+            });
+
+            parent.appendChild(btn);
+        });
+    }
+
+    initPasswordToggles();
+
+    // Re-run for dynamically opened modals
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.btn, button, [onclick*="Modal"]')) {
+            setTimeout(initPasswordToggles, 100);
+            setTimeout(initPasswordToggles, 300);
+        }
+    });
 
 });

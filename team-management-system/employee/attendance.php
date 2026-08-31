@@ -68,21 +68,21 @@ include __DIR__ . '/../includes/header.php';
 <!-- Monthly Summary -->
 <div class="stats-grid" style="margin-bottom: var(--space-6);">
     <div class="stat-card accent-green fade-in stagger-1">
-        <div class="stat-icon bg-green">✅</div>
+        <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $summary['present_days'] ?? 0; ?></div>
             <div class="stat-label">Days Present</div>
         </div>
     </div>
     <div class="stat-card accent-blue fade-in stagger-2">
-        <div class="stat-icon bg-blue">📊</div>
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-chart-pie"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $summary['total_days'] ?? 0; ?></div>
             <div class="stat-label">Total Records</div>
         </div>
     </div>
     <div class="stat-card accent-purple fade-in stagger-3">
-        <div class="stat-icon bg-purple">⏱️</div>
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-stopwatch"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $summary['avg_working_time'] ? substr($summary['avg_working_time'], 0, 5) : '—'; ?></div>
             <div class="stat-label">Avg Working Time</div>
@@ -93,7 +93,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($records)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
             <div class="empty-state-title">No attendance records</div>
             <div class="empty-state-text">No records found for <?php echo date('F Y', strtotime($filterMonth . '-01')); ?>.</div>
         </div>

@@ -207,7 +207,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div>
         <?php if ($action === 'list'): ?>
-            <a href="?action=add" class="btn btn-primary">➕ Add Employee</a>
+            <a href="?action=add" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Employee</a>
         <?php else: ?>
             <a href="?" class="btn btn-secondary">Back to List</a>
         <?php endif; ?>
@@ -341,7 +341,7 @@ include __DIR__ . '/../includes/header.php';
     <?php if (empty($employees)): ?>
         <div class="card">
             <div class="empty-state">
-                <div class="empty-state-icon">👥</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
                 <div class="empty-state-title">No employees assigned to you</div>
                 <div class="empty-state-text">Use the "+ Add Employee" button above to add employees to your team.</div>
             </div>
@@ -390,10 +390,10 @@ include __DIR__ . '/../includes/header.php';
                             <td><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
                             <td style="text-align: right;">
                                 <a href="?action=edit&id=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-primary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); text-decoration: none;">
-                                    📝 Edit
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit
                                 </a>
                                 <a href="?delete=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" onclick="return confirm('Are you sure you want to remove this employee from your team?')" title="Remove Employee" style="color: var(--color-danger); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); text-decoration: none; margin-left: var(--space-1);">
-                                    🗑️ Remove
+                                    <i class="fa-solid fa-trash-can"></i> Remove
                                 </a>
                             </td>
                         </tr>

@@ -41,7 +41,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($managers)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">👔</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-user-tie"></i></div>
             <div class="empty-state-title">No managers yet</div>
             <div class="empty-state-text">Add a manager to start building your team.</div>
         </div>
@@ -78,7 +78,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo formatDate($manager['created_at']); ?></td>
                         <td>
                             <div class="table-actions">
-                                <a href="<?php echo BASE_URL; ?>/founder/user-management.php?action=edit&id=<?php echo $manager['id']; ?>" class="btn btn-ghost btn-sm" title="Edit">✏️</a>
+                                <a href="<?php echo BASE_URL; ?>/founder/user-management.php?action=edit&id=<?php echo $manager['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
                             </div>
                         </td>
                     </tr>

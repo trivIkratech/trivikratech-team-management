@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'verify_ide
                 <!-- Success State: Display Temporary Password -->
                 <?php if (isset($_SESSION['temp_password'])): ?>
                     <div class="login-brand">
-                        <div class="login-brand-icon">🔑</div>
+                        <div class="login-brand-icon"><i class="fa-solid fa-key"></i></div>
                         <h1>Temporary Password</h1>
                         <p>A temporary password has been generated</p>
                     </div>
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'verify_ide
                 <?php else: ?>
                     <!-- Brand -->
                     <div class="login-brand">
-                        <div class="login-brand-icon">🔑</div>
+                        <div class="login-brand-icon"><i class="fa-solid fa-key"></i></div>
                         <h1>Forgot Password</h1>
                         <p>Enter Employee ID to request reset</p>
                     </div>

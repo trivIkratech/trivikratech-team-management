@@ -257,16 +257,16 @@ include __DIR__ . '/includes/header.php';
         
         <div class="profile-menu">
             <button class="profile-menu-item <?php echo $activeTab === 'info' ? 'active' : ''; ?>" onclick="switchTab(this, 'tab-info')">
-                <span>👤</span> Profile Information
+                <span><i class="fa-solid fa-user"></i></span> Profile Information
             </button>
             <button class="profile-menu-item <?php echo $activeTab === 'notifications' ? 'active' : ''; ?>" onclick="switchTab(this, 'tab-notifications')">
-                <span>🔔</span> Notifications
+                <span><i class="fa-regular fa-bell"></i></span> Notifications
             </button>
             <button class="profile-menu-item <?php echo $activeTab === 'security' ? 'active' : ''; ?>" onclick="switchTab(this, 'tab-security')">
-                <span>🔑</span> Reset Password & PIN
+                <span><i class="fa-solid fa-key"></i></span> Reset Password & PIN
             </button>
             <button class="profile-menu-item <?php echo $activeTab === 'support' ? 'active' : ''; ?>" onclick="switchTab(this, 'tab-support')">
-                <span>🤝</span> Help & Support
+                <span><i class="fa-solid fa-handshake"></i></span> Help & Support
             </button>
             <a href="<?php echo BASE_URL; ?>/auth/logout.php" class="profile-menu-item logout-item">
                 <span>↗</span> Sign Out / Logout
@@ -495,7 +495,7 @@ include __DIR__ . '/includes/header.php';
                             As an employee, you can submit technical support tickets directly to your reporting manager or the administration desk.
                         </p>
                         <a href="<?php echo BASE_URL; ?>/employee/support.php" class="btn btn-secondary btn-sm" style="display: inline-block; text-decoration: none;">
-                            🎟️ Go to Support Tickets Page
+                            <i class="fa-solid fa-headset"></i> Go to Support Tickets Page
                         </a>
                     </div>
                 <?php else: ?>
@@ -505,7 +505,7 @@ include __DIR__ . '/includes/header.php';
                             Check, response to, or track support tickets submitted by employees reporting in the workspace.
                         </p>
                         <a href="<?php echo BASE_URL; ?>/<?php echo $userRole; ?>/tickets.php" class="btn btn-secondary btn-sm" style="display: inline-block; text-decoration: none;">
-                            🎟️ View Ticket Dashboard
+                            <i class="fa-solid fa-headset"></i> View Ticket Dashboard
                         </a>
                     </div>
                 <?php endif; ?>

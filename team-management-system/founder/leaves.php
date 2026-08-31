@@ -114,7 +114,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($leaves)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">🌴</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
             <div class="empty-state-title">No leave requests found</div>
             <div class="empty-state-text">No requests match the selected criteria.</div>
         </div>
@@ -160,18 +160,18 @@ include __DIR__ . '/../includes/header.php';
                         <td style="max-width: 180px;" class="truncate" title="<?php echo e($leave['reason']); ?>"><?php echo e($leave['reason']); ?></td>
                         <td>
                             <?php if ($leave['prescription_doc']): ?>
-                                <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline">👁️ View Doc</a>
+                                <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline"><i class="fa-solid fa-eye"></i> View Doc</a>
                             <?php else: ?>
                                 <span class="text-muted">—</span>
                             <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($leave['status'] === 'pending'): ?>
-                                <span class="badge badge-warning">⏳ Pending</span>
+                                <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
                             <?php elseif ($leave['status'] === 'approved'): ?>
-                                <span class="badge badge-success">✅ Approved</span>
+                                <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
                             <?php else: ?>
-                                <span class="badge badge-danger">❌ Denied</span>
+                                <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
                             <?php endif; ?>
                         </td>
                         <td><?php echo $leave['actioned_by_name'] ? e($leave['actioned_by_name']) : '<span class="text-muted">—</span>'; ?></td>

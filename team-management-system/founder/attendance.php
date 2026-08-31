@@ -86,7 +86,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($records)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
             <div class="empty-state-title">No attendance records</div>
             <div class="empty-state-text">No records found for the selected date/employee.</div>
         </div>

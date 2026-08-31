@@ -173,7 +173,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($tasks)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-circle-check"></i></div>
             <div class="empty-state-title">No tasks found</div>
             <div class="empty-state-text">Create a task to assign to your team.</div>
         </div>
@@ -213,7 +213,7 @@ include __DIR__ . '/../includes/header.php';
                         </td>
                         <td><?php echo formatDate($task['deadline']); ?></td>
                         <td>
-                            <a href="?edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit">✏️</a>
+                            <a href="?edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

@@ -211,11 +211,11 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
                         <?php echo ($m['meeting_type'] === 'self') ? 'Self Session' : (($m['meeting_type'] === 'individual') ? '1-on-1' : 'Team Sync'); ?>
                     </span>
                     <?php if ($m['status'] === 'completed'): ?>
-                        <span class="badge" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-success); color: white;">✓ Done</span>
+                        <span class="badge" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-success); color: white;"><i class="fa-solid fa-check"></i> Done</span>
                     <?php elseif ($m['status'] === 'cancelled'): ?>
-                        <span class="badge" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-danger); color: white;">✗ Cancelled</span>
+                        <span class="badge" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-danger); color: white;"><i class="fa-solid fa-xmark"></i> Cancelled</span>
                     <?php elseif ($isHistory): ?>
-                        <span class="badge badge-secondary" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-border); color: var(--color-text-secondary);">✓ Ended</span>
+                        <span class="badge badge-secondary" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-border); color: var(--color-text-secondary);"><i class="fa-solid fa-check"></i> Ended</span>
                     <?php elseif ($isActive): ?>
                         <span class="badge badge-success" style="font-size: var(--text-xs); margin-left: var(--space-1); background-color: var(--color-success); color: white;">● Live Now</span>
                     <?php endif; ?>
@@ -225,10 +225,10 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
             <div style="display: flex; gap: var(--space-2); align-items: center;">
                 <?php if (!$isHistory && $m['host_id'] === $userId): ?>
                     <a href="?action=complete&id=<?php echo $m['id']; ?>" class="btn btn-sm" onclick="return confirm('Mark this meeting as completed?')" style="background-color: var(--color-success); color: white; font-weight: 600; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-xs); border: none; text-decoration: none;">
-                        ✓ Meeting Done
+                        <i class="fa-solid fa-check"></i> Meeting Done
                     </a>
                     <a href="?action=cancel&id=<?php echo $m['id']; ?>" class="btn btn-sm" onclick="return confirm('Are you sure you want to cancel this meeting?')" style="background-color: var(--color-danger); color: white; font-weight: 600; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-xs); border: none; text-decoration: none;">
-                        ✗ Cancel Meeting
+                        <i class="fa-solid fa-xmark"></i> Cancel Meeting
                     </a>
                 <?php endif; ?>
             </div>
@@ -241,14 +241,14 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
         <?php endif; ?>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--text-sm); padding-top: var(--space-2); border-top: 1px dashed var(--color-border); margin-bottom: var(--space-3);">
-            <div>📅 <strong>Date:</strong> <?php echo formatDate($m['meeting_date']); ?></div>
-            <div>⏰ <strong>Time:</strong> <?php echo formatTime($m['start_time']); ?> - <?php echo formatTime($m['end_time']); ?></div>
+            <div><i class="fa-solid fa-calendar-days"></i> <strong>Date:</strong> <?php echo formatDate($m['meeting_date']); ?></div>
+            <div><i class="fa-solid fa-clock"></i> <strong>Time:</strong> <?php echo formatTime($m['start_time']); ?> - <?php echo formatTime($m['end_time']); ?></div>
         </div>
 
         <?php if ($m['meet_link'] && !$isHistory && $m['status'] === 'scheduled'): ?>
             <div style="margin-bottom: var(--space-3);">
                 <a href="<?php echo e($m['meet_link']); ?>" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: var(--space-2); background-color: #0f9d58; border-color: #0f9d58; font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-4);">
-                    📹 Join Google Meet
+                    <i class="fa-solid fa-video"></i> Join Google Meet
                 </a>
             </div>
         <?php endif; ?>
@@ -266,7 +266,7 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
                 <div style="display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1);">
                     <?php foreach ($m['participants'] as $p): ?>
                         <span class="badge badge-secondary" style="background-color: var(--color-bg-tertiary); color: var(--color-text); font-size: var(--text-xs); border: 1px solid var(--color-border);">
-                            👤 <?php echo $p['id'] === $userId ? 'You' : e($p['name']); ?> <span class="text-muted" style="font-size: 10px;">(<?php echo ucfirst($p['role']); ?>)</span>
+                            <i class="fa-solid fa-user"></i> <?php echo $p['id'] === $userId ? 'You' : e($p['name']); ?> <span class="text-muted" style="font-size: 10px;">(<?php echo ucfirst($p['role']); ?>)</span>
                         </span>
                     <?php endforeach; ?>
                 </div>
@@ -383,7 +383,7 @@ include __DIR__ . '/../includes/header.php';
             
             <?php if (empty($upcomingMeetings)): ?>
                 <div class="empty-state" style="padding: var(--space-6) 0;">
-                    <div class="empty-state-icon">📅</div>
+                    <div class="empty-state-icon"><i class="fa-solid fa-calendar-days"></i></div>
                     <div class="empty-state-title">No upcoming meetings scheduled</div>
                     <div class="empty-state-text">Your personal focus blocks and corporate meetings will appear here.</div>
                 </div>
@@ -404,7 +404,7 @@ include __DIR__ . '/../includes/header.php';
             
             <?php if (empty($pastMeetings)): ?>
                 <div class="empty-state" style="padding: var(--space-6) 0;">
-                    <div class="empty-state-icon">📜</div>
+                    <div class="empty-state-icon"><i class="fa-solid fa-scroll"></i></div>
                     <div class="empty-state-title">No past meeting records</div>
                     <div class="empty-state-text">History logs of finished calls will appear here.</div>
                 </div>

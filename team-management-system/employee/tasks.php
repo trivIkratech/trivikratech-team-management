@@ -68,7 +68,7 @@ include __DIR__ . '/../includes/header.php';
 <?php if (empty($tasks)): ?>
     <div class="card">
         <div class="empty-state">
-            <div class="empty-state-icon">🎉</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-circle-check"></i></div>
             <div class="empty-state-title">No tasks</div>
             <div class="empty-state-text">You don't have any tasks<?php echo $filterStatus ? ' with this status' : ''; ?> right now.</div>
         </div>
@@ -93,10 +93,10 @@ include __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
                     
                     <div class="task-meta" style="margin-top: var(--space-2);">
-                        <span>📅 Assigned: <?php echo formatDate($task['created_at']); ?></span>
+                        <span><i class="fa-solid fa-calendar-days"></i> Assigned: <?php echo formatDate($task['created_at']); ?></span>
                         <?php if ($task['deadline']): ?>
                             <span>•</span>
-                            <span>⏰ Due: <?php echo formatDate($task['deadline']); ?></span>
+                            <span><i class="fa-solid fa-clock"></i> Due: <?php echo formatDate($task['deadline']); ?></span>
                         <?php endif; ?>
                         <span>•</span>
                         <span>By: <?php echo e($task['assigned_by_name']); ?></span>
@@ -111,7 +111,7 @@ include __DIR__ . '/../includes/header.php';
                                value="<?php echo e($task['comments']); ?>" 
                                placeholder="Add a status update note..." 
                                style="padding: 4px 8px; font-size: var(--text-xs); flex: 1;">
-                        <button class="btn btn-sm btn-outline btn-save-comment" data-task-id="<?php echo $task['id']; ?>" style="padding: 4px 8px; font-size: var(--text-xs); white-space: nowrap;">✓ Save</button>
+                        <button class="btn btn-sm btn-outline btn-save-comment" data-task-id="<?php echo $task['id']; ?>" style="padding: 4px 8px; font-size: var(--text-xs); white-space: nowrap;"><i class="fa-solid fa-check"></i> Save</button>
                     </div>
                 </div>
                 

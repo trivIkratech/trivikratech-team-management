@@ -100,7 +100,7 @@ include __DIR__ . '/../includes/header.php';
 <!-- Stats Grid -->
 <div class="stats-grid">
     <div class="stat-card accent-blue fade-in stagger-1">
-        <div class="stat-icon bg-blue">👥</div>
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $totalEmployees; ?></div>
             <div class="stat-label">Total Employees</div>
@@ -108,7 +108,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-purple fade-in stagger-2">
-        <div class="stat-icon bg-purple">👔</div>
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-user-tie"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $totalManagers; ?></div>
             <div class="stat-label">Total Managers</div>
@@ -116,7 +116,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-green fade-in stagger-3">
-        <div class="stat-icon bg-green">✅</div>
+        <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $presentToday; ?></div>
             <div class="stat-label">Present Today</div>
@@ -124,7 +124,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-red fade-in stagger-4">
-        <div class="stat-icon bg-red">❌</div>
+        <div class="stat-icon bg-red"><i class="fa-solid fa-circle-xmark"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $absentToday; ?></div>
             <div class="stat-label">Absent Today</div>
@@ -132,7 +132,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-cyan fade-in stagger-5">
-        <div class="stat-icon bg-cyan">📋</div>
+        <div class="stat-icon bg-cyan"><i class="fa-solid fa-clipboard-user"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $totalTasks; ?></div>
             <div class="stat-label">Total Tasks</div>
@@ -140,7 +140,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-green fade-in stagger-6">
-        <div class="stat-icon bg-green">🎯</div>
+        <div class="stat-icon bg-green"><i class="fa-solid fa-bullseye"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $completedTasks; ?></div>
             <div class="stat-label">Completed Tasks</div>
@@ -148,7 +148,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-yellow fade-in stagger-7">
-        <div class="stat-icon bg-yellow">⏳</div>
+        <div class="stat-icon bg-yellow"><i class="fa-solid fa-hourglass-half"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $pendingTasks; ?></div>
             <div class="stat-label">Pending Tasks</div>
@@ -156,7 +156,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-red fade-in stagger-8">
-        <div class="stat-icon bg-red">🔥</div>
+        <div class="stat-icon bg-red"><i class="fa-solid fa-fire"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $overdueTasks; ?></div>
             <div class="stat-label">Overdue Tasks</div>
@@ -164,7 +164,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-purple fade-in stagger-9" onclick="window.location.href='<?php echo BASE_URL; ?>/founder/tickets.php'" style="cursor: pointer;">
-        <div class="stat-icon bg-purple">🎟️</div>
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-headset"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $pendingTickets; ?></div>
             <div class="stat-label">Pending Tickets</div>
@@ -172,7 +172,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="stat-card accent-purple fade-in stagger-10" onclick="window.location.href='<?php echo BASE_URL; ?>/founder/leaves.php'" style="cursor: pointer;">
-        <div class="stat-icon bg-purple">🌴</div>
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-umbrella-beach"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $pendingLeaves; ?></div>
             <div class="stat-label">Pending Leaves</div>
@@ -190,7 +190,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($recentAttendance)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">📋</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
                 <div class="empty-state-title">No attendance recorded</div>
                 <div class="empty-state-text">No one has checked in today yet.</div>
             </div>
@@ -198,7 +198,7 @@ include __DIR__ . '/../includes/header.php';
             <div class="activity-list">
                 <?php foreach ($recentAttendance as $record): ?>
                     <div class="activity-item">
-                        <div class="activity-icon bg-green">✓</div>
+                        <div class="activity-icon bg-green"><i class="fa-solid fa-check"></i></div>
                         <div class="activity-text">
                             <strong><?php echo e($record['name']); ?></strong> checked in at <?php echo formatTime($record['check_in']); ?>
                             <?php if ($record['check_out']): ?>
@@ -219,7 +219,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($recentTasks)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">✅</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-circle-check"></i></div>
                 <div class="empty-state-title">No tasks yet</div>
                 <div class="empty-state-text">Tasks will appear here once created.</div>
             </div>

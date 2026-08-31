@@ -171,10 +171,10 @@ include __DIR__ . '/../includes/header.php';
         <div style="display: flex; flex-direction: column; gap: var(--space-4);">
             <p class="text-muted" style="font-size: var(--text-sm);">Access standard legal documentation and company rules.</p>
             <a href="https://yourdomain.com/privacy-policy" target="_blank" class="btn btn-outline" style="justify-content: flex-start;">
-                🛡️ Privacy & Policy
+                <i class="fa-solid fa-shield-halved"></i> Privacy & Policy
             </a>
             <a href="https://yourdomain.com/terms-conditions" target="_blank" class="btn btn-outline" style="justify-content: flex-start;">
-                📄 Terms & Conditions
+                <i class="fa-solid fa-file-lines"></i> Terms & Conditions
             </a>
         </div>
     </div>
@@ -187,7 +187,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <?php if (empty($myTickets)): ?>
         <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
+            <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
             <div class="empty-state-title">No requests raised yet</div>
             <div class="empty-state-text">All support tickets you submit will appear here.</div>
         </div>
@@ -219,16 +219,16 @@ include __DIR__ . '/../includes/header.php';
                             <td><?php echo formatDateTime($ticket['created_at']); ?></td>
                             <td>
                                 <?php if ($ticket['is_anonymous']): ?>
-                                    <span class="badge badge-purple">🎭 Anonymous</span>
+                                    <span class="badge badge-purple"><i class="fa-solid fa-mask"></i> Anonymous</span>
                                 <?php else: ?>
-                                    <span class="badge badge-info">👤 Standard</span>
+                                    <span class="badge badge-info"><i class="fa-solid fa-user"></i> Standard</span>
                                 <?php endif; ?>
                             </td>
                             <td>
                                 <?php if ($ticket['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning">⏳ Pending</span>
+                                    <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
                                 <?php else: ?>
-                                    <span class="badge badge-success">✅ Resolved</span>
+                                    <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Resolved</span>
                                 <?php endif; ?>
                             </td>
                             <td style="max-width: 250px;" class="truncate" title="<?php echo e($ticket['description']); ?>">

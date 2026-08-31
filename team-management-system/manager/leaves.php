@@ -152,8 +152,8 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- Tabs Navigation -->
 <div class="flex gap-4 mb-6">
-    <button class="btn btn-primary" onclick="switchTab('team-leaves-tab')">👥 Team Leave Requests</button>
-    <button class="btn btn-outline" onclick="switchTab('my-leaves-tab')">🌴 Apply / My Leaves</button>
+    <button class="btn btn-primary" onclick="switchTab('team-leaves-tab')"><i class="fa-solid fa-users"></i> Team Leave Requests</button>
+    <button class="btn btn-outline" onclick="switchTab('my-leaves-tab')"><i class="fa-solid fa-umbrella-beach"></i> Apply / My Leaves</button>
 </div>
 
 <!-- Section A: Team Leave Requests (Default active) -->
@@ -164,7 +164,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($teamLeaves)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">👥</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
                 <div class="empty-state-title">No requests found</div>
                 <div class="empty-state-text">Your team members have not submitted any leaves.</div>
             </div>
@@ -206,18 +206,18 @@ include __DIR__ . '/../includes/header.php';
                                 <td style="max-width: 200px;" class="truncate" title="<?php echo e($leave['reason']); ?>"><?php echo e($leave['reason']); ?></td>
                                 <td>
                                     <?php if ($leave['prescription_doc']): ?>
-                                        <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline">👁️ View Doc</a>
+                                        <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline"><i class="fa-solid fa-eye"></i> View Doc</a>
                                     <?php else: ?>
                                         <span class="text-muted">—</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if ($leave['status'] === 'pending'): ?>
-                                        <span class="badge badge-warning">⏳ Pending</span>
+                                        <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
                                     <?php elseif ($leave['status'] === 'approved'): ?>
-                                        <span class="badge badge-success">✅ Approved</span>
+                                        <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
                                     <?php else: ?>
-                                        <span class="badge badge-danger">❌ Denied</span>
+                                        <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -296,7 +296,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <?php if (empty($myLeaves)): ?>
                 <div class="empty-state">
-                    <div class="empty-state-icon">🌴</div>
+                    <div class="empty-state-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
                     <div class="empty-state-text">No leaves applied yet.</div>
                 </div>
             <?php else: ?>
@@ -306,11 +306,11 @@ include __DIR__ . '/../includes/header.php';
                             <div class="flex-between mb-2">
                                 <span class="badge badge-info"><?php echo ucfirst($own['leave_type']); ?></span>
                                 <?php if ($own['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning">⏳ Pending</span>
+                                    <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
                                 <?php elseif ($own['status'] === 'approved'): ?>
-                                    <span class="badge badge-success">✅ Approved</span>
+                                    <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
                                 <?php else: ?>
-                                    <span class="badge badge-danger">❌ Denied</span>
+                                    <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
                                 <?php endif; ?>
                             </div>
                             <div style="font-size: var(--text-sm); font-weight: 500;">

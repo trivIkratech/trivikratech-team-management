@@ -221,9 +221,9 @@ include __DIR__ . '/../includes/header.php';
     <div>
         <?php if ($action === 'list'): ?>
             <div style="display: flex; gap: var(--space-2);">
-                <a href="?action=add&role=employee" class="btn btn-primary">➕ Add Employee</a>
-                <a href="?action=add&role=manager" class="btn btn-secondary">➕ Add Manager</a>
-                <a href="?action=add&role=hr" class="btn btn-outline">➕ Add HR</a>
+                <a href="?action=add&role=employee" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Employee</a>
+                <a href="?action=add&role=manager" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> Add Manager</a>
+                <a href="?action=add&role=hr" class="btn btn-outline"><i class="fa-solid fa-plus"></i> Add HR</a>
             </div>
         <?php else: ?>
             <a href="<?php echo BASE_URL; ?>/founder/user-management.php" class="btn btn-secondary">Back to Users List</a>
@@ -463,12 +463,12 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo formatDate($user['created_at']); ?></td>
                         <td style="text-align: right;">
                             <div class="table-actions" style="display: inline-flex; gap: var(--space-1);">
-                                <a href="?action=edit&id=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Edit">✏️</a>
+                                <a href="?action=edit&id=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
                                 <?php if ($user['role'] !== 'founder'): ?>
                                     <a href="?toggle=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Toggle Status">
-                                        <?php echo $user['status'] === 'active' ? '🔒' : '🔓'; ?>
+                                        <?php echo $user['status'] === 'active' ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>'; ?>
                                     </a>
-                                    <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this user permanently? This will also delete their attendance and task records." title="Delete">🗑️</a>
+                                    <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this user permanently? This will also delete their attendance and task records." title="Delete"><i class="fa-solid fa-trash-can"></i></a>
                                 <?php endif; ?>
                             </div>
                         </td>

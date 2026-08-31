@@ -90,28 +90,28 @@ include __DIR__ . '/../includes/header.php';
 <!-- Summary Stats -->
 <div class="stats-grid">
     <div class="stat-card accent-green fade-in stagger-1">
-        <div class="stat-icon bg-green">📊</div>
+        <div class="stat-icon bg-green"><i class="fa-solid fa-chart-pie"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $completionRate; ?>%</div>
             <div class="stat-label">Task Completion Rate</div>
         </div>
     </div>
     <div class="stat-card accent-blue fade-in stagger-2">
-        <div class="stat-icon bg-blue">👥</div>
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $totalStaff; ?></div>
             <div class="stat-label">Active Staff</div>
         </div>
     </div>
     <div class="stat-card accent-purple fade-in stagger-3">
-        <div class="stat-icon bg-purple">📈</div>
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-chart-line"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $monthlyAttendanceRate; ?>%</div>
             <div class="stat-label">Monthly Attendance Rate</div>
         </div>
     </div>
     <div class="stat-card accent-cyan fade-in stagger-4">
-        <div class="stat-icon bg-cyan">✅</div>
+        <div class="stat-icon bg-cyan"><i class="fa-solid fa-circle-check"></i></div>
         <div class="stat-content">
             <div class="stat-value"><?php echo $taskStats['total']; ?></div>
             <div class="stat-label">Total Tasks Created</div>
@@ -163,7 +163,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($weeklyAttendance)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">📋</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-clipboard-user"></i></div>
                 <div class="empty-state-text">No data for this week yet.</div>
             </div>
         <?php else: ?>
@@ -190,7 +190,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($topPerformers)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">🏆</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-trophy"></i></div>
                 <div class="empty-state-text">No completed tasks yet.</div>
             </div>
         <?php else: ?>
@@ -218,7 +218,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <?php if (empty($overdueByUser)): ?>
             <div class="empty-state">
-                <div class="empty-state-icon">🎉</div>
+                <div class="empty-state-icon"><i class="fa-solid fa-circle-check"></i></div>
                 <div class="empty-state-title">All clear!</div>
                 <div class="empty-state-text">No overdue tasks.</div>
             </div>
