@@ -83,10 +83,34 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
                                     </div>
                                 <?php else: ?>
                                     <?php foreach ($unreadNotifs as $n): ?>
-                                        <div style="padding: 12px 16px; border-bottom: 1px solid var(--color-border); font-size: 12px; cursor: pointer; background: <?php echo $n['is_read'] ? 'transparent' : 'rgba(79, 110, 247, 0.08)'; ?>;" onclick="markNotifRead(<?php echo $n['id']; ?>, '<?php echo e($n['link'] ?: ''); ?>')">
-                                            <div style="font-weight: 600; color: var(--color-text-main); margin-bottom: 2px;"><?php echo e($n['title']); ?></div>
-                                            <div style="color: var(--color-text-secondary); margin-bottom: 4px;"><?php echo e($n['message']); ?></div>
-                                            <small style="color: var(--color-text-muted); font-size: 10px;"><?php echo timeAgo($n['created_at']); ?></small>
+                                        <?php
+                                        $rawTitle = $n['title'];
+                                        $iconClass = 'fa-solid fa-bell';
+                                        if (preg_match('/class=["\']([^"\']+)["\']/', $rawTitle, $matches)) {
+                                            $iconClass = $matches[1];
+                                        } elseif (stripos($rawTitle, 'message') !== false || stripos($rawTitle, 'chat') !== false) {
+                                            $iconClass = 'fa-solid fa-comments';
+                                        } elseif (stripos($rawTitle, 'task') !== false) {
+                                            $iconClass = 'fa-solid fa-list-check';
+                                        } elseif (stripos($rawTitle, 'ticket') !== false || stripos($rawTitle, 'support') !== false) {
+                                            $iconClass = 'fa-solid fa-headset';
+                                        } elseif (stripos($rawTitle, 'meeting') !== false) {
+                                            $iconClass = 'fa-solid fa-video';
+                                        } elseif (stripos($rawTitle, 'leave') !== false) {
+                                            $iconClass = 'fa-solid fa-calendar-minus';
+                                        }
+                                        $cleanTitle = trim(strip_tags($rawTitle));
+                                        $cleanMessage = trim(strip_tags($n['message']));
+                                        ?>
+                                        <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); font-size: 12px; cursor: pointer; background: <?php echo $n['is_read'] ? 'transparent' : 'rgba(79, 110, 247, 0.08)'; ?>; transition: background 0.15s ease;" onclick="markNotifRead(<?php echo $n['id']; ?>, '<?php echo e($n['link'] ?: ''); ?>')">
+                                            <div style="width: 30px; height: 30px; border-radius: 50%; background: rgba(59, 130, 246, 0.15); color: var(--color-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+                                                <i class="<?php echo e($iconClass); ?>" style="font-size: 13px;"></i>
+                                            </div>
+                                            <div style="flex: 1; min-width: 0;">
+                                                <div style="font-weight: 600; color: var(--color-text-main); margin-bottom: 2px; line-height: 1.3;"><?php echo e($cleanTitle); ?></div>
+                                                <div style="color: var(--color-text-secondary); margin-bottom: 4px; line-height: 1.3; font-size: 11px;"><?php echo e($cleanMessage); ?></div>
+                                                <small style="color: var(--color-text-muted); font-size: 10px;"><?php echo timeAgo($n['created_at']); ?></small>
+                                            </div>
                                         </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>

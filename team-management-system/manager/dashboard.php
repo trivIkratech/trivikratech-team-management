@@ -53,27 +53,29 @@ $presentToday = $stmt->fetchColumn();
 
 $absentToday = max(0, $totalEmployees - $presentToday);
 
-// Task stats (tasks assigned to me OR assigned by me)
+// Task stats (tasks assigned to me OR assigned by me OR assigned to my team members)
 $stmt = $db->prepare("SELECT 
     COUNT(*) AS total,
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
     SUM(CASE WHEN status IN ('todo','in_progress') THEN 1 ELSE 0 END) AS pending,
     SUM(CASE WHEN status != 'completed' AND deadline IS NOT NULL AND deadline < ? THEN 1 ELSE 0 END) AS overdue
-    FROM tasks WHERE assigned_to = ? OR assigned_by = ?
+    FROM tasks 
+    WHERE assigned_to = ? OR assigned_by = ? OR assigned_to IN (SELECT id FROM users WHERE manager_id = ?)
 ");
-$stmt->execute([$today, $managerId, $managerId]);
+$stmt->execute([$today, $managerId, $managerId, $managerId]);
 $taskStats = $stmt->fetch();
 
 // Recent tasks
 $stmt = $db->prepare("
-    SELECT t.*, u.name AS assigned_to_name
+    SELECT t.*, u1.name AS assigned_to_name, u2.name AS assigned_by_name, u2.role AS assigned_by_role
     FROM tasks t 
-    JOIN users u ON t.assigned_to = u.id 
-    WHERE t.assigned_to = ? OR t.assigned_by = ? 
+    JOIN users u1 ON t.assigned_to = u1.id 
+    JOIN users u2 ON t.assigned_by = u2.id
+    WHERE t.assigned_to = ? OR t.assigned_by = ? OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = ?)
     ORDER BY t.updated_at DESC 
     LIMIT 5
 ");
-$stmt->execute([$managerId, $managerId]);
+$stmt->execute([$managerId, $managerId, $managerId]);
 $recentTasks = $stmt->fetchAll();
 
 // Today's attendance for my team
@@ -343,12 +345,25 @@ include __DIR__ . '/../includes/header.php';
                         <div class="task-info">
                             <div class="task-title"><?php echo e($t['title']); ?></div>
                             <div class="task-meta">
-                                <span>Assigned to: <?php echo e($t['assigned_to_name']); ?></span>
+                                <span>Assigned to: <strong><?php echo e($t['assigned_to_name']); ?></strong></span>
+                                <span>•</span>
+                                <span>By: <?php echo e($t['assigned_by_name']); ?><?php if ($t['assigned_by_role'] === 'founder'): ?> <strong style="color: var(--color-primary);">(Founder)</strong><?php endif; ?></span>
                                 <span>•</span>
                                 <span>Due: <?php echo formatDate($t['deadline']); ?></span>
                             </div>
+                            <?php if (!empty($t['comments'])): ?>
+                                <div style="font-size: 11px; color: var(--color-text-secondary); margin-top: 4px; display: flex; align-items: center; gap: 5px;">
+                                    <i class="fa-solid fa-comment-dots" style="color: var(--color-primary);"></i>
+                                    <span><strong>Note:</strong> <?php echo e(mb_strimwidth($t['comments'], 0, 70, '...')); ?></span>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <span class="badge <?php echo taskStatusBadge($t['status']); ?>"><?php echo taskStatusLabel($t['status']); ?></span>
+                        <div class="task-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                            <span class="badge <?php echo taskStatusBadge($t['status']); ?>"><?php echo taskStatusLabel($t['status']); ?></span>
+                            <?php if ($t['status'] === 'completed' && !empty($t['completed_at'])): ?>
+                                <span style="font-size: 10px; color: var(--color-text-muted);"><i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Done</span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>

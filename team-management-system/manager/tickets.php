@@ -62,13 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'create_ticket')
             if (in_array('hr', $cleanTargets)) {
                 $hrUsers = $db->query("SELECT id FROM users WHERE role = 'hr'")->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($hrUsers as $hId) {
-                    createNotification($hId, '<i class="fa-solid fa-headset"></i> Manager Support Ticket', 'Manager submitted a support ticket: ' . $category, BASE_URL . '/hr/support.php', 'info');
+                    createNotification($hId, 'Manager Support Ticket', 'Manager submitted a support ticket: ' . $category, BASE_URL . '/hr/support.php', 'info');
                 }
             }
             if (in_array('founder', $cleanTargets)) {
                 $founderUsers = $db->query("SELECT id FROM users WHERE role = 'founder'")->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($founderUsers as $fId) {
-                    createNotification($fId, '<i class="fa-solid fa-headset"></i> Executive Ticket from Manager', 'Manager submitted a ticket to Founder.', BASE_URL . '/founder/tickets.php', 'info');
+                    createNotification($fId, 'Executive Ticket from Manager', 'Manager submitted a ticket to Founder.', BASE_URL . '/founder/tickets.php', 'info');
                 }
             }
             
@@ -100,7 +100,7 @@ if (isset($_GET['resolve']) && is_numeric($_GET['resolve'])) {
             $updateStmt->execute([$ticketId]);
             
             // Notify ticket creator
-            createNotification($ticket['user_id'], '<i class="fa-solid fa-circle-check"></i> Support Ticket Resolved', 'Your support ticket (' . $ticket['category'] . ') was resolved by Manager.', BASE_URL . '/employee/support.php', 'success');
+            createNotification($ticket['user_id'], 'Support Ticket Resolved', 'Your support ticket (' . $ticket['category'] . ') was resolved by Manager.', BASE_URL . '/employee/support.php', 'success');
             
             setFlash('success', 'Ticket marked as resolved.');
         } else {

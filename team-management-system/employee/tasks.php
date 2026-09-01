@@ -77,7 +77,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="task-list">
         <?php foreach ($tasks as $task): ?>
             <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
-            <div class="task-item priority-<?php echo e($task['priority']); ?> fade-in">
+            <div class="task-item priority-<?php echo e($task['priority']); ?> fade-in" data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>">
                 <div class="task-info" style="flex: 1;">
                     <div class="task-title" style="font-size: var(--text-base);">
                         <?php echo e($task['title']); ?>
@@ -109,29 +109,27 @@ include __DIR__ . '/../includes/header.php';
                         <input type="text" class="form-input task-comment-input" 
                                data-task-id="<?php echo $task['id']; ?>" 
                                value="<?php echo e($task['comments']); ?>" 
-                               placeholder="Add a status update note..." 
+                               placeholder="Add a status update or completion note..." 
                                style="padding: 4px 8px; font-size: var(--text-xs); flex: 1;">
                         <button class="btn btn-sm btn-outline btn-save-comment" data-task-id="<?php echo $task['id']; ?>" style="padding: 4px 8px; font-size: var(--text-xs); white-space: nowrap;"><i class="fa-solid fa-check"></i> Save</button>
                     </div>
                 </div>
                 
-                <div class="task-actions" style="flex-direction: column; align-items: flex-end; gap: var(--space-3);">
+                <div class="task-actions" style="flex-direction: column; align-items: flex-end; gap: var(--space-2);">
                     <span class="badge task-status-badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
                     
-                    <?php if ($task['status'] !== 'completed'): ?>
-                        <select class="form-select task-status-select" 
-                                data-task-id="<?php echo $task['id']; ?>" 
-                                data-original-value="<?php echo e($task['status']); ?>"
-                                style="width: auto; padding: 4px 28px 4px 8px; font-size: var(--text-xs);">
-                            <option value="todo" <?php echo $task['status'] === 'todo' ? 'selected' : ''; ?>>To Do</option>
-                            <option value="in_progress" <?php echo $task['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-                            <option value="completed" <?php echo $task['status'] === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        </select>
-                    <?php else: ?>
-                        <span style="font-size: var(--text-xs); color: var(--color-text-muted);">
-                            Done: <?php echo formatDate($task['completed_at']); ?>
-                        </span>
-                    <?php endif; ?>
+                    <div class="task-completed-at" style="font-size: var(--text-xs); color: var(--color-text-muted); <?php echo ($task['status'] === 'completed' && $task['completed_at']) ? '' : 'display: none;'; ?>">
+                        <i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Done: <?php echo $task['completed_at'] ? formatDate($task['completed_at']) : ''; ?>
+                    </div>
+                    
+                    <select class="form-select task-status-select" 
+                            data-task-id="<?php echo $task['id']; ?>" 
+                            data-original-value="<?php echo e($task['status']); ?>"
+                            style="width: auto; padding: 4px 28px 4px 8px; font-size: var(--text-xs);">
+                        <option value="todo" <?php echo $task['status'] === 'todo' ? 'selected' : ''; ?>>To Do</option>
+                        <option value="in_progress" <?php echo $task['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="completed" <?php echo $task['status'] === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                    </select>
                 </div>
             </div>
         <?php endforeach; ?>

@@ -405,13 +405,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const newStatus = this.value;
             const originalValue = this.dataset.originalValue;
 
+            const container = this.closest('.task-item, tr');
+            const commentInput = container ? container.querySelector('.task-comment-input') : null;
+            const commentText = commentInput ? commentInput.value : undefined;
+
             const csrfToken = document.querySelector('meta[name="csrf-token"]');
             const token = csrfToken ? csrfToken.content : '';
+
+            const payload = { 
+                action: 'update_status', 
+                task_id: taskId, 
+                status: newStatus, 
+                csrf_token: token 
+            };
+            if (commentText !== undefined) {
+                payload.comments = commentText;
+            }
 
             ajaxRequest(
                 window.BASE_URL + '/api/tasks.php',
                 'POST',
-                { action: 'update_status', task_id: taskId, status: newStatus, csrf_token: token },
+                payload,
                 function(error, response) {
                     if (error) {
                         showToast(error, 'error');
@@ -422,11 +436,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (response.success) {
                         showToast(response.message, 'success');
                         select.dataset.originalValue = newStatus;
-                        // Update badge if present
-                        const badge = select.closest('.task-item, tr')?.querySelector('.task-status-badge');
-                        if (badge && response.badge_class) {
-                            badge.className = 'badge task-status-badge ' + response.badge_class;
-                            badge.textContent = response.status_label;
+                        
+                        // Update status badge if present
+                        if (container) {
+                            container.dataset.status = newStatus;
+                            const badge = container.querySelector('.task-status-badge');
+                            if (badge && response.badge_class) {
+                                badge.className = 'badge task-status-badge ' + response.badge_class;
+                                badge.textContent = response.status_label;
+                            }
+                            
+                            // Update completion text if element exists
+                            const doneElem = container.querySelector('.task-completed-at');
+                            if (doneElem) {
+                                if (response.completed_at_formatted) {
+                                    doneElem.textContent = 'Done: ' + response.completed_at_formatted;
+                                    doneElem.style.display = 'inline-block';
+                                } else {
+                                    doneElem.style.display = 'none';
+                                }
+                            }
                         }
                     } else {
                         showToast(response.message, 'error');
@@ -438,30 +467,47 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =============================================
-    // Save Task Comment
+    // Save Task Comment / Status Note
     // =============================================
     document.querySelectorAll('.btn-save-comment').forEach(btn => {
         btn.addEventListener('click', function() {
             const taskId = this.dataset.taskId;
-            const commentInput = this.closest('.task-item, tr')?.querySelector('.task-comment-input');
+            const container = this.closest('.task-item, tr');
+            const commentInput = container ? container.querySelector('.task-comment-input') : null;
             const newComment = commentInput ? commentInput.value : '';
-            const statusSelect = this.closest('.task-item, tr')?.querySelector('.task-status-select');
-            const currentStatus = statusSelect ? statusSelect.value : 'todo';
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]');
             const token = csrfToken ? csrfToken.content : '';
 
+            const origHtml = this.innerHTML;
+            this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            this.disabled = true;
+
             ajaxRequest(
                 window.BASE_URL + '/api/tasks.php',
                 'POST',
-                { action: 'update_status', task_id: taskId, status: currentStatus, comments: newComment, csrf_token: token },
-                function(error, response) {
+                { action: 'save_comment', task_id: taskId, comments: newComment, csrf_token: token },
+                (error, response) => {
+                    this.disabled = false;
+                    this.innerHTML = origHtml;
+
                     if (error) {
                         showToast(error, 'error');
                         return;
                     }
                     if (response.success) {
-                        showToast('Task comment saved successfully', 'success');
+                        showToast(response.message || 'Task note saved successfully', 'success');
+                        // Update display preview if present
+                        if (container) {
+                            const preview = container.querySelector('.task-comment-preview-text');
+                            if (preview) {
+                                preview.textContent = newComment;
+                                const previewBox = container.querySelector('.task-comment-display');
+                                if (previewBox) {
+                                    previewBox.style.display = newComment.trim() ? 'block' : 'none';
+                                }
+                            }
+                        }
                     } else {
                         showToast(response.message, 'error');
                     }

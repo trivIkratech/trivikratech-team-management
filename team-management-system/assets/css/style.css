@@ -109,6 +109,7 @@ html:not([data-theme="light"]), [data-theme="dark"] {
 }
 
 [data-theme="light"] .card, 
+[data-theme="light"] .table-container,
 [data-theme="light"] .data-table-container,
 [data-theme="light"] .login-card,
 [data-theme="light"] .chat-app-container,
@@ -157,6 +158,10 @@ html:not([data-theme="light"]), [data-theme="dark"] {
 
 [data-theme="light"] table.data-table tr:hover {
     background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .table-user-name {
+    color: #0f172a !important;
 }
 
 [data-theme="light"] h1, 

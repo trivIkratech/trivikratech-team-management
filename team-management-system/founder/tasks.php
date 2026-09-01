@@ -64,13 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task'
     $priority = post('priority');
     $deadline = post('deadline');
     $status = post('status');
+    $comments = post('comments');
     
     if (empty($title) || empty($assignedTo)) {
         setFlash('error', 'Task title and assignee are required.');
     } else {
         $completedAt = ($status === 'completed') ? date('Y-m-d H:i:s') : null;
-        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, deadline=?, status=?, completed_at=?, updated_at=NOW() WHERE id=?");
-        $stmt->execute([$title, $description, $assignedTo, $priority, $deadline ?: null, $status, $completedAt, $taskId]);
+        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, deadline=?, status=?, comments=?, completed_at=?, updated_at=NOW() WHERE id=?");
+        $stmt->execute([$title, $description, $assignedTo, $priority, $deadline ?: null, $status, $comments, $completedAt, $taskId]);
         setFlash('success', 'Task updated successfully.');
         header('Location: ' . BASE_URL . '/founder/tasks.php');
         exit;
@@ -184,37 +185,54 @@ include __DIR__ . '/../includes/header.php';
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Task</th>
-                    <th>Assigned To</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Deadline</th>
-                    <th>Actions</th>
+                    <th style="width: 38%;">Task</th>
+                    <th style="width: 18%;">Assigned To</th>
+                    <th style="width: 12%;">Priority</th>
+                    <th style="width: 14%;">Status</th>
+                    <th style="width: 10%;">Deadline</th>
+                    <th style="width: 8%; text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($tasks as $task): ?>
                     <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
-                    <tr>
+                    <tr data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>">
                         <td>
-                            <div class="table-user-name"><?php echo e($task['title']); ?></div>
-                            <div class="table-user-email">by <?php echo e($task['assigned_by_name']); ?> • <?php echo formatDate($task['created_at']); ?></div>
+                            <div class="table-user-name" style="font-weight: 600;"><?php echo e($task['title']); ?></div>
+                            <div class="table-user-email" style="margin-top: 2px;">by <?php echo e($task['assigned_by_name']); ?> • <?php echo formatDate($task['created_at']); ?></div>
+                            <?php if ($task['description']): ?>
+                                <div style="font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 4px; line-height: 1.4;">
+                                    <?php echo e($task['description']); ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <!-- Status Note / Comment Display -->
+                            <div class="task-comment-display" style="<?php echo empty($task['comments']) ? 'display: none;' : ''; ?> margin-top: 8px; font-size: var(--text-xs); line-height: 1.4; color: var(--color-text-secondary); background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--color-primary); padding: 6px 10px; border-radius: 4px; display: <?php echo !empty($task['comments']) ? 'block' : 'none'; ?>; max-width: 480px; word-break: break-word;">
+                                <div style="display: flex; align-items: flex-start; gap: 6px;">
+                                    <i class="fa-solid fa-comment-dots" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+                                    <span><strong>Note:</strong> <span class="task-comment-preview-text"><?php echo e($task['comments']); ?></span></span>
+                                </div>
+                            </div>
                         </td>
                         <td>
-                            <div><?php echo e($task['assigned_to_name']); ?></div>
+                            <div style="font-weight: 500;"><?php echo e($task['assigned_to_name']); ?></div>
                             <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($task['assigned_to_designation'] ?: '—'); ?></small>
                         </td>
                         <td><span class="badge <?php echo priorityBadge($task['priority']); ?>"><?php echo priorityLabel($task['priority']); ?></span></td>
                         <td>
                             <?php if ($overdue): ?>
-                                <span class="badge badge-overdue">Overdue</span>
+                                <span class="badge badge-overdue task-status-badge">Overdue</span>
                             <?php else: ?>
-                                <span class="badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
+                                <span class="badge task-status-badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
                             <?php endif; ?>
+                            
+                            <div class="task-completed-at" style="font-size: 11px; color: var(--color-text-muted); margin-top: 4px; <?php echo ($task['status'] === 'completed' && $task['completed_at']) ? '' : 'display: none;'; ?>">
+                                <i class="fa-solid fa-circle-check" style="color: var(--color-success); font-size: 10px;"></i> Done: <?php echo $task['completed_at'] ? formatDate($task['completed_at']) : ''; ?>
+                            </div>
                         </td>
-                        <td><?php echo formatDate($task['deadline']); ?></td>
-                        <td>
-                            <div class="table-actions">
+                        <td style="white-space: nowrap;"><?php echo formatDate($task['deadline']); ?></td>
+                        <td style="text-align: right;">
+                            <div class="table-actions" style="justify-content: flex-end;">
                                 <a href="<?php echo BASE_URL; ?>/founder/tasks.php?edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
                                 <a href="<?php echo BASE_URL; ?>/founder/tasks.php?delete=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this task permanently?" title="Delete"><i class="fa-solid fa-trash-can"></i></a>
                             </div>
@@ -346,6 +364,11 @@ include __DIR__ . '/../includes/header.php';
                         <label class="form-label">Deadline</label>
                         <input type="date" name="deadline" class="form-input" value="<?php echo e($editTask['deadline']); ?>">
                     </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Status Notes / Employee Comments</label>
+                    <textarea name="comments" class="form-textarea" rows="3" placeholder="Add or update status note / comments..."><?php echo e($editTask['comments']); ?></textarea>
                 </div>
             </div>
             <div class="modal-footer">

@@ -75,7 +75,7 @@ $recentAttendance = $stmt->fetchAll();
 
 // Recent tasks (created or updated)
 $stmt = $db->query("
-    SELECT t.title, t.status, t.priority, t.created_at, 
+    SELECT t.id, t.title, t.status, t.priority, t.comments, t.completed_at, t.created_at, 
            u1.name AS assigned_to_name, u2.name AS assigned_by_name
     FROM tasks t 
     JOIN users u1 ON t.assigned_to = u1.id 
@@ -234,9 +234,18 @@ include __DIR__ . '/../includes/header.php';
                                 <span>•</span>
                                 <span><?php echo timeAgo($task['created_at']); ?></span>
                             </div>
+                            <?php if (!empty($task['comments'])): ?>
+                                <div style="font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 4px; display: flex; align-items: center; gap: 5px;">
+                                    <i class="fa-solid fa-comment-dots" style="color: var(--color-primary);"></i>
+                                    <span><strong>Note:</strong> <?php echo e(mb_strimwidth($task['comments'], 0, 70, '...')); ?></span>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <div class="task-actions">
+                        <div class="task-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                             <span class="badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
+                            <?php if ($task['status'] === 'completed' && $task['completed_at']): ?>
+                                <span style="font-size: 10px; color: var(--color-text-muted);"><i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Done</span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>

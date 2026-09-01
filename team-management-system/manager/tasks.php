@@ -75,17 +75,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task'
     $priority = post('priority');
     $deadline = post('deadline');
     $status = post('status');
+    $comments = post('comments');
     
-    // Verify task belongs to this manager
-    $stmt = $db->prepare("SELECT id FROM tasks WHERE id = ? AND assigned_by = ?");
-    $stmt->execute([$taskId, $managerId]);
+    // Verify task belongs to this manager or is assigned to an employee under this manager
+    $stmt = $db->prepare("
+        SELECT id FROM tasks 
+        WHERE id = ? AND (assigned_by = ? OR assigned_to IN (SELECT id FROM users WHERE manager_id = ?))
+    ");
+    $stmt->execute([$taskId, $managerId, $managerId]);
     
     if (!$stmt->fetch() || empty($title)) {
-        setFlash('error', 'Invalid request.');
+        setFlash('error', 'Invalid request or permission denied.');
     } else {
         $completedAt = ($status === 'completed') ? date('Y-m-d H:i:s') : null;
-        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, deadline=?, status=?, completed_at=?, updated_at=NOW() WHERE id=? AND assigned_by=?");
-        $stmt->execute([$title, $description, $assignedTo, $priority, $deadline ?: null, $status, $completedAt, $taskId, $managerId]);
+        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, deadline=?, status=?, comments=?, completed_at=?, updated_at=NOW() WHERE id=?");
+        $stmt->execute([$title, $description, $assignedTo, $priority, $deadline ?: null, $status, $comments, $completedAt, $taskId]);
         setFlash('success', 'Task updated.');
         header('Location: ' . BASE_URL . '/manager/tasks.php');
         exit;
@@ -97,9 +101,14 @@ $countAssignedToStmt = $db->prepare("SELECT COUNT(*) FROM tasks WHERE assigned_t
 $countAssignedToStmt->execute([$managerId]);
 $countAssignedTo = $countAssignedToStmt->fetchColumn();
 
-$countAssignedByStmt = $db->prepare("SELECT COUNT(*) FROM tasks WHERE assigned_by = ?");
-$countAssignedByStmt->execute([$managerId]);
-$countAssignedBy = $countAssignedByStmt->fetchColumn();
+// Count team tasks (assigned to team members by anyone including Founder, or assigned by manager)
+$countTeamTasksStmt = $db->prepare("
+    SELECT COUNT(*) FROM tasks t 
+    WHERE (t.assigned_by = ? OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = ?))
+      AND t.assigned_to != ?
+");
+$countTeamTasksStmt->execute([$managerId, $managerId, $managerId]);
+$countTeamTasks = $countTeamTasksStmt->fetchColumn();
 
 // Active tab ('assigned_to' or 'assigned_by')
 $activeTab = get('tab');
@@ -140,9 +149,12 @@ if ($activeTab === 'assigned_to') {
     $stmt->execute($params);
     $tasks = $stmt->fetchAll();
 } else {
-    // Tasks assigned BY the manager (to team members)
-    $where = ["t.assigned_by = ?"];
-    $params = [$managerId];
+    // Team Tasks: Assigned to my team members (by Founder or Manager) OR assigned by Manager
+    $where = [
+        "(t.assigned_by = ? OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = ?))",
+        "t.assigned_to != ?"
+    ];
+    $params = [$managerId, $managerId, $managerId];
 
     if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
     if ($filterAssignee) { $where[] = "t.assigned_to = ?"; $params[] = (int)$filterAssignee; }
@@ -155,9 +167,11 @@ if ($activeTab === 'assigned_to') {
     $pagination = paginate($totalRecords, $page);
 
     $stmt = $db->prepare("
-        SELECT t.*, u.name AS assigned_to_name, u.designation AS assigned_to_designation
+        SELECT t.*, u1.name AS assigned_to_name, u1.designation AS assigned_to_designation,
+               u2.name AS assigned_by_name, u2.role AS assigned_by_role
         FROM tasks t 
-        JOIN users u ON t.assigned_to = u.id 
+        JOIN users u1 ON t.assigned_to = u1.id 
+        JOIN users u2 ON t.assigned_by = u2.id 
         WHERE {$whereClause}
         ORDER BY 
             CASE t.status WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'completed' THEN 3 END,
@@ -169,7 +183,7 @@ if ($activeTab === 'assigned_to') {
     $tasks = $stmt->fetchAll();
 }
 
-// My employees for assignment
+// My employees for assignment & filter
 $empStmt = $db->prepare("SELECT id, name FROM users WHERE manager_id = ? AND status = 'active' ORDER BY name");
 $empStmt->execute([$managerId]);
 $myEmployees = $empStmt->fetchAll();
@@ -177,8 +191,11 @@ $myEmployees = $empStmt->fetchAll();
 // Edit task
 $editTask = null;
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
-    $stmt = $db->prepare("SELECT * FROM tasks WHERE id = ? AND assigned_by = ?");
-    $stmt->execute([(int)$_GET['edit'], $managerId]);
+    $stmt = $db->prepare("
+        SELECT * FROM tasks 
+        WHERE id = ? AND (assigned_by = ? OR assigned_to IN (SELECT id FROM users WHERE manager_id = ?))
+    ");
+    $stmt->execute([(int)$_GET['edit'], $managerId, $managerId]);
     $editTask = $stmt->fetch();
 }
 
@@ -189,7 +206,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="page-header">
     <div>
         <h1 class="page-title">Task Management</h1>
-        <p class="page-subtitle">Manage tasks assigned to you by Founder & tasks assigned to your team</p>
+        <p class="page-subtitle">Manage tasks assigned to you & tasks assigned to your team members</p>
     </div>
     <div class="page-header-actions">
         <button class="btn btn-primary" onclick="openModal('create-task-modal')"><i class="fa-solid fa-plus"></i> Create Team Task</button>
@@ -203,8 +220,8 @@ include __DIR__ . '/../includes/header.php';
         <span class="badge <?php echo $activeTab === 'assigned_to' ? 'badge-info' : 'badge-secondary'; ?>" style="font-size: 11px; padding: 2px 6px;"><?php echo $countAssignedTo; ?></span>
     </a>
     <a href="?tab=assigned_by" class="btn <?php echo $activeTab === 'assigned_by' ? 'btn-primary' : 'btn-outline'; ?>" style="font-size: 13px; padding: 8px 16px; display: inline-flex; align-items: center; gap: 8px;">
-        <i class="fa-solid fa-paper-plane"></i> Team Tasks (Assigned by Me)
-        <span class="badge <?php echo $activeTab === 'assigned_by' ? 'badge-info' : 'badge-secondary'; ?>" style="font-size: 11px; padding: 2px 6px;"><?php echo $countAssignedBy; ?></span>
+        <i class="fa-solid fa-people-group"></i> Team Tasks (Assigned to My Team)
+        <span class="badge <?php echo $activeTab === 'assigned_by' ? 'badge-info' : 'badge-secondary'; ?>" style="font-size: 11px; padding: 2px 6px;"><?php echo $countTeamTasks; ?></span>
     </a>
 </div>
 
@@ -246,7 +263,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="task-list">
             <?php foreach ($tasks as $task): ?>
                 <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
-                <div class="task-item priority-<?php echo e($task['priority']); ?> fade-in card" style="margin-bottom: 14px; padding: 16px;">
+                <div class="task-item priority-<?php echo e($task['priority']); ?> fade-in card" data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>" style="margin-bottom: 14px; padding: 16px;">
                     <div class="task-info" style="flex: 1;">
                         <div class="task-title" style="font-size: 16px; font-weight: 600; color: var(--color-text-main);">
                             <?php echo e($task['title']); ?>
@@ -287,6 +304,10 @@ include __DIR__ . '/../includes/header.php';
                     <div class="task-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 140px;">
                         <span class="badge task-status-badge <?php echo taskStatusBadge($task['status']); ?>" style="font-size: 12px; padding: 6px 12px;"><?php echo taskStatusLabel($task['status']); ?></span>
                         
+                        <div class="task-completed-at" style="font-size: 11px; color: var(--color-text-muted); <?php echo ($task['status'] === 'completed' && $task['completed_at']) ? '' : 'display: none;'; ?>">
+                            <i class="fa-solid fa-circle-check" style="color: var(--color-success); font-size: 10px;"></i> Done: <?php echo $task['completed_at'] ? formatDate($task['completed_at']) : ''; ?>
+                        </div>
+
                         <select class="form-select task-status-select" 
                                 data-task-id="<?php echo $task['id']; ?>" 
                                 data-original-value="<?php echo e($task['status']); ?>"
@@ -320,37 +341,67 @@ include __DIR__ . '/../includes/header.php';
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Task Title</th>
-                        <th>Assigned To</th>
-                        <th>Priority</th>
-                        <th>Status</th>
-                        <th>Deadline</th>
-                        <th>Actions</th>
+                        <th style="width: 38%;">Task Title</th>
+                        <th style="width: 18%;">Assigned To</th>
+                        <th style="width: 12%;">Priority</th>
+                        <th style="width: 14%;">Status</th>
+                        <th style="width: 10%;">Deadline</th>
+                        <th style="width: 8%; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($tasks as $task): ?>
                         <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
-                        <tr>
+                        <tr data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>">
                             <td>
-                                <div class="table-user-name"><?php echo e($task['title']); ?></div>
-                                <div class="table-user-email"><?php echo formatDate($task['created_at']); ?></div>
+                                <div class="table-user-name" style="font-weight: 600;"><?php echo e($task['title']); ?></div>
+                                <div class="table-user-email" style="margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <span><?php echo formatDate($task['created_at']); ?></span>
+                                    <span>•</span>
+                                    <span>By: <strong><?php echo e($task['assigned_by_name']); ?></strong></span>
+                                    <?php if ($task['assigned_by_role'] === 'founder'): ?>
+                                        <span class="badge badge-info" style="font-size: 10px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-crown" style="font-size: 9px;"></i> Founder Task</span>
+                                    <?php elseif ($task['assigned_by'] == $managerId): ?>
+                                        <span class="badge badge-secondary" style="font-size: 10px; padding: 2px 6px;">Assigned by You</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-secondary" style="font-size: 10px; padding: 2px 6px;"><?php echo ucfirst($task['assigned_by_role']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($task['description']): ?>
+                                    <div style="font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 4px; line-height: 1.4;">
+                                        <?php echo e($task['description']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <!-- Employee Status Note / Comment Display -->
+                                <div class="task-comment-display" style="<?php echo empty($task['comments']) ? 'display: none;' : ''; ?> margin-top: 8px; font-size: var(--text-xs); line-height: 1.4; color: var(--color-text-secondary); background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--color-primary); padding: 6px 10px; border-radius: 4px; display: <?php echo !empty($task['comments']) ? 'block' : 'none'; ?>; max-width: 480px; word-break: break-word;">
+                                    <div style="display: flex; align-items: flex-start; gap: 6px;">
+                                        <i class="fa-solid fa-comment-dots" style="color: var(--color-primary); margin-top: 2px; flex-shrink: 0;"></i>
+                                        <span><strong>Employee Note:</strong> <span class="task-comment-preview-text"><?php echo e($task['comments']); ?></span></span>
+                                    </div>
+                                </div>
                             </td>
                             <td>
-                                <div><?php echo e($task['assigned_to_name']); ?></div>
+                                <div style="font-weight: 500;"><?php echo e($task['assigned_to_name']); ?></div>
                                 <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($task['assigned_to_designation'] ?: '—'); ?></small>
                             </td>
                             <td><span class="badge <?php echo priorityBadge($task['priority']); ?>"><?php echo priorityLabel($task['priority']); ?></span></td>
                             <td>
                                 <?php if ($overdue): ?>
-                                    <span class="badge badge-overdue">Overdue</span>
+                                    <span class="badge badge-overdue task-status-badge">Overdue</span>
                                 <?php else: ?>
-                                    <span class="badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
+                                    <span class="badge task-status-badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
                                 <?php endif; ?>
+                                
+                                <div class="task-completed-at" style="font-size: 11px; color: var(--color-text-muted); margin-top: 4px; <?php echo ($task['status'] === 'completed' && $task['completed_at']) ? '' : 'display: none;'; ?>">
+                                    <i class="fa-solid fa-circle-check" style="color: var(--color-success); font-size: 10px;"></i> Done: <?php echo $task['completed_at'] ? formatDate($task['completed_at']) : ''; ?>
+                                </div>
                             </td>
-                            <td><?php echo formatDate($task['deadline']); ?></td>
-                            <td>
-                                <a href="?tab=assigned_by&edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                            <td style="white-space: nowrap;"><?php echo formatDate($task['deadline']); ?></td>
+                            <td style="text-align: right;">
+                                <div class="table-actions" style="justify-content: flex-end;">
+                                    <a href="?tab=assigned_by&edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -471,6 +522,11 @@ include __DIR__ . '/../includes/header.php';
                         <label class="form-label">Deadline</label>
                         <input type="date" name="deadline" class="form-input" value="<?php echo e($editTask['deadline']); ?>">
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Status Notes / Employee Comments</label>
+                    <textarea name="comments" class="form-textarea" rows="3" placeholder="Status update notes or employee comments..."><?php echo e($editTask['comments']); ?></textarea>
                 </div>
             </div>
             <div class="modal-footer">

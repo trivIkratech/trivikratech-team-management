@@ -26,18 +26,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_mee
     $meetingDate = post('meeting_date');
     $startTime = post('start_time');
     $endTime = post('end_time');
-    $meetingType = post('meeting_type');
-    $meetLink = post('meet_link');
-    $agenda = post('agenda');
     $participants = $_POST['participants'] ?? [];
+    $meetingType = count($participants) === 1 ? 'individual' : 'team';
+    $meetLink = trim(post('meet_link', ''));
+    if (!empty($meetLink) && !preg_match('#^https?://#i', $meetLink)) {
+        $meetLink = 'https://' . $meetLink;
+    }
+    $agenda = post('agenda', '');
     
     if (empty($title)) $formErrors[] = 'Meeting title is required.';
     if (empty($meetingDate)) $formErrors[] = 'Meeting date is required.';
-    if (empty($startTime)) $formErrors[] = 'Start time is required.';
-    if (empty($endTime)) $formErrors[] = 'End time is required.';
-    if (!empty($meetLink) && !filter_var($meetLink, FILTER_VALIDATE_URL)) {
+    if (empty($meetLink)) {
+        $formErrors[] = 'Google Meet link is required.';
+    } elseif (!filter_var($meetLink, FILTER_VALIDATE_URL)) {
         $formErrors[] = 'Please enter a valid Google Meet link URL.';
     }
+    if (empty($startTime)) $formErrors[] = 'Start time is required.';
+    if (empty($endTime)) $formErrors[] = 'End time is required.';
     
     if (empty($formErrors)) {
         $stmt = $db->prepare("
@@ -57,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_mee
                 // Send notification
                 createNotification(
                     $pIdInt, 
-                    '<i class="fa-solid fa-video"></i> Scheduled Meeting: ' . $title, 
+                    'Scheduled Meeting: ' . $title, 
                     'You are invited to a meeting on ' . formatDate($meetingDate) . ' at ' . formatTime($startTime) . '. Click to join Google Meet.', 
                     $meetLink ?: BASE_URL . '/employee/meetings.php', 
                     'info'
@@ -229,23 +234,8 @@ include __DIR__ . '/../includes/header.php';
             </div>
 
             <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea name="description" class="form-textarea" placeholder="Brief description of the meeting..."></textarea>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Meeting Date *</label>
-                    <input type="date" name="meeting_date" class="form-input" required value="<?php echo today(); ?>">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Meeting Type *</label>
-                    <select name="meeting_type" class="form-select" required>
-                        <option value="team">Team Meeting</option>
-                        <option value="individual">1-on-1 Individual</option>
-                        <option value="self">Internal HR Sync</option>
-                    </select>
-                </div>
+                <label class="form-label">Meeting Date *</label>
+                <input type="date" name="meeting_date" class="form-input" required value="<?php echo today(); ?>">
             </div>
 
             <div class="form-row">
@@ -263,14 +253,14 @@ include __DIR__ . '/../includes/header.php';
             <div class="form-group" style="background: rgba(26, 115, 232, 0.08); border: 1px solid rgba(26, 115, 232, 0.25); padding: 16px; border-radius: var(--radius-md);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label class="form-label" style="margin-bottom: 0; font-weight: 600; color: #1a73e8; display: flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-video"></i> Google Meet Video Call Link
+                        <i class="fa-solid fa-video"></i> Google Meet Video Call Link *
                     </label>
                     <a href="https://meet.google.com/new" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11px; padding: 4px 10px; border: 1px solid #1a73e8; color: #1a73e8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Create new instant Google Meet link in a new tab">
                         <i class="fa-solid fa-plus"></i> Generate Google Meet Link ↗
                     </a>
                 </div>
                 <div style="position: relative;">
-                    <input type="url" name="meet_link" id="meet_link_input" class="form-input" placeholder="https://meet.google.com/abc-defg-hij" style="padding-left: 36px; border-color: #1a73e8;">
+                    <input type="url" name="meet_link" id="meet_link_input" class="form-input" placeholder="https://meet.google.com/abc-defg-hij" style="padding-left: 36px; border-color: #1a73e8;" required>
                     <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #1a73e8; font-size: 14px;"><i class="fa-solid fa-video"></i></span>
                 </div>
                 <small class="text-muted" style="margin-top: 6px; display: block; font-size: 12px;">Paste your Google Meet link above. Participants will receive a direct <strong>"<i class="fa-solid fa-rocket"></i> Join Google Meet"</strong> button.</small>

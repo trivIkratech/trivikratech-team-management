@@ -249,7 +249,7 @@ try {
         foreach ($members as $memId) {
             createNotification(
                 (int)$memId, 
-                '<i class="fa-solid fa-comments"></i> New Message from ' . $currentUser['name'], 
+                'New Message from ' . $currentUser['name'], 
                 $notifText, 
                 BASE_URL . '/chat/index.php?room_id=' . $roomId, 
                 'info'

@@ -20,23 +20,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_mee
     requireCsrf();
     
     $title = post('title');
-    $description = post('description');
+    $description = post('description', '');
     $meetingDate = post('meeting_date');
     $startTime = post('start_time');
     $endTime = post('end_time');
-    $meetingType = post('meeting_type', 'team');
-    $meetLink = post('meet_link');
-    $agenda = post('agenda');
+    $meetLink = trim(post('meet_link', ''));
+    if (!empty($meetLink) && !preg_match('#^https?://#i', $meetLink)) {
+        $meetLink = 'https://' . $meetLink;
+    }
+    $agenda = post('agenda', '');
     $participants = isset($_POST['participants']) && is_array($_POST['participants']) ? $_POST['participants'] : [];
+    $meetingType = count($participants) === 1 ? 'individual' : 'team';
     
     // Validate inputs
     if (empty($title)) $formErrors[] = 'Meeting title is required.';
     if (empty($meetingDate)) $formErrors[] = 'Meeting date is required.';
+    if (empty($meetLink)) {
+        $formErrors[] = 'Google Meet link is required.';
+    } elseif (!filter_var($meetLink, FILTER_VALIDATE_URL)) {
+        $formErrors[] = 'Please enter a valid Google Meet URL.';
+    }
     if (empty($startTime)) $formErrors[] = 'Start time is required.';
     if (empty($endTime)) $formErrors[] = 'End time is required.';
     if (strtotime($endTime) <= strtotime($startTime)) $formErrors[] = 'End time must be after start time.';
-    if (!empty($meetLink) && !filter_var($meetLink, FILTER_VALIDATE_URL)) $formErrors[] = 'Please enter a valid Google Meet URL.';
-    if ($meetingType !== 'self' && empty($participants)) $formErrors[] = 'Please select at least one participant.';
+    if (empty($participants)) $formErrors[] = 'Please select at least one participant.';
     
     if (empty($formErrors)) {
         try {
@@ -107,15 +114,15 @@ if (isset($_GET['action']) && isset($_GET['id']) && is_numeric($_GET['id'])) {
     exit;
 }
 
-// Fetch active employees reporting to this manager
+// Fetch all active users across the company (excluding self)
 $stmt = $db->prepare("
-    SELECT id, name, role, email 
+    SELECT id, name, role, email, designation 
     FROM users 
-    WHERE manager_id = ? AND status = 'active' AND role = 'employee'
-    ORDER BY name ASC
+    WHERE status = 'active' AND id != ?
+    ORDER BY FIELD(role, 'founder', 'hr', 'manager', 'employee'), name ASC
 ");
 $stmt->execute([$userId]);
-$myEmployees = $stmt->fetchAll();
+$allUsersList = $stmt->fetchAll();
 
 // Fetch meetings hosted by the manager OR where they are a participant
 $stmt = $db->prepare("
@@ -192,8 +199,14 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
                 </div>
             </div>
             
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-                <?php if (!$isHistory && $m['host_id'] === $userId): ?>
+            <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+                <?php if (!$isHistory && $m['status'] === 'scheduled'): ?>
+                    <a href="<?php echo !empty($m['meet_link']) ? e($m['meet_link']) : 'https://meet.google.com/new'; ?>" target="_blank" class="btn btn-sm" style="background: linear-gradient(135deg, #0f9d58, #0b8043); color: white; font-weight: 600; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-size: var(--text-xs); border: none; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-video"></i> Join Meeting
+                    </a>
+                <?php endif; ?>
+
+                <?php if (!$isHistory && $m['host_id'] === $userId && $m['status'] === 'scheduled'): ?>
                     <a href="?action=complete&id=<?php echo $m['id']; ?>" class="btn btn-sm" onclick="return confirm('Mark this meeting as completed?')" style="background-color: var(--color-success); color: white; font-weight: 600; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-xs); border: none; text-decoration: none;">
                         <i class="fa-solid fa-check"></i> Meeting Done
                     </a>
@@ -215,9 +228,9 @@ function renderMeetingCard(array $m, int $userId, bool $isHistory = false): void
             <div><i class="fa-solid fa-clock"></i> <strong>Time:</strong> <?php echo formatTime($m['start_time']); ?> - <?php echo formatTime($m['end_time']); ?></div>
         </div>
 
-        <?php if ($m['meet_link'] && !$isHistory && $m['status'] === 'scheduled'): ?>
+        <?php if (!$isHistory && $m['status'] === 'scheduled'): ?>
             <div style="margin-bottom: var(--space-3);">
-                <a href="<?php echo e($m['meet_link']); ?>" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: var(--space-2); background-color: #0f9d58; border-color: #0f9d58; font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-4);">
+                <a href="<?php echo !empty($m['meet_link']) ? e($m['meet_link']) : 'https://meet.google.com/new'; ?>" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: var(--space-2); background: linear-gradient(135deg, #1a73e8, #0f9d58); border: none; font-size: var(--text-sm); font-weight: 600; padding: var(--space-2) var(--space-4); border-radius: 6px; color: white; text-decoration: none; box-shadow: 0 2px 6px rgba(15, 157, 88, 0.25);">
                     <i class="fa-solid fa-video"></i> Join Google Meet
                 </a>
             </div>
@@ -269,32 +282,16 @@ include __DIR__ . '/../includes/header.php';
     <!-- Schedule a Meeting Form -->
     <div class="card fade-in">
         <div class="card-header">
-            <h3 class="card-title">Schedule Team Meeting</h3>
+            <h3 class="card-title">Schedule Meeting</h3>
         </div>
-        
-        <?php if (empty($myEmployees)): ?>
-            <div class="empty-state" style="padding: var(--space-4) 0;">
-                <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
-                <div class="empty-state-title" style="font-size: var(--text-base);">No assigned employees</div>
-                <div class="empty-state-text" style="font-size: var(--text-xs);">You can only schedule team meetings once employees are assigned to you.</div>
-                <div style="margin-top: var(--space-3);">
-                    <a href="<?php echo BASE_URL; ?>/manager/meetings.php?self=1" class="btn btn-outline btn-sm" id="btn-self-plan">Plan Self Session Instead</a>
-                </div>
-            </div>
-        <?php endif; ?>
 
-        <form method="POST" action="" id="meeting-form" style="<?php echo empty($myEmployees) ? 'display: none;' : ''; ?>">
+        <form method="POST" action="" id="meeting-form">
             <?php echo csrfField(); ?>
             <input type="hidden" name="form_action" value="create_meeting">
             
             <div class="form-group">
                 <label class="form-label">Meeting Title *</label>
                 <input type="text" name="title" class="form-input" placeholder="e.g. Daily Standup / Project Review" required value="<?php echo e(post('title')); ?>">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea name="description" class="form-textarea" placeholder="Brief details..." style="height: 80px;"><?php echo e(post('description')); ?></textarea>
             </div>
 
             <div class="form-row">
@@ -303,18 +300,9 @@ include __DIR__ . '/../includes/header.php';
                     <input type="date" name="meeting_date" class="form-input" required min="<?php echo today(); ?>" value="<?php echo e(post('meeting_date', today())); ?>">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Type *</label>
-                    <select name="meeting_type" id="meeting-type" class="form-select" required>
-                        <option value="team" <?php echo post('meeting_type') === 'team' ? 'selected' : ''; ?>>Team Sync</option>
-                        <option value="individual" <?php echo post('meeting_type') === 'individual' ? 'selected' : ''; ?>>1-on-1 Session</option>
-                        <option value="self" <?php echo post('meeting_type') === 'self' ? 'selected' : ''; ?>>Self/Focus Time</option>
-                    </select>
+                    <label class="form-label">Google Meet Link *</label>
+                    <input type="url" name="meet_link" class="form-input" placeholder="e.g. https://meet.google.com/abc-defg-hij" required value="<?php echo e(post('meet_link')); ?>">
                 </div>
-            </div>
-
-            <div class="form-group" id="meet-link-container">
-                <label class="form-label">Google Meet Link</label>
-                <input type="url" name="meet_link" class="form-input" placeholder="e.g. https://meet.google.com/abc-defg-hij" value="<?php echo e(post('meet_link')); ?>">
             </div>
 
             <div class="form-row">
@@ -330,65 +318,52 @@ include __DIR__ . '/../includes/header.php';
 
             <div class="form-group">
                 <label class="form-label">Agenda</label>
-                <textarea name="agenda" class="form-textarea" placeholder="What will be discussed..." style="height: 100px;"><?php echo e(post('agenda')); ?></textarea>
+                <textarea name="agenda" class="form-textarea" placeholder="What will be discussed..." style="height: 90px;"><?php echo e(post('agenda')); ?></textarea>
             </div>
 
             <div class="form-group" id="participants-container">
-                <label class="form-label">Select Team Participants *</label>
-                <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-3); background-color: var(--color-bg-secondary); display: flex; flex-direction: column; gap: var(--space-2);">
-                    <?php foreach ($myEmployees as $e): ?>
-                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer; padding: var(--space-1) 0;">
-                            <input type="checkbox" name="participants[]" value="<?php echo $e['id']; ?>" class="participant-checkbox">
-                            <span style="font-size: var(--text-sm);">
-                                <strong><?php echo e($e['name']); ?></strong> 
-                                <span class="text-muted" style="font-size: var(--text-xs);"> (<?php echo e($e['email']); ?>)</span>
-                            </span>
-                        </label>
-                    <?php endforeach; ?>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label class="form-label" style="margin-bottom: 0;">Select Participants *</label>
+                    <span style="font-size: 11px;">
+                        <a href="javascript:void(0)" onclick="toggleAllParticipants(true)" style="color: var(--color-primary); text-decoration: none; font-weight: 500;">Select All</a> &bull; 
+                        <a href="javascript:void(0)" onclick="toggleAllParticipants(false)" style="color: var(--color-text-muted); text-decoration: none;">Clear</a>
+                    </span>
+                </div>
+                
+                <input type="text" id="participant-search" class="form-input" placeholder="🔍 Search user by name, role, email..." style="margin-bottom: 8px; font-size: 12px; padding: 6px 10px;" oninput="filterParticipants(this.value)">
+
+                <div id="participants-list-box" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px 10px; background-color: var(--color-bg-secondary); display: flex; flex-direction: column; gap: 4px;">
+                    <?php if (empty($allUsersList)): ?>
+                        <div style="padding: 10px; text-align: center; color: var(--color-text-muted); font-size: 12px;">No other users available</div>
+                    <?php else: ?>
+                        <?php foreach ($allUsersList as $u): ?>
+                            <label class="participant-item" style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px 8px; border-radius: 4px; transition: background 0.15s ease;">
+                                <input type="checkbox" name="participants[]" value="<?php echo $u['id']; ?>" class="participant-checkbox">
+                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 12px;">
+                                    <div>
+                                        <strong style="color: var(--color-text-main);"><?php echo e($u['name']); ?></strong> 
+                                        <span style="color: var(--color-text-muted); font-size: 11px;">(<?php echo e($u['email']); ?>)</span>
+                                    </div>
+                                    <div>
+                                        <?php if ($u['role'] === 'founder'): ?>
+                                            <span class="badge badge-primary" style="font-size: 10px; padding: 2px 6px;"><i class="fa-solid fa-crown" style="font-size: 9px;"></i> Founder</span>
+                                        <?php elseif ($u['role'] === 'manager'): ?>
+                                            <span class="badge badge-info" style="font-size: 10px; padding: 2px 6px;">Manager</span>
+                                        <?php elseif ($u['role'] === 'hr'): ?>
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 2px 6px;">HR</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-secondary" style="font-size: 10px; padding: 2px 6px;">Employee</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </label>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="form-actions" style="margin-top: var(--space-4);">
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Schedule Meeting</button>
-            </div>
-        </form>
-        
-        <!-- Fallback Self form when no employees assigned -->
-        <form method="POST" action="" id="self-meeting-form" style="<?php echo !empty($myEmployees) ? 'display: none;' : ''; ?>">
-            <?php echo csrfField(); ?>
-            <input type="hidden" name="form_action" value="create_meeting">
-            <input type="hidden" name="meeting_type" value="self">
-            
-            <div class="form-group">
-                <label class="form-label">Self Session Title *</label>
-                <input type="text" name="title" class="form-input" placeholder="e.g. Focus Block / Admin Work" required value="<?php echo e(post('title')); ?>">
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea name="description" class="form-textarea" placeholder="Notes for yourself..." style="height: 80px;"><?php echo e(post('description')); ?></textarea>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Date *</label>
-                    <input type="date" name="meeting_date" class="form-input" required min="<?php echo today(); ?>" value="<?php echo e(post('meeting_date', today())); ?>">
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Start Time *</label>
-                    <input type="time" name="start_time" class="form-input" required value="<?php echo e(post('start_time')); ?>">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">End Time *</label>
-                    <input type="time" name="end_time" class="form-input" required value="<?php echo e(post('end_time')); ?>">
-                </div>
-            </div>
-
-            <div class="form-actions" style="margin-top: var(--space-4);">
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Schedule Self Session</button>
             </div>
         </form>
     </div>
@@ -443,29 +418,20 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-const selectType = document.getElementById('meeting-type');
-if (selectType) {
-    selectType.addEventListener('change', function() {
-        const container = document.getElementById('participants-container');
-        const checkboxes = document.querySelectorAll('.participant-checkbox');
-        const meetLinkContainer = document.getElementById('meet-link-container');
-        if (this.value === 'self') {
-            container.style.display = 'none';
-            meetLinkContainer.style.display = 'none';
-            checkboxes.forEach(c => c.removeAttribute('required'));
-        } else {
-            container.style.display = '';
-            meetLinkContainer.style.display = '';
+function toggleAllParticipants(check) {
+    document.querySelectorAll('#participants-list-box .participant-item').forEach(item => {
+        if (item.style.display !== 'none') {
+            const cb = item.querySelector('.participant-checkbox');
+            if (cb) cb.checked = check;
         }
     });
 }
 
-const btnSelfPlan = document.getElementById('btn-self-plan');
-if (btnSelfPlan) {
-    btnSelfPlan.addEventListener('click', function(e) {
-        e.preventDefault();
-        document.getElementById('meeting-form').style.display = 'none';
-        document.getElementById('self-meeting-form').style.display = 'block';
+function filterParticipants(query) {
+    const q = query.toLowerCase().trim();
+    document.querySelectorAll('#participants-list-box .participant-item').forEach(item => {
+        const text = item.innerText.toLowerCase();
+        item.style.display = text.includes(q) ? 'flex' : 'none';
     });
 }
 </script>
