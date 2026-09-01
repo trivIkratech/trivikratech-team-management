@@ -638,29 +638,47 @@ document.addEventListener('DOMContentLoaded', function() {
             if (icon) {
                 icon.className = 'fa-regular fa-eye';
             } else {
-                btn.innerText = '<i class="fa-solid fa-eye"></i>';
+                btn.innerText = '👁️';
             }
         }
     };
+    window.togglePassword = window.togglePasswordVisibility;
 
-    // Auto-attach Eye buttons to all input[type="password"] fields
+    // Auto-attach Eye buttons to all input[type="password"] fields with perfect alignment
     function initPasswordToggles() {
         document.querySelectorAll('input[type="password"]').forEach(function(input) {
             if (input.dataset.hasToggle) return;
-            input.dataset.hasToggle = 'true';
-            
-            const parent = input.parentElement;
-            if (!parent) return;
 
-            parent.style.position = 'relative';
+            // Check if already inside a custom wrapper with toggle button
+            const parent = input.parentElement;
+            if (parent && (parent.classList.contains('password-input-wrapper') || parent.querySelector('.btn-toggle-password-auto, button[onclick*="togglePassword"]'))) {
+                input.dataset.hasToggle = 'true';
+                return;
+            }
+
+            input.dataset.hasToggle = 'true';
+
+            // Wrap input in a dedicated container to guarantee perfect vertical centering
+            const wrapper = document.createElement('div');
+            wrapper.className = 'password-input-wrapper';
+            wrapper.style.cssText = 'position: relative; width: 100%; display: flex; align-items: center;';
+
+            input.parentNode.insertBefore(wrapper, input);
+            wrapper.appendChild(input);
+
             input.style.paddingRight = '44px';
+            input.style.width = '100%';
 
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn-toggle-password-auto';
             btn.setAttribute('title', 'Toggle Visibility');
-            btn.style.cssText = 'position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 15px; padding: 4px; z-index: 10;';
+            btn.setAttribute('tabindex', '-1');
+            btn.style.cssText = 'position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; font-size: 16px; padding: 4px; display: inline-flex; align-items: center; justify-content: center; z-index: 10; line-height: 1; opacity: 0.7; transition: opacity 0.2s, color 0.2s;';
             btn.innerHTML = '<i class="fa-regular fa-eye"></i>';
+
+            btn.onmouseenter = function() { btn.style.opacity = '1'; btn.style.color = 'var(--color-primary)'; };
+            btn.onmouseleave = function() { btn.style.opacity = '0.7'; btn.style.color = 'var(--color-text-secondary)'; };
 
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -668,15 +686,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 togglePasswordVisibility(input, btn);
             });
 
-            parent.appendChild(btn);
+            wrapper.appendChild(btn);
         });
     }
 
     initPasswordToggles();
 
-    // Re-run for dynamically opened modals
+    // Re-run for dynamically opened modals or DOM changes
     document.addEventListener('click', function(e) {
-        if (e.target.closest('.btn, button, [onclick*="Modal"]')) {
+        if (e.target.closest('.btn, button, [onclick*="Modal"], [data-modal]')) {
             setTimeout(initPasswordToggles, 100);
             setTimeout(initPasswordToggles, 300);
         }
