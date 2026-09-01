@@ -60,15 +60,9 @@ try {
             exit;
         }
         
-        // Permission check: employees can only update their own tasks
-        if ($userRole === ROLE_EMPLOYEE && $task['assigned_to'] != $userId) {
-            echo json_encode(['success' => false, 'message' => 'You can only update your own tasks.']);
-            exit;
-        }
-        
-        // Managers can only update tasks they assigned
-        if ($userRole === ROLE_MANAGER && $task['assigned_by'] != $userId) {
-            echo json_encode(['success' => false, 'message' => 'You can only update tasks you assigned.']);
+        // Permission check: User must be assignee, assigner, or Founder
+        if ($userRole !== ROLE_FOUNDER && $task['assigned_to'] != $userId && $task['assigned_by'] != $userId) {
+            echo json_encode(['success' => false, 'message' => 'You can only update tasks assigned to you or assigned by you.']);
             exit;
         }
         

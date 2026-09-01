@@ -53,15 +53,15 @@ $presentToday = $stmt->fetchColumn();
 
 $absentToday = max(0, $totalEmployees - $presentToday);
 
-// Task stats (tasks I assigned)
+// Task stats (tasks assigned to me OR assigned by me)
 $stmt = $db->prepare("SELECT 
     COUNT(*) AS total,
     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
     SUM(CASE WHEN status IN ('todo','in_progress') THEN 1 ELSE 0 END) AS pending,
     SUM(CASE WHEN status != 'completed' AND deadline IS NOT NULL AND deadline < ? THEN 1 ELSE 0 END) AS overdue
-    FROM tasks WHERE assigned_by = ?
+    FROM tasks WHERE assigned_to = ? OR assigned_by = ?
 ");
-$stmt->execute([$today, $managerId]);
+$stmt->execute([$today, $managerId, $managerId]);
 $taskStats = $stmt->fetch();
 
 // Recent tasks
@@ -69,11 +69,11 @@ $stmt = $db->prepare("
     SELECT t.*, u.name AS assigned_to_name
     FROM tasks t 
     JOIN users u ON t.assigned_to = u.id 
-    WHERE t.assigned_by = ? 
+    WHERE t.assigned_to = ? OR t.assigned_by = ? 
     ORDER BY t.updated_at DESC 
     LIMIT 5
 ");
-$stmt->execute([$managerId]);
+$stmt->execute([$managerId, $managerId]);
 $recentTasks = $stmt->fetchAll();
 
 // Today's attendance for my team
