@@ -31,6 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
         try {
             $stmt = $db->prepare("INSERT INTO announcements (sender_id, title, content) VALUES (?, ?, ?)");
             $stmt->execute([$founderId, $title, $content]);
+            
+            // Notify all active team members
+            $usersStmt = $db->prepare("SELECT id, role FROM users WHERE is_active = 1 AND id != ?");
+            $usersStmt->execute([$founderId]);
+            $activeUsers = $usersStmt->fetchAll();
+            foreach ($activeUsers as $u) {
+                createNotification(
+                    $u['id'],
+                    '📢 Announcement: ' . $title,
+                    $content,
+                    BASE_URL . '/' . $u['role'] . '/team.php',
+                    'info'
+                );
+            }
+
             setFlash('success', 'Global announcement posted successfully.');
             header('Location: ' . BASE_URL . '/founder/announcements.php');
             exit;

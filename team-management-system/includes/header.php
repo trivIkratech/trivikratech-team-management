@@ -135,6 +135,16 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
                 if (document.body) document.body.setAttribute('data-theme', newTheme);
                 localStorage.setItem('app_theme', newTheme);
                 updateThemeIcon(newTheme);
+
+                // Sync live to floating chat iframe if open/loaded
+                const chatIframe = document.getElementById('floating-chat-iframe');
+                if (chatIframe && chatIframe.contentDocument) {
+                    chatIframe.contentDocument.documentElement.setAttribute('data-theme', newTheme);
+                    if (chatIframe.contentDocument.body) chatIframe.contentDocument.body.setAttribute('data-theme', newTheme);
+                    if (chatIframe.contentWindow) {
+                        chatIframe.contentWindow.postMessage({ theme: newTheme }, '*');
+                    }
+                }
             }
 
             function updateThemeIcon(theme) {

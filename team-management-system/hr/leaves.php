@@ -60,6 +60,20 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         $status = ($action === 'approve') ? 'approved' : 'denied';
         $stmt = $db->prepare("UPDATE leaves SET status = ?, actioned_by = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$status, $hrId, $leaveId]);
+
+        $lStmt = $db->prepare("SELECT user_id, leave_type FROM leaves WHERE id = ?");
+        $lStmt->execute([$leaveId]);
+        $leaveRow = $lStmt->fetch();
+        if ($leaveRow) {
+            createNotification(
+                (int)$leaveRow['user_id'],
+                ($status === 'approved' ? '✅ Leave Approved' : '❌ Leave Rejected'),
+                'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by HR.',
+                BASE_URL . '/employee/leaves.php',
+                ($status === 'approved' ? 'success' : 'danger')
+            );
+        }
+
         setFlash('success', 'Leave request status updated to ' . $status);
         header('Location: ' . BASE_URL . '/hr/leaves.php?tab=' . $tab);
         exit;
@@ -103,6 +117,11 @@ foreach ($employeesList as $emp) {
     ];
 }
 
+// Fetch stats for HR overview
+$totalPending = $db->query("SELECT COUNT(*) FROM leaves l JOIN users u ON l.user_id = u.id WHERE l.status = 'pending'")->fetchColumn();
+$totalApproved = $db->query("SELECT COUNT(*) FROM leaves l JOIN users u ON l.user_id = u.id WHERE l.status = 'approved'")->fetchColumn();
+$activeEmployees = count($employeesList);
+
 $pageTitle = 'HR — Leave Management';
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -114,15 +133,40 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Stats Grid -->
+<div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; width: 100%;">
+    <div class="stat-card accent-orange fade-in" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-hourglass-half"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo $totalPending; ?></div>
+            <div class="stat-label" style="font-size: 12px;">Pending Requests</div>
+        </div>
+    </div>
+    <div class="stat-card accent-green fade-in stagger-1" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo $totalApproved; ?></div>
+            <div class="stat-label" style="font-size: 12px;">Approved Leaves</div>
+        </div>
+    </div>
+    <div class="stat-card accent-purple fade-in stagger-2" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo $activeEmployees; ?></div>
+            <div class="stat-label" style="font-size: 12px;">Active Staff</div>
+        </div>
+    </div>
+</div>
+
 <!-- Tabs Bar -->
-<div class="nav-tabs" style="display: flex; gap: var(--space-2); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-6);">
-    <a href="?tab=requests" class="tab-item <?php echo $tab === 'requests' ? 'active' : ''; ?>" style="padding: var(--space-3) var(--space-4); text-decoration: none; font-weight: 500; border-bottom: 2px solid <?php echo $tab === 'requests' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'requests' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>;">
+<div class="nav-tabs" style="display: flex; gap: var(--space-2); border-bottom: 1px solid var(--color-border); margin-bottom: 20px;">
+    <a href="?tab=requests" class="tab-item <?php echo $tab === 'requests' ? 'active' : ''; ?>" style="padding: 10px 16px; text-decoration: none; font-weight: 600; border-bottom: 2px solid <?php echo $tab === 'requests' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'requests' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
         <i class="fa-solid fa-clipboard-user"></i> Leave Requests
     </a>
-    <a href="?tab=calendar" class="tab-item <?php echo $tab === 'calendar' ? 'active' : ''; ?>" style="padding: var(--space-3) var(--space-4); text-decoration: none; font-weight: 500; border-bottom: 2px solid <?php echo $tab === 'calendar' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'calendar' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>;">
+    <a href="?tab=calendar" class="tab-item <?php echo $tab === 'calendar' ? 'active' : ''; ?>" style="padding: 10px 16px; text-decoration: none; font-weight: 600; border-bottom: 2px solid <?php echo $tab === 'calendar' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'calendar' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
         <i class="fa-solid fa-calendar-days"></i> Leave Calendar
     </a>
-    <a href="?tab=balance" class="tab-item <?php echo $tab === 'balance' ? 'active' : ''; ?>" style="padding: var(--space-3) var(--space-4); text-decoration: none; font-weight: 500; border-bottom: 2px solid <?php echo $tab === 'balance' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'balance' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>;">
+    <a href="?tab=balance" class="tab-item <?php echo $tab === 'balance' ? 'active' : ''; ?>" style="padding: 10px 16px; text-decoration: none; font-weight: 600; border-bottom: 2px solid <?php echo $tab === 'balance' ? 'var(--color-primary)' : 'transparent'; ?>; color: <?php echo $tab === 'balance' ? 'var(--color-primary)' : 'var(--color-text-secondary)'; ?>; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
         <i class="fa-solid fa-scale-balanced"></i> Leave Balance Overview
     </a>
 </div>
@@ -136,24 +180,28 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- TAB 1: LEAVE REQUESTS -->
 <?php if ($tab === 'requests'): ?>
-    <div class="table-container fade-in">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Employee</th>
-                    <th>Leave Type</th>
-                    <th>Dates</th>
-                    <th>Duration</th>
-                    <th>Reason</th>
-                    <th>Document</th>
-                    <th>Status</th>
-                    <th style="text-align: right;">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($employeeLeaves)): ?>
-                    <tr><td colspan="8" class="text-center text-muted" style="padding: 24px;">No leave applications found.</td></tr>
-                <?php else: ?>
+    <?php if (empty($employeeLeaves)): ?>
+        <div class="card">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
+                <div class="empty-state-title">No leave applications found</div>
+                <div class="empty-state-text">There are currently no employee leave applications.</div>
+            </div>
+        </div>
+    <?php else: ?>
+        <div class="table-container fade-in" style="width: 100%; overflow-x: auto;">
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="min-width: 160px;">Employee</th>
+                        <th style="min-width: 90px; text-align: center;">Leave Type</th>
+                        <th style="min-width: 140px;">Dates & Duration</th>
+                        <th style="min-width: 150px;">Reason & Doc</th>
+                        <th style="min-width: 100px; text-align: center;">Status</th>
+                        <th style="min-width: 130px; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
                     <?php foreach ($employeeLeaves as $leave): ?>
                         <?php 
                         $in = new DateTime($leave['start_date']);
@@ -162,43 +210,74 @@ include __DIR__ . '/../includes/header.php';
                         ?>
                         <tr>
                             <td>
-                                <strong><?php echo e($leave['employee_name']); ?></strong><br>
-                                <small class="text-muted"><code><?php echo e($leave['employee_id']); ?></code></small>
+                                <div class="table-user" style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="table-user-avatar" style="width: 30px; height: 30px; font-size: 11px; flex-shrink: 0;"><?php echo e(getInitials($leave['employee_name'])); ?></div>
+                                    <div style="min-width: 0;">
+                                        <div class="table-user-name" style="font-weight: 600; font-size: 13px; line-height: 1.2;"><?php echo e($leave['employee_name']); ?></div>
+                                        <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px;">
+                                            <code><?php echo e($leave['employee_id']); ?></code> • <?php echo e($leave['employee_email']); ?>
+
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
-                            <td><span class="badge badge-info"><?php echo ucfirst(e($leave['leave_type'])); ?></span></td>
-                            <td><?php echo formatDate($leave['start_date']); ?> - <?php echo formatDate($leave['end_date']); ?></td>
-                            <td><strong><?php echo $days; ?> day(s)</strong></td>
-                            <td style="max-width: 200px;" class="truncate" title="<?php echo e($leave['reason']); ?>"><?php echo e($leave['reason']); ?></td>
-                            <td>
-                                <?php if ($leave['prescription_doc']): ?>
-                                    <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline"><i class="fa-solid fa-eye"></i> View</a>
-                                <?php else: ?>
-                                    <span class="text-muted">—</span>
-                                <?php endif; ?>
+                            <td style="text-align: center;">
+                                <span class="badge badge-info" style="white-space: nowrap; font-size: 11px; padding: 2px 7px;"><?php echo ucfirst(e($leave['leave_type'])); ?></span>
                             </td>
                             <td>
+                                <div style="white-space: nowrap; font-size: 12px; font-weight: 600;">
+                                    <?php echo formatDate($leave['start_date']); ?>
+                                    <?php if ($leave['start_date'] !== $leave['end_date']): ?>
+                                        <span style="font-weight: 400; color: var(--color-text-muted);">to</span> <?php echo formatDate($leave['end_date']); ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="margin-top: 2px;">
+                                    <span class="badge badge-outline" style="font-size: 10px; padding: 1px 5px;">
+                                        <?php echo $days; ?> day<?php echo $days > 1 ? 's' : ''; ?>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="font-size: 12px; line-height: 1.3; max-width: 200px;" title="<?php echo e($leave['reason']); ?>">
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; max-width: 140px; vertical-align: middle;">
+                                        <?php echo e($leave['reason']); ?>
+                                    </span>
+                                    <?php if ($leave['prescription_doc']): ?>
+                                        <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="badge badge-purple" style="white-space: nowrap; padding: 1px 6px; font-size: 10px; text-decoration: none; vertical-align: middle;" title="View Attached Prescription">
+                                            <i class="fa-solid fa-file-medical"></i> Doc
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
                                 <?php if ($leave['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
+                                    <span class="badge badge-warning" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                                 <?php elseif ($leave['status'] === 'approved'): ?>
-                                    <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
+                                    <span class="badge badge-success" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-check"></i> Approved</span>
                                 <?php else: ?>
-                                    <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
+                                    <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
                                 <?php endif; ?>
                             </td>
                             <td style="text-align: right;">
                                 <?php if ($leave['status'] === 'pending'): ?>
-                                    <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm">Approve</a>
-                                    <a href="?action=deny&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm">Deny</a>
+                                    <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                        <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Approve this leave application?')">
+                                            <i class="fa-solid fa-check"></i> Approve
+                                        </a>
+                                        <a href="?action=deny&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Deny this leave application?')">
+                                            <i class="fa-solid fa-xmark"></i> Deny
+                                        </a>
+                                    </div>
                                 <?php else: ?>
-                                    <span class="text-muted">—</span>
+                                    <span class="text-muted" style="font-size: 11px; font-style: italic;">Completed</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
 
 <!-- TAB 2: LEAVE CALENDAR -->
 <?php elseif ($tab === 'calendar'): ?>
@@ -220,7 +299,7 @@ include __DIR__ . '/../includes/header.php';
         <?php else: ?>
             <div class="activity-list">
                 <?php foreach ($activeLeaves as $al): ?>
-                    <div class="activity-item" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="activity-item" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--color-border);">
                         <div>
                             <strong><?php echo e($al['employee_name']); ?></strong> — <span class="badge badge-info"><?php echo ucfirst(e($al['leave_type'])); ?></span><br>
                             <small class="text-muted"><?php echo formatDate($al['start_date']); ?> to <?php echo formatDate($al['end_date']); ?> (Reason: <?php echo e($al['reason']); ?>)</small>
@@ -236,17 +315,17 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- TAB 3: LEAVE BALANCE OVERVIEW -->
 <?php elseif ($tab === 'balance'): ?>
-    <div class="table-container fade-in">
-        <table class="data-table">
+    <div class="table-container card fade-in" style="overflow-x: auto; padding: 0;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr>
-                    <th>Emp ID</th>
-                    <th>Employee Name</th>
-                    <th>Casual Leave Used</th>
-                    <th>Sick Leave Used</th>
-                    <th>Paid Leave Used</th>
-                    <th>Unpaid Leave Used</th>
-                    <th>Total Days Taken</th>
+                    <th style="min-width: 100px;">Emp ID</th>
+                    <th style="min-width: 180px;">Employee Name</th>
+                    <th style="min-width: 120px; text-align: center;">Casual Leave</th>
+                    <th style="min-width: 120px; text-align: center;">Sick Leave</th>
+                    <th style="min-width: 120px; text-align: center;">Paid Leave</th>
+                    <th style="min-width: 120px; text-align: center;">Unpaid Leave</th>
+                    <th style="min-width: 140px; text-align: center;">Total Days Taken</th>
                 </tr>
             </thead>
             <tbody>
@@ -254,11 +333,11 @@ include __DIR__ . '/../includes/header.php';
                     <tr>
                         <td><code><?php echo e($lb['user']['employee_id']); ?></code></td>
                         <td><strong><?php echo e($lb['user']['name']); ?></strong></td>
-                        <td><?php echo $lb['casual_used']; ?> day(s)</td>
-                        <td><?php echo $lb['sick_used']; ?> day(s)</td>
-                        <td><?php echo $lb['paid_used']; ?> day(s)</td>
-                        <td><?php echo $lb['unpaid_used']; ?> day(s)</td>
-                        <td><span class="badge badge-purple"><?php echo $lb['total_used']; ?> Total Days</span></td>
+                        <td style="text-align: center;"><?php echo $lb['casual_used']; ?> day(s)</td>
+                        <td style="text-align: center;"><?php echo $lb['sick_used']; ?> day(s)</td>
+                        <td style="text-align: center;"><?php echo $lb['paid_used']; ?> day(s)</td>
+                        <td style="text-align: center;"><?php echo $lb['unpaid_used']; ?> day(s)</td>
+                        <td style="text-align: center;"><span class="badge badge-purple"><?php echo $lb['total_used']; ?> Total Days</span></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

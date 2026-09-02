@@ -64,7 +64,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_mee
             } else {
                 $stmt = $db->prepare("INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?, ?)");
                 foreach ($participants as $partId) {
-                    $stmt->execute([$meetingId, (int)$partId]);
+                    $partIdInt = (int)$partId;
+                    $stmt->execute([$meetingId, $partIdInt]);
+                    if ($partIdInt !== $userId) {
+                        createNotification(
+                            $partIdInt,
+                            '📅 Meeting Scheduled: ' . $title,
+                            'Founder scheduled meeting "' . $title . '" on ' . date('d M Y', strtotime($meetingDate)) . ' at ' . date('h:i A', strtotime($startTime)),
+                            $meetLink ?: (BASE_URL . '/meetings.php'),
+                            'info'
+                        );
+                    }
                 }
                 if (!in_array($userId, $participants)) {
                     $stmt->execute([$meetingId, $userId]);

@@ -92,7 +92,13 @@ $stmt = $db->prepare("
     ORDER BY created_at DESC
 ");
 $stmt->execute([$userId]);
-$myLeaves = $stmt->fetchAll();
+// Compute employee stats
+$myPending = 0;
+$myApproved = 0;
+foreach ($myLeaves as $l) {
+    if ($l['status'] === 'pending') $myPending++;
+    if ($l['status'] === 'approved') $myApproved++;
+}
 
 $pageTitle = 'Apply Leave';
 include __DIR__ . '/../includes/header.php';
@@ -105,6 +111,31 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Stats Grid -->
+<div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="stat-card accent-orange fade-in">
+        <div class="stat-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo $myPending; ?></div>
+            <div class="stat-label">Pending Requests</div>
+        </div>
+    </div>
+    <div class="stat-card accent-green fade-in stagger-1">
+        <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo $myApproved; ?></div>
+            <div class="stat-label">Approved Leaves</div>
+        </div>
+    </div>
+    <div class="stat-card accent-blue fade-in stagger-2">
+        <div class="stat-icon"><i class="fa-solid fa-calendar-days"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo count($myLeaves); ?></div>
+            <div class="stat-label">Total Applications</div>
+        </div>
+    </div>
+</div>
+
 <?php if (!empty($formErrors)): ?>
     <div class="alert alert-error">
         <span><?php echo e(implode(' ', $formErrors)); ?></span>
@@ -112,11 +143,11 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<div class="content-grid">
+<div class="content-grid" style="display: grid; grid-template-columns: 1fr; gap: 24px;">
     <!-- Leave Request Form -->
-    <div class="card fade-in">
+    <div class="card fade-in" style="max-width: 750px;">
         <div class="card-header">
-            <h3 class="card-title">Apply for Leave</h3>
+            <h3 class="card-title"><i class="fa-solid fa-paper-plane"></i> Apply for Leave</h3>
         </div>
         <form method="POST" action="" enctype="multipart/form-data" data-validate>
             <?php echo csrfField(); ?>
@@ -156,35 +187,33 @@ include __DIR__ . '/../includes/header.php';
             </div>
             
             <div class="form-actions mt-4">
-                <button type="submit" class="btn btn-primary">Submit Request</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
             </div>
         </form>
     </div>
 </div>
 
 <!-- Past Leave History -->
-<div class="card fade-in mt-6">
-    <div class="card-header">
-        <h3 class="card-title">Leave History</h3>
+<div class="card fade-in mt-6" style="padding: 0; overflow: hidden;">
+    <div class="card-header" style="padding: 16px 20px; border-bottom: 1px solid var(--color-border);">
+        <h3 class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> My Leave History</h3>
     </div>
     <?php if (empty($myLeaves)): ?>
-        <div class="empty-state">
+        <div class="empty-state" style="padding: 32px;">
             <div class="empty-state-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
             <div class="empty-state-title">No leave history</div>
             <div class="empty-state-text">You haven't requested any leaves yet.</div>
         </div>
     <?php else: ?>
-        <div class="table-container">
-            <table class="data-table">
+        <div class="table-container" style="overflow-x: auto;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr>
-                        <th>Leave Type</th>
-                        <th>Start Date</th>
-                        <th>End Date</th>
-                        <th>Duration</th>
-                        <th>Reason</th>
-                        <th>Document</th>
-                        <th>Status</th>
+                        <th style="min-width: 120px; text-align: center;">Leave Type</th>
+                        <th style="min-width: 160px;">Dates & Duration</th>
+                        <th style="min-width: 220px;">Reason</th>
+                        <th style="min-width: 100px; text-align: center;">Document</th>
+                        <th style="min-width: 110px; text-align: center;">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -195,25 +224,43 @@ include __DIR__ . '/../includes/header.php';
                         $days = $in->diff($out)->days + 1;
                         ?>
                         <tr>
-                            <td><span class="badge badge-info"><?php echo ucfirst(e($leave['leave_type'])); ?> Leave</span></td>
-                            <td><?php echo formatDate($leave['start_date']); ?></td>
-                            <td><?php echo formatDate($leave['end_date']); ?></td>
-                            <td><strong><?php echo $days; ?> day(s)</strong></td>
-                            <td style="max-width: 250px;" class="truncate" title="<?php echo e($leave['reason']); ?>"><?php echo e($leave['reason']); ?></td>
+                            <td style="text-align: center;">
+                                <span class="badge badge-info" style="white-space: nowrap;"><?php echo ucfirst(e($leave['leave_type'])); ?></span>
+                            </td>
                             <td>
+                                <div style="white-space: nowrap; font-size: 13px; font-weight: 600;">
+                                    <?php echo formatDate($leave['start_date']); ?>
+                                    <?php if ($leave['start_date'] !== $leave['end_date']): ?>
+                                        <span style="font-weight: 400; color: var(--color-text-muted);">to</span> <?php echo formatDate($leave['end_date']); ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="margin-top: 2px;">
+                                    <span class="badge badge-outline" style="font-size: 11px; padding: 2px 6px;">
+                                        <?php echo $days; ?> day<?php echo $days > 1 ? 's' : ''; ?>
+                                    </span>
+                                </div>
+                            </td>
+                            <td style="max-width: 280px;" title="<?php echo e($leave['reason']); ?>">
+                                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;">
+                                    <?php echo e($leave['reason']); ?>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
                                 <?php if ($leave['prescription_doc']): ?>
-                                    <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline"><i class="fa-solid fa-eye"></i> View Doc</a>
+                                    <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline" style="white-space: nowrap; padding: 4px 8px; font-size: 11px;">
+                                        <i class="fa-solid fa-file-medical"></i> View
+                                    </a>
                                 <?php else: ?>
                                     <span class="text-muted">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="text-align: center;">
                                 <?php if ($leave['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
+                                    <span class="badge badge-warning" style="white-space: nowrap;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                                 <?php elseif ($leave['status'] === 'approved'): ?>
-                                    <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
+                                    <span class="badge badge-success" style="white-space: nowrap;"><i class="fa-solid fa-circle-check"></i> Approved</span>
                                 <?php else: ?>
-                                    <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
+                                    <span class="badge badge-danger" style="white-space: nowrap;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
                                 <?php endif; ?>
                             </td>
                         </tr>

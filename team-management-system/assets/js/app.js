@@ -700,4 +700,248 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // =============================================
+    // Real-Time Notification Sound Synthesizer (Web Audio API)
+    // =============================================
+    window.playNotificationSound = function() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
+
+            const now = ctx.currentTime;
+            
+            // Pleasant Dual-Tone Crystal Bell: Note 1 (E5: 659.25Hz) + Note 2 (B5: 987.77Hz)
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            const gain2 = ctx.createGain();
+
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(659.25, now);
+            gain1.gain.setValueAtTime(0.12, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(987.77, now + 0.08);
+            gain2.gain.setValueAtTime(0.001, now);
+            gain2.gain.setValueAtTime(0.16, now + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+
+            osc1.start(now);
+            osc1.stop(now + 0.35);
+            osc2.start(now + 0.08);
+            osc2.stop(now + 0.6);
+        } catch(e) {
+            console.warn('Audio chime note could not be played:', e);
+        }
+    };
+
+    // =============================================
+    // Top-Right Popup Toast Notifications System
+    // =============================================
+    window.showToastNotification = function(notif) {
+        if (!notif || !notif.title) return;
+
+        let container = document.getElementById('toast-notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-notification-container';
+            container.className = 'toast-notification-container';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification-card fade-slide-right';
+        toast.dataset.id = notif.id || '';
+
+        // Category accent styling
+        let categoryColor = '#3b82f6';
+        let categoryLabel = 'Notification';
+        const cat = (notif.category || notif.type || 'info').toLowerCase();
+
+        if (cat === 'chat') {
+            categoryColor = '#3b82f6';
+            categoryLabel = 'Team Chat';
+        } else if (cat === 'meeting') {
+            categoryColor = '#8b5cf6';
+            categoryLabel = 'Meeting';
+        } else if (cat === 'ticket') {
+            categoryColor = '#ec4899';
+            categoryLabel = 'Support Ticket';
+        } else if (cat === 'leave') {
+            categoryColor = '#10b981';
+            categoryLabel = 'Leave Request';
+        } else if (cat === 'announcement') {
+            categoryColor = '#f59e0b';
+            categoryLabel = 'Announcement';
+        } else if (cat === 'auth') {
+            categoryColor = '#06b6d4';
+            categoryLabel = 'Team Activity';
+        } else if (cat === 'task') {
+            categoryColor = '#6366f1';
+            categoryLabel = 'Task Alert';
+        }
+
+        toast.style.borderLeft = `4px solid ${categoryColor}`;
+
+        const safeTitle = (notif.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeMsg = (notif.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeIcon = notif.icon || 'fa-solid fa-bell';
+
+        toast.innerHTML = `
+            <div class="toast-notif-icon" style="background: ${categoryColor}20; color: ${categoryColor}; border: 1px solid ${categoryColor}40;">
+                <i class="${safeIcon}"></i>
+            </div>
+            <div class="toast-notif-body">
+                <div class="toast-notif-header">
+                    <span class="toast-notif-tag" style="color: ${categoryColor};">${categoryLabel}</span>
+                    <span class="toast-notif-time">${notif.time_ago || 'Just now'}</span>
+                    <button type="button" class="toast-notif-close" title="Dismiss">×</button>
+                </div>
+                <div class="toast-notif-title">${safeTitle}</div>
+                <div class="toast-notif-message">${safeMsg}</div>
+            </div>
+            <div class="toast-notif-progress">
+                <div class="toast-notif-progress-bar" style="background: ${categoryColor}; animation: toastProgress 6s linear forwards;"></div>
+            </div>
+        `;
+
+        // Direct click navigation
+        toast.addEventListener('click', function(e) {
+            if (e.target.closest('.toast-notif-close')) {
+                e.stopPropagation();
+                dismissToast(toast);
+                return;
+            }
+            
+            // Mark read via API
+            if (notif.id) {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                fetch((window.BASE_URL || '') + '/api/notifications.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'action=mark_read&id=' + notif.id + '&csrf_token=' + token
+                }).catch(() => {});
+            }
+
+            if (notif.link) {
+                window.location.href = notif.link;
+            } else {
+                dismissToast(toast);
+            }
+        });
+
+        const closeBtn = toast.querySelector('.toast-notif-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dismissToast(toast);
+            });
+        }
+
+        container.prepend(toast);
+
+        // Auto dismiss after 6 seconds
+        let timeoutId = setTimeout(() => {
+            dismissToast(toast);
+        }, 6000);
+
+        // Pause countdown on hover
+        const progressBar = toast.querySelector('.toast-notif-progress-bar');
+        toast.addEventListener('mouseenter', () => {
+            clearTimeout(timeoutId);
+            if (progressBar) progressBar.style.animationPlayState = 'paused';
+        });
+
+        toast.addEventListener('mouseleave', () => {
+            if (progressBar) progressBar.style.animationPlayState = 'running';
+            timeoutId = setTimeout(() => {
+                dismissToast(toast);
+            }, 3000);
+        });
+    };
+
+    function dismissToast(toast) {
+        if (!toast || toast.classList.contains('dismissing')) return;
+        toast.classList.add('dismissing');
+        toast.style.animation = 'toastSlideOut 0.25s ease forwards';
+        setTimeout(() => {
+            toast.remove();
+        }, 250);
+    }
+
+    function updateHeaderBellCount(count) {
+        const notifSummary = document.querySelector('.notif-dropdown summary');
+        if (!notifSummary) return;
+
+        let badge = notifSummary.querySelector('span');
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.style.cssText = 'position: absolute; top: -2px; right: -2px; background: #ef4444; color: #fff; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--color-bg-card);';
+                notifSummary.appendChild(badge);
+            }
+            badge.textContent = count;
+            badge.style.display = 'flex';
+        } else if (badge) {
+            badge.style.display = 'none';
+        }
+    }
+
+    // =============================================
+    // Background Poller for All Notifications
+    // =============================================
+    function initRealtimeNotificationPoller() {
+        if (!window.BASE_URL) return;
+
+        let lastNotifId = parseInt(sessionStorage.getItem('last_polled_notif_id') || '0', 10);
+        let isInitialized = sessionStorage.getItem('notif_poller_initialized') === 'true';
+
+        function pollNotifications() {
+            const url = window.BASE_URL + '/api/notifications.php?action=poll&last_id=' + lastNotifId + (!isInitialized ? '&init=1' : '');
+
+            fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.success) return;
+
+                if (!isInitialized) {
+                    lastNotifId = data.max_id || 0;
+                    sessionStorage.setItem('last_polled_notif_id', lastNotifId);
+                    sessionStorage.setItem('notif_poller_initialized', 'true');
+                    isInitialized = true;
+                } else if (data.new_notifications && data.new_notifications.length > 0) {
+                    // Play notification chime sound
+                    window.playNotificationSound();
+
+                    data.new_notifications.forEach(notif => {
+                        window.showToastNotification(notif);
+                    });
+
+                    lastNotifId = data.max_id;
+                    sessionStorage.setItem('last_polled_notif_id', lastNotifId);
+                }
+
+                updateHeaderBellCount(data.unread_count);
+            })
+            .catch(() => {});
+        }
+
+        // Run initial sync and poll every 4.5 seconds
+        pollNotifications();
+        setInterval(pollNotifications, 4500);
+    }
+
+    // Start Realtime Notification Poller
+    initRealtimeNotificationPoller();
+
 });

@@ -31,6 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
         try {
             $stmt = $db->prepare("INSERT INTO announcements (sender_id, title, content) VALUES (?, ?, ?)");
             $stmt->execute([$managerId, $title, $content]);
+
+            // Notify team members assigned to this manager
+            $teamStmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND is_active = 1");
+            $teamStmt->execute([$managerId]);
+            $teamMembers = $teamStmt->fetchAll();
+            foreach ($teamMembers as $m) {
+                createNotification(
+                    $m['id'],
+                    '📢 Team Announcement: ' . $title,
+                    $content,
+                    BASE_URL . '/employee/team.php',
+                    'info'
+                );
+            }
+
             setFlash('success', 'Announcement posted successfully.');
             header('Location: ' . BASE_URL . '/manager/announcements.php');
             exit;

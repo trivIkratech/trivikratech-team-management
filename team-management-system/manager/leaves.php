@@ -102,6 +102,20 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             if ($stmt->fetch()) {
                 $updateStmt = $db->prepare("UPDATE leaves SET status = ?, actioned_by = ?, updated_at = NOW() WHERE id = ?");
                 $updateStmt->execute([$status, $managerId, $leaveId]);
+
+                $lStmt = $db->prepare("SELECT user_id, leave_type FROM leaves WHERE id = ?");
+                $lStmt->execute([$leaveId]);
+                $leaveRow = $lStmt->fetch();
+                if ($leaveRow) {
+                    createNotification(
+                        (int)$leaveRow['user_id'],
+                        ($status === 'approved' ? '✅ Leave Approved' : '❌ Leave Rejected'),
+                        'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by Manager.',
+                        BASE_URL . '/employee/leaves.php',
+                        ($status === 'approved' ? 'success' : 'danger')
+                    );
+                }
+
                 setFlash('success', 'Leave request status updated to ' . $status);
             } else {
                 setFlash('error', 'Unauthorized or request not found.');
@@ -132,6 +146,14 @@ $stmt = $db->prepare("
 $stmt->execute([$managerId]);
 $teamLeaves = $stmt->fetchAll();
 
+// Fetch stats for manager
+$teamPending = 0;
+$teamApproved = 0;
+foreach ($teamLeaves as $tl) {
+    if ($tl['status'] === 'pending') $teamPending++;
+    if ($tl['status'] === 'approved') $teamApproved++;
+}
+
 $pageTitle = 'Leaves Management';
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -143,6 +165,31 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<!-- Stats Grid -->
+<div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; width: 100%;">
+    <div class="stat-card accent-orange fade-in" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-hourglass-half"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo $teamPending; ?></div>
+            <div class="stat-label" style="font-size: 12px;">Pending Team Requests</div>
+        </div>
+    </div>
+    <div class="stat-card accent-green fade-in stagger-1" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo $teamApproved; ?></div>
+            <div class="stat-label" style="font-size: 12px;">Approved Leaves</div>
+        </div>
+    </div>
+    <div class="stat-card accent-blue fade-in stagger-2" style="padding: 16px;">
+        <div class="stat-icon" style="width: 40px; height: 40px; font-size: 16px;"><i class="fa-solid fa-umbrella-beach"></i></div>
+        <div class="stat-content">
+            <div class="stat-value" style="font-size: 22px;"><?php echo count($myLeaves); ?></div>
+            <div class="stat-label" style="font-size: 12px;">My Leave History</div>
+        </div>
+    </div>
+</div>
+
 <?php if (!empty($formErrors)): ?>
     <div class="alert alert-error">
         <span><?php echo e(implode(' ', $formErrors)); ?></span>
@@ -151,92 +198,115 @@ include __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <!-- Tabs Navigation -->
-<div class="flex gap-4 mb-6">
-    <button class="btn btn-primary" onclick="switchTab('team-leaves-tab')"><i class="fa-solid fa-users"></i> Team Leave Requests</button>
-    <button class="btn btn-outline" onclick="switchTab('my-leaves-tab')"><i class="fa-solid fa-umbrella-beach"></i> Apply / My Leaves</button>
+<div class="nav-tabs" style="display: flex; gap: var(--space-2); border-bottom: 1px solid var(--color-border); margin-bottom: 20px;">
+    <button id="btn-team-tab" class="tab-item active" onclick="switchTab('team-leaves-tab')" style="background: none; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; border-bottom: 2px solid var(--color-primary); color: var(--color-primary); display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
+        <i class="fa-solid fa-users"></i> Team Leave Requests (<?php echo count($teamLeaves); ?>)
+    </button>
+    <button id="btn-my-tab" class="tab-item" onclick="switchTab('my-leaves-tab')" style="background: none; border: none; cursor: pointer; padding: 10px 16px; font-weight: 600; border-bottom: 2px solid transparent; color: var(--color-text-secondary); display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
+        <i class="fa-solid fa-umbrella-beach"></i> Apply / My Leaves
+    </button>
 </div>
 
 <!-- Section A: Team Leave Requests (Default active) -->
 <div id="team-leaves-tab" class="tab-content active">
-    <div class="card fade-in">
-        <div class="card-header">
-            <h3 class="card-title">Team Member Requests</h3>
-        </div>
-        <?php if (empty($teamLeaves)): ?>
+    <?php if (empty($teamLeaves)): ?>
+        <div class="card">
             <div class="empty-state">
                 <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
-                <div class="empty-state-title">No requests found</div>
-                <div class="empty-state-text">Your team members have not submitted any leaves.</div>
+                <div class="empty-state-title">No team requests found</div>
+                <div class="empty-state-text">Your team members have not submitted any leave applications.</div>
             </div>
-        <?php else: ?>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
+        </div>
+    <?php else: ?>
+        <div class="table-container fade-in" style="width: 100%; overflow-x: auto;">
+            <table class="data-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="min-width: 160px;">Employee</th>
+                        <th style="min-width: 90px; text-align: center;">Leave Type</th>
+                        <th style="min-width: 140px;">Dates & Duration</th>
+                        <th style="min-width: 150px;">Reason & Doc</th>
+                        <th style="min-width: 100px; text-align: center;">Status</th>
+                        <th style="min-width: 130px; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($teamLeaves as $leave): ?>
+                        <?php 
+                        $in = new DateTime($leave['start_date']);
+                        $out = new DateTime($leave['end_date']);
+                        $days = $in->diff($out)->days + 1;
+                        ?>
                         <tr>
-                            <th>Employee</th>
-                            <th>Leave Type</th>
-                            <th>Dates</th>
-                            <th>Duration</th>
-                            <th>Reason</th>
-                            <th>Prescription</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($teamLeaves as $leave): ?>
-                            <?php 
-                            $in = new DateTime($leave['start_date']);
-                            $out = new DateTime($leave['end_date']);
-                            $days = $in->diff($out)->days + 1;
-                            ?>
-                            <tr>
-                                <td>
-                                    <div class="table-user">
-                                        <div class="table-user-avatar"><?php echo e(getInitials($leave['employee_name'])); ?></div>
-                                        <div>
-                                            <div class="table-user-name"><?php echo e($leave['employee_name']); ?></div>
-                                            <div class="table-user-email"><?php echo e($leave['employee_email']); ?></div>
+                            <td>
+                                <div class="table-user" style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="table-user-avatar" style="width: 30px; height: 30px; font-size: 11px; flex-shrink: 0;"><?php echo e(getInitials($leave['employee_name'])); ?></div>
+                                    <div style="min-width: 0;">
+                                        <div class="table-user-name" style="font-weight: 600; font-size: 13px; line-height: 1.2;"><?php echo e($leave['employee_name']); ?></div>
+                                        <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px;">
+                                            <?php echo e($leave['employee_email']); ?>
+
                                         </div>
                                     </div>
-                                </td>
-                                <td><span class="badge badge-info"><?php echo ucfirst(e($leave['leave_type'])); ?></span></td>
-                                <td><?php echo formatDate($leave['start_date']); ?> - <?php echo formatDate($leave['end_date']); ?></td>
-                                <td><strong><?php echo $days; ?> day(s)</strong></td>
-                                <td style="max-width: 200px;" class="truncate" title="<?php echo e($leave['reason']); ?>"><?php echo e($leave['reason']); ?></td>
-                                <td>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="badge badge-info" style="white-space: nowrap; font-size: 11px; padding: 2px 7px;"><?php echo ucfirst(e($leave['leave_type'])); ?></span>
+                            </td>
+                            <td>
+                                <div style="white-space: nowrap; font-size: 12px; font-weight: 600;">
+                                    <?php echo formatDate($leave['start_date']); ?>
+                                    <?php if ($leave['start_date'] !== $leave['end_date']): ?>
+                                        <span style="font-weight: 400; color: var(--color-text-muted);">to</span> <?php echo formatDate($leave['end_date']); ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="margin-top: 2px;">
+                                    <span class="badge badge-outline" style="font-size: 10px; padding: 1px 5px;">
+                                        <?php echo $days; ?> day<?php echo $days > 1 ? 's' : ''; ?>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="font-size: 12px; line-height: 1.3; max-width: 200px;" title="<?php echo e($leave['reason']); ?>">
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; max-width: 140px; vertical-align: middle;">
+                                        <?php echo e($leave['reason']); ?>
+                                    </span>
                                     <?php if ($leave['prescription_doc']): ?>
-                                        <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="btn btn-sm btn-outline"><i class="fa-solid fa-eye"></i> View Doc</a>
-                                    <?php else: ?>
-                                        <span class="text-muted">—</span>
+                                        <a href="<?php echo BASE_URL . '/' . e($leave['prescription_doc']); ?>" target="_blank" class="badge badge-purple" style="white-space: nowrap; padding: 1px 6px; font-size: 10px; text-decoration: none; vertical-align: middle;" title="View Attached Prescription">
+                                            <i class="fa-solid fa-file-medical"></i> Doc
+                                        </a>
                                     <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($leave['status'] === 'pending'): ?>
-                                        <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
-                                    <?php elseif ($leave['status'] === 'approved'): ?>
-                                        <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
-                                    <?php else: ?>
-                                        <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($leave['status'] === 'pending'): ?>
-                                        <div class="table-actions" style="gap: 6px;">
-                                            <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm">Approve</a>
-                                            <a href="?action=deny&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm">Deny</a>
-                                        </div>
-                                    <?php else: ?>
-                                        <span class="text-muted">—</span>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </div>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <?php if ($leave['status'] === 'pending'): ?>
+                                    <span class="badge badge-warning" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
+                                <?php elseif ($leave['status'] === 'approved'): ?>
+                                    <span class="badge badge-success" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-check"></i> Approved</span>
+                                <?php else: ?>
+                                    <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="text-align: right;">
+                                <?php if ($leave['status'] === 'pending'): ?>
+                                    <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                        <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-success btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Approve this leave application?')">
+                                            <i class="fa-solid fa-check"></i> Approve
+                                        </a>
+                                        <a href="?action=deny&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Deny this leave application?')">
+                                            <i class="fa-solid fa-xmark"></i> Deny
+                                        </a>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted" style="font-size: 11px; font-style: italic;">Completed</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
 </div>
 
 <!-- Section B: Apply / My Leaves -->
@@ -306,11 +376,11 @@ include __DIR__ . '/../includes/header.php';
                             <div class="flex-between mb-2">
                                 <span class="badge badge-info"><?php echo ucfirst($own['leave_type']); ?></span>
                                 <?php if ($own['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning"><span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span></span>
+                                    <span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                                 <?php elseif ($own['status'] === 'approved'): ?>
-                                    <span class="badge badge-success"><span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span></span>
+                                    <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span>
                                 <?php else: ?>
-                                    <span class="badge badge-danger"><span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span></span>
+                                    <span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
                                 <?php endif; ?>
                             </div>
                             <div style="font-size: var(--text-sm); font-weight: 500;">
@@ -334,14 +404,18 @@ function switchTab(tabId) {
     });
     document.getElementById(tabId).style.display = 'block';
     
-    // Toggle active classes on buttons
-    const btns = document.querySelectorAll('.flex.gap-4.mb-6 button');
+    const teamBtn = document.getElementById('btn-team-tab');
+    const myBtn = document.getElementById('btn-my-tab');
     if (tabId === 'team-leaves-tab') {
-        btns[0].className = 'btn btn-primary';
-        btns[1].className = 'btn btn-outline';
+        teamBtn.style.borderBottomColor = 'var(--color-primary)';
+        teamBtn.style.color = 'var(--color-primary)';
+        myBtn.style.borderBottomColor = 'transparent';
+        myBtn.style.color = 'var(--color-text-secondary)';
     } else {
-        btns[0].className = 'btn btn-outline';
-        btns[1].className = 'btn btn-primary';
+        myBtn.style.borderBottomColor = 'var(--color-primary)';
+        myBtn.style.color = 'var(--color-primary)';
+        teamBtn.style.borderBottomColor = 'transparent';
+        teamBtn.style.color = 'var(--color-text-secondary)';
     }
 }
 

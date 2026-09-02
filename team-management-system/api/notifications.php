@@ -34,6 +34,90 @@ try {
         $stmt->execute([$userId]);
         echo json_encode(['success' => true]);
         
+    } elseif ($action === 'poll') {
+        $lastId = (int)($_GET['last_id'] ?? 0);
+        $isInit = (bool)($_GET['init'] ?? false);
+        
+        $unreadCount = countUnreadNotifications($userId);
+        
+        // Get max notification id
+        $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ?");
+        $stmtMax->execute([$userId]);
+        $maxId = (int)$stmtMax->fetchColumn();
+        
+        if ($isInit || $lastId <= 0) {
+            echo json_encode([
+                'success' => true,
+                'max_id' => $maxId,
+                'unread_count' => $unreadCount,
+                'new_notifications' => []
+            ]);
+            exit;
+        }
+        
+        // Fetch newly arrived notifications since last_id
+        $stmt = $db->prepare("
+            SELECT * FROM notifications 
+            WHERE user_id = ? AND id > ? 
+            ORDER BY id ASC
+            LIMIT 15
+        ");
+        $stmt->execute([$userId, $lastId]);
+        $rows = $stmt->fetchAll();
+        
+        $newNotifs = [];
+        foreach ($rows as $r) {
+            $rawTitle = $r['title'];
+            $icon = 'fa-solid fa-bell';
+            $category = $r['type'] ?: 'info';
+            
+            // Smart icon & category detection
+            if (stripos($rawTitle, 'chat') !== false || stripos($rawTitle, 'message') !== false || stripos($rawTitle, 'group') !== false || stripos($rawTitle, 'dm') !== false) {
+                $icon = 'fa-solid fa-comments';
+                $category = 'chat';
+            } elseif (stripos($rawTitle, 'meeting') !== false) {
+                $icon = 'fa-solid fa-calendar-check';
+                $category = 'meeting';
+            } elseif (stripos($rawTitle, 'ticket') !== false || stripos($rawTitle, 'support') !== false) {
+                $icon = 'fa-solid fa-headset';
+                $category = 'ticket';
+            } elseif (stripos($rawTitle, 'leave') !== false) {
+                $icon = 'fa-solid fa-plane-departure';
+                $category = 'leave';
+            } elseif (stripos($rawTitle, 'announcement') !== false || stripos($rawTitle, 'broadcast') !== false) {
+                $icon = 'fa-solid fa-bullhorn';
+                $category = 'announcement';
+            } elseif (stripos($rawTitle, 'login') !== false || stripos($rawTitle, 'check-in') !== false || stripos($rawTitle, 'signed in') !== false) {
+                $icon = 'fa-solid fa-right-to-bracket';
+                $category = 'auth';
+            } elseif (stripos($rawTitle, 'logout') !== false || stripos($rawTitle, 'check-out') !== false) {
+                $icon = 'fa-solid fa-arrow-right-from-bracket';
+                $category = 'auth';
+            } elseif (stripos($rawTitle, 'task') !== false) {
+                $icon = 'fa-solid fa-list-check';
+                $category = 'task';
+            }
+            
+            $newNotifs[] = [
+                'id' => (int)$r['id'],
+                'title' => trim(strip_tags($r['title'])),
+                'message' => trim(strip_tags($r['message'])),
+                'link' => $r['link'] ?: '',
+                'type' => $r['type'],
+                'category' => $category,
+                'icon' => $icon,
+                'time_ago' => timeAgo($r['created_at']),
+                'created_at' => $r['created_at']
+            ];
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'max_id' => $maxId > $lastId ? $maxId : $lastId,
+            'unread_count' => $unreadCount,
+            'new_notifications' => $newNotifs
+        ]);
+        exit;
     } elseif ($action === 'get_unread') {
         $unreadCount = countUnreadNotifications($userId);
         $notifs = getUnreadNotifications($userId, 7);

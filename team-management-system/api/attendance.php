@@ -58,6 +58,22 @@ try {
             $stmt = $db->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, 'present')");
             $stmt->execute([$userId, $today, $currentTime]);
         }
+
+        // Notify Founder, HR, and Manager
+        $userName = $user['name'] . ' (' . ucfirst($userRole) . ')';
+        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($user['manager_id'])) {
+            $notifyIds[] = (int)$user['manager_id'];
+        }
+        foreach (array_unique($notifyIds) as $nId) {
+            createNotification(
+                (int)$nId,
+                '🟢 Check-In: ' . $userName,
+                $userName . ' checked in at ' . date('h:i A', strtotime($currentTime)),
+                BASE_URL . '/attendance.php',
+                'info'
+            );
+        }
         
         echo json_encode([
             'success' => true,
@@ -182,6 +198,22 @@ try {
         
         $stmt = $db->prepare("UPDATE attendance SET check_out = ?, total_working_time = ?, status = ? WHERE id = ?");
         $stmt->execute([$currentTime, $workingTimeStr, $status, $existing['id']]);
+
+        // Notify Founder, HR, and Manager
+        $userName = $user['name'] . ' (' . ucfirst($userRole) . ')';
+        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($user['manager_id'])) {
+            $notifyIds[] = (int)$user['manager_id'];
+        }
+        foreach (array_unique($notifyIds) as $nId) {
+            createNotification(
+                (int)$nId,
+                '🔴 Check-Out: ' . $userName,
+                $userName . ' checked out at ' . date('h:i A', strtotime($currentTime)) . ' (' . sprintf('%dh %02dm', $wHours, $wMins) . ' worked)',
+                BASE_URL . '/attendance.php',
+                'info'
+            );
+        }
         
         echo json_encode([
             'success' => true,

@@ -57,6 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'create_ticket')
                 VALUES (?, ?, ?, ?, ?, ?, 'pending')
             ");
             $stmt->execute([$userId, $category, $subcategory, $description, $sendTo, $isAnonymous]);
+
+            // Dispatch notifications to assigned teams
+            $creatorName = $isAnonymous ? 'Anonymous' : ($_SESSION['user_name'] ?? 'Employee');
+            if (in_array('hr', $cleanTargets)) {
+                $hrIds = $db->query("SELECT id FROM users WHERE role = 'hr' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($hrIds as $hId) {
+                    createNotification($hId, '🎫 Support Ticket: ' . $category, $creatorName . ' submitted ticket: ' . $category . ' - ' . $subcategory, BASE_URL . '/hr/support.php', 'info');
+                }
+            }
+            if (in_array('founder', $cleanTargets)) {
+                $founderIds = $db->query("SELECT id FROM users WHERE role = 'founder' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($founderIds as $fId) {
+                    createNotification($fId, '🎫 Executive Ticket: ' . $category, $creatorName . ' submitted a support ticket to Founder.', BASE_URL . '/founder/tickets.php', 'info');
+                }
+            }
+            if (in_array('manager', $cleanTargets)) {
+                $mgrStmt = $db->prepare("SELECT manager_id FROM users WHERE id = ?");
+                $mgrStmt->execute([$userId]);
+                $mgrId = $mgrStmt->fetchColumn();
+                if ($mgrId) {
+                    createNotification($mgrId, '🎫 Team Support Ticket', $creatorName . ' submitted a support ticket: ' . $category, BASE_URL . '/manager/tickets.php', 'info');
+                }
+            }
             
             setFlash('success', 'Support ticket submitted successfully!');
             header('Location: ' . BASE_URL . '/employee/support.php');

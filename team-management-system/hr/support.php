@@ -78,6 +78,20 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         $status = ($action === 'resolve') ? 'resolved' : 'pending';
         $stmt = $db->prepare("UPDATE support_tickets SET status = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$status, $ticketId]);
+
+        $tStmt = $db->prepare("SELECT user_id, category FROM support_tickets WHERE id = ?");
+        $tStmt->execute([$ticketId]);
+        $tRow = $tStmt->fetch();
+        if ($tRow) {
+            createNotification(
+                (int)$tRow['user_id'],
+                ($status === 'resolved' ? '✅ Support Ticket Resolved' : '🔄 Support Ticket Re-opened'),
+                'Your support ticket (' . $tRow['category'] . ') was ' . $status . ' by HR.',
+                BASE_URL . '/employee/support.php',
+                ($status === 'resolved' ? 'success' : 'info')
+            );
+        }
+
         setFlash('success', 'Ticket status updated successfully.');
         header('Location: ' . BASE_URL . '/hr/support.php?tab=' . $tab);
         exit;

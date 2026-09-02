@@ -19,14 +19,62 @@ require_once __DIR__ . '/../includes/middleware.php';
 
 requireLogin();
 
-$pageTitle = 'Team Chat & Direct Messaging';
-include __DIR__ . '/../includes/header.php';
-?>
+$isEmbed = isset($_GET['embed']) && $_GET['embed'] == '1';
+
+if ($isEmbed): ?>
+<!DOCTYPE html>
+<html lang="en" data-theme="<?php echo htmlspecialchars($_GET['theme'] ?? $_COOKIE['app_theme'] ?? 'dark'); ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo csrfToken(); ?>">
+    <title>Team Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css">
+    <script>
+        window.BASE_URL = '<?php echo BASE_URL; ?>';
+        window.CURRENT_USER_ID = <?php echo (int)$_SESSION['user_id']; ?>;
+        window.CURRENT_USER_ROLE = '<?php echo e($_SESSION['user_role']); ?>';
+        
+        // Dynamic Theme Sync with Parent Window & LocalStorage
+        function syncActiveTheme() {
+            let activeTheme = 'dark';
+            try {
+                if (window.parent && window.parent.document && window.parent.document.documentElement) {
+                    activeTheme = window.parent.document.documentElement.getAttribute('data-theme') || 'dark';
+                } else {
+                    activeTheme = localStorage.getItem('app_theme') || 'dark';
+                }
+            } catch(e) {
+                activeTheme = localStorage.getItem('app_theme') || 'dark';
+            }
+            document.documentElement.setAttribute('data-theme', activeTheme);
+            if (document.body) document.body.setAttribute('data-theme', activeTheme);
+        }
+        syncActiveTheme();
+        window.addEventListener('storage', syncActiveTheme);
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.theme) {
+                document.documentElement.setAttribute('data-theme', e.data.theme);
+                if (document.body) document.body.setAttribute('data-theme', e.data.theme);
+            }
+        });
+    </script>
+</head>
+<body class="is-embed" style="background: var(--color-bg-primary); margin: 0; padding: 0; height: 100vh; max-height: 100vh; overflow: hidden;">
+<?php else:
+    $pageTitle = 'Team Chat & Direct Messaging';
+    include __DIR__ . '/../includes/header.php';
+endif; ?>
 
 <style>
 .chat-app-container {
     display: flex;
     height: calc(100vh - 120px);
+    max-height: 100%;
     background: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -35,16 +83,76 @@ include __DIR__ . '/../includes/header.php';
     position: relative;
 }
 
+body.is-embed .chat-app-container {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+}
+
 .chat-sidebar {
-    width: 330px;
+    width: 320px;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
     background: var(--color-bg-secondary);
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    .chat-sidebar {
+        width: 100% !important;
+        display: flex !important;
+    }
+    .chat-main {
+        display: none !important;
+        width: 100% !important;
+    }
+    .chat-app-container.room-active .chat-sidebar {
+        display: none !important;
+    }
+    .chat-app-container.room-active .chat-main {
+        display: flex !important;
+    }
+    .chat-app-container.room-active #mobile-chat-back-btn {
+        display: inline-flex !important;
+    }
+}
+
+body.is-embed.narrow-embed .chat-sidebar {
+    width: 100% !important;
+    display: flex !important;
+}
+body.is-embed.narrow-embed .chat-main {
+    display: none !important;
+    width: 100% !important;
+}
+body.is-embed.narrow-embed .chat-app-container.room-active .chat-sidebar {
+    display: none !important;
+}
+body.is-embed.narrow-embed .chat-app-container.room-active .chat-main {
+    display: flex !important;
+}
+body.is-embed.narrow-embed .chat-app-container.room-active #mobile-chat-back-btn {
+    display: inline-flex !important;
+}
+
+@media (max-width: 600px) {
+    .hide-on-narrow {
+        display: none !important;
+    }
+}
+body.narrow-embed .hide-on-narrow {
+    display: none !important;
 }
 
 .chat-sidebar-header {
-    padding: 14px 16px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--color-border);
     display: flex;
     justify-content: space-between;
@@ -53,32 +161,58 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-room-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    padding: 6px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Custom Scrollbars */
+.chat-room-list::-webkit-scrollbar,
+.chat-messages-area::-webkit-scrollbar,
+#new-dm-user-list::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-room-list::-webkit-scrollbar-track,
+.chat-messages-area::-webkit-scrollbar-track,
+#new-dm-user-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.chat-room-list::-webkit-scrollbar-thumb,
+.chat-messages-area::-webkit-scrollbar-thumb,
+#new-dm-user-list::-webkit-scrollbar-thumb {
+    background: rgba(150, 150, 150, 0.35);
+    border-radius: 4px;
+}
+.chat-room-list::-webkit-scrollbar-thumb:hover,
+.chat-messages-area::-webkit-scrollbar-thumb:hover,
+#new-dm-user-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(150, 150, 150, 0.6);
 }
 
 .chat-section-header {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--color-text-muted);
-    padding: 12px 10px 4px 10px;
+    padding: 10px 8px 4px 8px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .chat-room-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 8px 10px;
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.2s ease;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
     position: relative;
 }
 
@@ -87,8 +221,8 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-room-avatar {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--color-primary);
     color: #fff;
@@ -96,14 +230,14 @@ include __DIR__ . '/../includes/header.php';
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 12px;
     flex-shrink: 0;
     position: relative;
 }
 
 .chat-role-badge {
-    font-size: 9px;
-    padding: 1px 6px;
+    font-size: 8.5px;
+    padding: 1px 5px;
     border-radius: 4px;
     font-weight: 600;
     text-transform: uppercase;
@@ -121,7 +255,7 @@ include __DIR__ . '/../includes/header.php';
 
 .chat-room-name {
     font-weight: 600;
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--color-text-main);
     white-space: nowrap;
     overflow: hidden;
@@ -129,7 +263,7 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-room-preview {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -137,29 +271,40 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-main {
-    flex: 1;
+    flex: 1 1 0%;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     background: var(--color-bg-card);
     position: relative;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .chat-main-header {
-    padding: 12px 20px;
+    flex-shrink: 0;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
     background: var(--color-bg-secondary);
+    gap: 8px;
+    min-width: 0;
 }
 
 .chat-messages-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    padding: 14px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .chat-bubble-row {
@@ -434,7 +579,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
         
-        <div style="padding: 10px 16px 4px 16px;">
+        <div style="padding: 10px 14px 4px 14px; flex-shrink: 0;">
             <input type="text" id="chat-search-input" class="form-input" placeholder="Search person, group, or channel..." style="font-size: 12px; height: 34px;" onkeyup="filterDirectory()">
         </div>
 
@@ -448,33 +593,30 @@ include __DIR__ . '/../includes/header.php';
     <!-- RIGHT MAIN: ACTIVE CONVERSATION -->
     <div class="chat-main">
         <div class="chat-main-header" id="chat-main-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="mobile-chat-back-btn" class="btn btn-outline btn-sm" onclick="backToDirectoryOnMobile()" style="display: none; font-size: 11px; padding: 4px 10px;" title="Back to Directory">
-                    <i class="fa-solid fa-arrow-left"></i> Back
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                <button id="mobile-chat-back-btn" class="btn btn-outline btn-sm" onclick="backToDirectoryOnMobile()" style="display: none; padding: 4px 8px; height: 30px; font-size: 11px; flex-shrink: 0;" title="Back to Directory">
+                    <i class="fa-solid fa-arrow-left"></i>
                 </button>
-                <div>
-                    <strong id="active-room-name" style="font-size: 15px; color: var(--color-text-main);">Select a Specific Person or Group</strong>
-                    <div id="active-room-subtitle" class="text-muted" style="font-size: 11px;">Click any person or group from the left sidebar to start messaging</div>
+                <div style="min-width: 0; flex: 1;">
+                    <strong id="active-room-name" style="font-size: 13.5px; color: var(--color-text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Select a Specific Person or Group</strong>
+                    <div id="active-room-subtitle" class="text-muted" style="font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">Click any person or group from the left sidebar to start messaging</div>
                 </div>
             </div>
             
-            <!-- Room Top Actions (Clear History) -->
-            <div id="room-actions-bar" style="display: none; align-items: center; gap: 8px;">
-                <button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteHistory()" title="Permanently delete all chat history in this room from database" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;">
-                    <i class="fa-solid fa-trash-can"></i> Clear History
-                </button>
+            <!-- Room Top Actions (View Members, Delete Group, Clear History) -->
+            <div id="room-actions-bar" style="display: none; align-items: center; gap: 5px; flex-shrink: 0;">
             </div>
         </div>
 
         <div class="chat-messages-area" id="chat-messages-area">
             <div style="margin: auto; text-align: center; color: var(--color-text-muted);">
-                <i class="fa-solid fa-paper-plane" style="font-size: 48px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
-                <p style="font-size: 14px;">Select a person or group to start messaging, file sharing, and tagging.</p>
+                <i class="fa-solid fa-paper-plane" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 10px;"></i>
+                <p style="font-size: 13px;">Select a person or group to start messaging, file sharing, and tagging.</p>
             </div>
         </div>
 
         <!-- INPUT BAR -->
-        <div class="chat-input-bar">
+        <div class="chat-input-bar" style="padding: 8px 12px; gap: 6px;">
             <!-- Edit Message Banner -->
             <div id="edit-banner">
                 <div>
@@ -495,18 +637,18 @@ include __DIR__ . '/../includes/header.php';
             <!-- Mention Autocomplete Popover -->
             <div id="mention-popover"></div>
 
-            <form id="chat-form" onsubmit="handleChatSubmit(event)" enctype="multipart/form-data">
-                <div class="chat-input-controls">
+            <form id="chat-form" onsubmit="handleChatSubmit(event)" enctype="multipart/form-data" style="margin: 0;">
+                <div class="chat-input-controls" style="display: flex; align-items: center; gap: 6px;">
                     <!-- File Upload Icon Button -->
-                    <label for="chat-file-input" style="cursor: pointer; padding: 8px 12px; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary);" title="Attach Image or File">
-                        <i class="fa-solid fa-paperclip"></i>
+                    <label for="chat-file-input" style="cursor: pointer; height: 36px; width: 36px; display: flex; align-items: center; justify-content: center; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary); flex-shrink: 0; margin: 0;" title="Attach Image or File">
+                        <i class="fa-solid fa-paperclip" style="font-size: 13px;"></i>
                         <input type="file" id="chat-file-input" style="display: none;" onchange="handleFileSelected(this)">
                     </label>
 
-                    <input type="text" id="chat-text-input" class="chat-input-field" placeholder="Type message or @ to tag a specific person..." autocomplete="off" oninput="handleInputForMentions(event)" onkeydown="handleInputKeydown(event)">
+                    <input type="text" id="chat-text-input" class="chat-input-field" placeholder="Type message or @ to tag..." autocomplete="off" oninput="handleInputForMentions(event)" onkeydown="handleInputKeydown(event)" style="height: 36px; padding: 6px 10px; font-size: 12.5px;">
 
-                    <button type="submit" id="chat-submit-btn" class="btn btn-primary" style="height: 42px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-paper-plane" id="chat-btn-icon"></i> <span id="chat-btn-label">Send</span>
+                    <button type="submit" id="chat-submit-btn" class="btn btn-primary" style="height: 36px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex-shrink: 0;">
+                        <i class="fa-solid fa-paper-plane" id="chat-btn-icon" style="font-size: 12px;"></i> <span id="chat-btn-label" class="hide-on-narrow">Send</span>
                     </button>
                 </div>
             </form>
@@ -739,12 +881,12 @@ function switchRoom(roomId) {
         if (actionsBar) {
             let actionsHtml = '';
             if (activeRoom.type === 'group') {
-                actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="openViewGroupMembersModal(${activeRoom.id})" title="View Group Members" style="font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-users"></i> View Members</button>`;
+                actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="openViewGroupMembersModal(${activeRoom.id})" title="View Group Members" style="font-size: 11px; padding: 4px 8px; height: 30px; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-users"></i> <span class="hide-on-narrow">Members</span></button>`;
                 if (activeRoom.id !== 1 && activeRoom.can_clear_history) {
-                    actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteGroup(${activeRoom.id})" title="Permanently delete this group" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-trash"></i> Delete Group</button>`;
+                    actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteGroup(${activeRoom.id})" title="Permanently delete this group" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 8px; height: 30px; display: inline-flex; align-items: center;"><i class="fa-solid fa-trash"></i></button>`;
                 }
             }
-            actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteHistory()" title="Permanently delete all chat history in this room from database" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-trash-can"></i> Clear History</button>`;
+            actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteHistory()" title="Permanently delete all chat history in this room" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 8px; height: 30px; display: inline-flex; align-items: center;"><i class="fa-solid fa-trash-can"></i></button>`;
             actionsBar.innerHTML = actionsHtml;
             actionsBar.style.display = 'flex';
         }
@@ -1384,6 +1526,31 @@ function ucfirst(str) {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+function checkEmbedLayout() {
+    if (window.innerWidth < 650) {
+        document.body.classList.add('narrow-embed');
+        const backBtn = document.getElementById('mobile-chat-back-btn');
+        if (backBtn && currentRoomId) {
+            backBtn.style.display = 'inline-flex';
+        }
+    } else {
+        document.body.classList.remove('narrow-embed');
+        const backBtn = document.getElementById('mobile-chat-back-btn');
+        if (backBtn && window.innerWidth > 768) {
+            backBtn.style.display = 'none';
+        }
+    }
+}
+
+window.addEventListener('resize', checkEmbedLayout);
+document.addEventListener('DOMContentLoaded', checkEmbedLayout);
 </script>
 
-<?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php if ($isEmbed): ?>
+    <script src="<?php echo BASE_URL; ?>/assets/js/app.js"></script>
+</body>
+</html>
+<?php else: ?>
+    <?php include __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

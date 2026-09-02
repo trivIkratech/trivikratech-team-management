@@ -23,6 +23,19 @@ if (isset($_GET['resolve']) && is_numeric($_GET['resolve'])) {
     try {
         $stmt = $db->prepare("UPDATE support_tickets SET status = 'resolved' WHERE id = ?");
         $stmt->execute([$ticketId]);
+
+        $tStmt = $db->prepare("SELECT user_id, category FROM support_tickets WHERE id = ?");
+        $tStmt->execute([$ticketId]);
+        $tRow = $tStmt->fetch();
+        if ($tRow) {
+            createNotification(
+                (int)$tRow['user_id'],
+                '✅ Support Ticket Resolved',
+                'Your support ticket (' . $tRow['category'] . ') has been resolved by Founder.',
+                BASE_URL . '/employee/support.php',
+                'success'
+            );
+        }
         
         setFlash('success', 'Ticket marked as resolved.');
         header('Location: ' . BASE_URL . '/founder/tickets.php');
