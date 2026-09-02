@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
             $stmt->execute([$founderId, $title, $content]);
             
             // Notify all active team members
-            $usersStmt = $db->prepare("SELECT id, role FROM users WHERE is_active = 1 AND id != ?");
+            $usersStmt = $db->prepare("SELECT id, role FROM users WHERE status = 'active' AND id != ?");
             $usersStmt->execute([$founderId]);
             $activeUsers = $usersStmt->fetchAll();
             foreach ($activeUsers as $u) {

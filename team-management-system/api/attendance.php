@@ -61,7 +61,7 @@ try {
 
         // Notify Founder, HR, and Manager
         $userName = $user['name'] . ' (' . ucfirst($userRole) . ')';
-        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
         if (!empty($user['manager_id'])) {
             $notifyIds[] = (int)$user['manager_id'];
         }
@@ -201,7 +201,7 @@ try {
 
         // Notify Founder, HR, and Manager
         $userName = $user['name'] . ' (' . ucfirst($userRole) . ')';
-        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+        $notifyIds = $db->query("SELECT id FROM users WHERE role IN ('founder', 'hr') AND id != " . (int)$userId . " AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
         if (!empty($user['manager_id'])) {
             $notifyIds[] = (int)$user['manager_id'];
         }

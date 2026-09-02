@@ -50,9 +50,9 @@ CREATE TABLE `chat_messages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `room_id` int NOT NULL,
   `sender_id` int NOT NULL,
-  `message` text,
-  `file_path` varchar(255) DEFAULT NULL,
-  `file_name` varchar(255) DEFAULT NULL,
+  `message` text COLLATE utf8mb4_unicode_ci,
+  `file_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_read` tinyint DEFAULT '0',
   `is_edited` tinyint(1) DEFAULT '0',
   `edited_at` timestamp NULL DEFAULT NULL,
@@ -62,12 +62,12 @@ CREATE TABLE `chat_messages` (
   KEY `sender_id` (`sender_id`),
   CONSTRAINT `chat_messages_ibfk_1` FOREIGN KEY (`room_id`) REFERENCES `chat_rooms` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_messages_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed data for `chat_messages`
-INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `file_type`, `is_read`, `created_at`) VALUES ('1', '5', '4', 'hello sir', NULL, NULL, NULL, '1', '2026-08-31 17:44:46');
-INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `file_type`, `is_read`, `created_at`) VALUES ('2', '6', '1', 'hello manager', NULL, NULL, NULL, '0', '2026-08-31 18:07:35');
-INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `file_type`, `is_read`, `created_at`) VALUES ('3', '6', '1', 'hello manager', NULL, NULL, NULL, '0', '2026-08-31 18:07:59');
+INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `is_read`, `created_at`) VALUES ('1', '5', '4', 'hello sir', NULL, NULL, '1', '2026-08-31 17:44:46');
+INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `is_read`, `created_at`) VALUES ('2', '6', '1', 'hello manager', NULL, NULL, '0', '2026-08-31 18:07:35');
+INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `message`, `file_path`, `file_name`, `is_read`, `created_at`) VALUES ('3', '6', '1', 'hello manager', NULL, NULL, '0', '2026-08-31 18:07:59');
 
 -- Table structure for `chat_room_members`
 DROP TABLE IF EXISTS `chat_room_members`;
@@ -81,7 +81,7 @@ CREATE TABLE `chat_room_members` (
   KEY `user_id` (`user_id`),
   CONSTRAINT `chat_room_members_ibfk_1` FOREIGN KEY (`room_id`) REFERENCES `chat_rooms` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_room_members_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=307 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed data for `chat_room_members`
 INSERT INTO `chat_room_members` (`id`, `room_id`, `user_id`, `joined_at`) VALUES ('1', '1', '1', '2026-08-31 17:23:24');
@@ -103,12 +103,12 @@ INSERT INTO `chat_room_members` (`id`, `room_id`, `user_id`, `joined_at`) VALUES
 DROP TABLE IF EXISTS `chat_rooms`;
 CREATE TABLE `chat_rooms` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) DEFAULT NULL,
-  `type` enum('direct','group') DEFAULT 'direct',
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` enum('direct','group') COLLATE utf8mb4_unicode_ci DEFAULT 'direct',
   `created_by` int NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed data for `chat_rooms`
 INSERT INTO `chat_rooms` (`id`, `name`, `type`, `created_by`, `created_at`) VALUES ('1', '#General Team Chat', 'group', '1', '2026-08-31 17:23:24');
@@ -181,16 +181,16 @@ DROP TABLE IF EXISTS `notifications`;
 CREATE TABLE `notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `title` varchar(255) NOT NULL,
-  `message` text NOT NULL,
-  `link` varchar(255) DEFAULT NULL,
-  `type` enum('info','success','warning','danger') DEFAULT 'info',
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `link` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` enum('info','success','warning','danger') COLLATE utf8mb4_unicode_ci DEFAULT 'info',
   `is_read` tinyint DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_user_read` (`user_id`,`is_read`),
   CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed data for `notifications`
 INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `link`, `type`, `is_read`, `created_at`) VALUES ('1', '1', '💬 New Message from Employee User', 'hello sir', '/team-management-system/chat/index.php?room_id=5', 'info', '1', '2026-08-31 17:44:46');

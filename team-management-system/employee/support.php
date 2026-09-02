@@ -61,13 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'create_ticket')
             // Dispatch notifications to assigned teams
             $creatorName = $isAnonymous ? 'Anonymous' : ($_SESSION['user_name'] ?? 'Employee');
             if (in_array('hr', $cleanTargets)) {
-                $hrIds = $db->query("SELECT id FROM users WHERE role = 'hr' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                $hrIds = $db->query("SELECT id FROM users WHERE role = 'hr' AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($hrIds as $hId) {
                     createNotification($hId, '🎫 Support Ticket: ' . $category, $creatorName . ' submitted ticket: ' . $category . ' - ' . $subcategory, BASE_URL . '/hr/support.php', 'info');
                 }
             }
             if (in_array('founder', $cleanTargets)) {
-                $founderIds = $db->query("SELECT id FROM users WHERE role = 'founder' AND is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+                $founderIds = $db->query("SELECT id FROM users WHERE role = 'founder' AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
                 foreach ($founderIds as $fId) {
                     createNotification($fId, '🎫 Executive Ticket: ' . $category, $creatorName . ' submitted a support ticket to Founder.', BASE_URL . '/founder/tickets.php', 'info');
                 }

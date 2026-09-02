@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
             $stmt->execute([$managerId, $title, $content]);
 
             // Notify team members assigned to this manager
-            $teamStmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND is_active = 1");
+            $teamStmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND status = 'active'");
             $teamStmt->execute([$managerId]);
             $teamMembers = $teamStmt->fetchAll();
             foreach ($teamMembers as $m) {
