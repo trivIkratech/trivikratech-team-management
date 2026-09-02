@@ -2,8 +2,13 @@
 /**
  * System-Wide Team Chat Application
  * 
- * Direct Messages with specific persons (Founder, HR, Manager, Employees),
- * Group Channels, Clickable Links & File Attachments
+ * Features:
+ * - Direct Messages with specific persons (Founder, HR, Manager, Employees)
+ * - Custom Group Creation & Multi-Member channels
+ * - In-Box Message Editing with (edited) status
+ * - Complete Chat History Deletion from database & individual message deletion
+ * - @Person Mentions with interactive autocomplete & notifications
+ * - Clickable links & file/image attachments
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -27,10 +32,11 @@ include __DIR__ . '/../includes/header.php';
     border-radius: var(--radius-lg);
     overflow: hidden;
     margin-top: -10px;
+    position: relative;
 }
 
 .chat-sidebar {
-    width: 320px;
+    width: 330px;
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
@@ -38,11 +44,12 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-sidebar-header {
-    padding: 16px;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--color-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
 }
 
 .chat-room-list {
@@ -70,8 +77,9 @@ include __DIR__ . '/../includes/header.php';
     padding: 10px 12px;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
     margin-bottom: 3px;
+    position: relative;
 }
 
 .chat-room-item:hover, .chat-room-item.active {
@@ -133,10 +141,11 @@ include __DIR__ . '/../includes/header.php';
     display: flex;
     flex-direction: column;
     background: var(--color-bg-card);
+    position: relative;
 }
 
 .chat-main-header {
-    padding: 14px 20px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--color-border);
     display: flex;
     align-items: center;
@@ -156,7 +165,9 @@ include __DIR__ . '/../includes/header.php';
 .chat-bubble-row {
     display: flex;
     gap: 10px;
-    max-width: 75%;
+    max-width: 78%;
+    position: relative;
+    group: relative;
 }
 
 .chat-bubble-row.is-self {
@@ -187,6 +198,7 @@ include __DIR__ . '/../includes/header.php';
     color: var(--color-text-main);
     line-height: 1.4;
     word-break: break-word;
+    position: relative;
 }
 
 .chat-bubble-row.is-self .chat-bubble-content {
@@ -207,6 +219,79 @@ include __DIR__ . '/../includes/header.php';
     display: flex;
     gap: 6px;
     align-items: center;
+}
+
+.chat-edited-tag {
+    font-size: 9px;
+    opacity: 0.8;
+    font-style: italic;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.chat-mention {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(79, 110, 247, 0.25);
+    color: #93c5fd;
+    padding: 1px 7px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+    border: 1px solid rgba(79, 110, 247, 0.4);
+}
+
+.chat-bubble-row.is-self .chat-mention {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Hover Action Toolbar on message */
+.chat-msg-actions {
+    position: absolute;
+    top: -12px;
+    right: 8px;
+    display: none;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 2px 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10;
+    gap: 4px;
+}
+
+.chat-bubble-row.is-self .chat-msg-actions {
+    right: auto;
+    left: 8px;
+}
+
+.chat-bubble-row:hover .chat-msg-actions {
+    display: flex;
+}
+
+.chat-action-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+
+.chat-action-btn:hover {
+    color: var(--color-primary);
+    background: rgba(79, 110, 247, 0.1);
+}
+
+.chat-action-btn.btn-delete:hover {
+    color: var(--color-danger);
+    background: rgba(239, 68, 68, 0.1);
 }
 
 .chat-attachment-img {
@@ -233,12 +318,13 @@ include __DIR__ . '/../includes/header.php';
 }
 
 .chat-input-bar {
-    padding: 14px 20px;
+    padding: 12px 20px;
     border-top: 1px solid var(--color-border);
     background: var(--color-bg-secondary);
     display: flex;
     flex-direction: column;
     gap: 8px;
+    position: relative;
 }
 
 .chat-input-controls {
@@ -275,25 +361,86 @@ include __DIR__ . '/../includes/header.php';
     font-size: 12px;
     color: var(--color-text-main);
 }
+
+/* Edit banner above input */
+#edit-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(79, 110, 247, 0.12);
+    border-left: 3px solid var(--color-primary);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--color-text-main);
+}
+
+/* Mention Autocomplete Dropdown */
+#mention-popover {
+    display: none;
+    position: absolute;
+    bottom: 60px;
+    left: 60px;
+    width: 280px;
+    max-height: 200px;
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s;
+}
+
+.mention-item:hover, .mention-item.selected {
+    background: rgba(79, 110, 247, 0.2);
+}
+
+.mention-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 </style>
 
 <div class="chat-app-container fade-in">
-    <!-- LEFT SIDEBAR: DIRECT MESSAGES WITH SPECIFIC PERSONS & CHANNELS -->
+    <!-- LEFT SIDEBAR: DIRECT MESSAGES, CHANNELS & CUSTOM GROUPS -->
     <div class="chat-sidebar">
         <div class="chat-sidebar-header">
-            <h3 style="margin: 0; font-size: 15px;"><i class="fa-solid fa-comments" style="color: var(--color-primary); margin-right: 6px;"></i> Team Messages</h3>
-            <button class="btn btn-primary btn-sm" onclick="openNewDMModal()" title="Start Direct Message" style="font-size: 11px; padding: 4px 10px;">
-                <i class="fa-solid fa-user-plus"></i> Message Person
-            </button>
+            <h3 style="margin: 0; font-size: 15px;"><i class="fa-solid fa-comments" style="color: var(--color-primary); margin-right: 4px;"></i> Team Messages</h3>
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-outline btn-sm" onclick="openCreateGroupModal()" title="Create Group Chat" style="font-size: 11px; padding: 4px 8px;">
+                    <i class="fa-solid fa-users-plus"></i> + Group
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="openNewDMModal()" title="Direct Message Person" style="font-size: 11px; padding: 4px 8px;">
+                    <i class="fa-solid fa-user"></i> DM
+                </button>
+            </div>
         </div>
         
         <div style="padding: 10px 16px 4px 16px;">
-            <input type="text" id="chat-search-input" class="form-input" placeholder="Search person or channel..." style="font-size: 12px; height: 34px;" onkeyup="filterDirectory()">
+            <input type="text" id="chat-search-input" class="form-input" placeholder="Search person, group, or channel..." style="font-size: 12px; height: 34px;" onkeyup="filterDirectory()">
         </div>
 
         <div class="chat-room-list" id="chat-room-list">
             <div style="padding: 20px; text-align: center; color: var(--color-text-muted); font-size: 12px;">
-                Loading team members...
+                Loading chat rooms & team directory...
             </div>
         </div>
     </div>
@@ -301,26 +448,42 @@ include __DIR__ . '/../includes/header.php';
     <!-- RIGHT MAIN: ACTIVE CONVERSATION -->
     <div class="chat-main">
         <div class="chat-main-header" id="chat-main-header">
-            <div style="display: flex; align-items: center;">
-                <button id="mobile-chat-back-btn" class="btn btn-outline btn-sm" onclick="backToDirectoryOnMobile()" style="display: none; font-size: 11px; padding: 4px 10px; margin-right: 10px;" title="Back to Directory">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="mobile-chat-back-btn" class="btn btn-outline btn-sm" onclick="backToDirectoryOnMobile()" style="display: none; font-size: 11px; padding: 4px 10px;" title="Back to Directory">
                     <i class="fa-solid fa-arrow-left"></i> Back
                 </button>
                 <div>
                     <strong id="active-room-name" style="font-size: 15px; color: var(--color-text-main);">Select a Specific Person or Group</strong>
-                    <div id="active-room-subtitle" class="text-muted" style="font-size: 11px;">Click any Founder, Manager, HR, or Employee from the left list to send a private message</div>
+                    <div id="active-room-subtitle" class="text-muted" style="font-size: 11px;">Click any person or group from the left sidebar to start messaging</div>
                 </div>
+            </div>
+            
+            <!-- Room Top Actions (Clear History) -->
+            <div id="room-actions-bar" style="display: none; align-items: center; gap: 8px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteHistory()" title="Permanently delete all chat history in this room from database" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;">
+                    <i class="fa-solid fa-trash-can"></i> Clear History
+                </button>
             </div>
         </div>
 
         <div class="chat-messages-area" id="chat-messages-area">
             <div style="margin: auto; text-align: center; color: var(--color-text-muted);">
                 <i class="fa-solid fa-paper-plane" style="font-size: 48px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
-                <p style="font-size: 14px;">Select a person to start 1-on-1 private messaging, link sharing, and file attachments.</p>
+                <p style="font-size: 14px;">Select a person or group to start messaging, file sharing, and tagging.</p>
             </div>
         </div>
 
         <!-- INPUT BAR -->
         <div class="chat-input-bar">
+            <!-- Edit Message Banner -->
+            <div id="edit-banner">
+                <div>
+                    <i class="fa-solid fa-pen" style="color: var(--color-primary); margin-right: 4px;"></i>
+                    <strong>Editing message:</strong> <span id="edit-preview-text" style="opacity: 0.85;"></span>
+                </div>
+                <button type="button" onclick="cancelEditMessage()" style="background: none; border: none; color: var(--color-danger); cursor: pointer; font-size: 12px; font-weight: bold;">Cancel (Esc)</button>
+            </div>
+
             <!-- Selected File Preview Chip -->
             <div id="file-preview-container" style="display: none;">
                 <span class="chat-file-chip">
@@ -329,7 +492,10 @@ include __DIR__ . '/../includes/header.php';
                 </span>
             </div>
 
-            <form id="chat-form" onsubmit="sendMessage(event)" enctype="multipart/form-data">
+            <!-- Mention Autocomplete Popover -->
+            <div id="mention-popover"></div>
+
+            <form id="chat-form" onsubmit="handleChatSubmit(event)" enctype="multipart/form-data">
                 <div class="chat-input-controls">
                     <!-- File Upload Icon Button -->
                     <label for="chat-file-input" style="cursor: pointer; padding: 8px 12px; background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary);" title="Attach Image or File">
@@ -337,10 +503,10 @@ include __DIR__ . '/../includes/header.php';
                         <input type="file" id="chat-file-input" style="display: none;" onchange="handleFileSelected(this)">
                     </label>
 
-                    <input type="text" id="chat-text-input" class="chat-input-field" placeholder="Type message to specific person or paste link..." autocomplete="off">
+                    <input type="text" id="chat-text-input" class="chat-input-field" placeholder="Type message or @ to tag a specific person..." autocomplete="off" oninput="handleInputForMentions(event)" onkeydown="handleInputKeydown(event)">
 
-                    <button type="submit" class="btn btn-primary" style="height: 42px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-paper-plane"></i> Send
+                    <button type="submit" id="chat-submit-btn" class="btn btn-primary" style="height: 42px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-paper-plane" id="chat-btn-icon"></i> <span id="chat-btn-label">Send</span>
                     </button>
                 </div>
             </form>
@@ -352,13 +518,67 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-backdrop" id="new-dm-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;">
     <div class="card fade-in" style="width: 440px; max-width: 90vw;">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 class="card-title" style="margin: 0;">Message Specific Person</h3>
+            <h3 class="card-title" style="margin: 0;"><i class="fa-solid fa-user-plus" style="color: var(--color-primary); margin-right: 6px;"></i> Message Specific Person</h3>
             <button onclick="closeNewDMModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-muted);">×</button>
         </div>
-        <p class="text-muted" style="font-size: 12px; margin-bottom: 14px;">Choose any specific Founder, Manager, HR, or Employee:</p>
+        <p class="text-muted" style="font-size: 12px; margin-bottom: 14px;">Select any Founder, Manager, HR, or Employee to start a private 1-on-1 chat:</p>
 
         <div style="max-height: 280px; overflow-y: auto;" id="new-dm-user-list">
             <!-- Populated via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: CREATE CUSTOM GROUP CHAT -->
+<div class="modal-backdrop" id="new-group-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card fade-in" style="width: 480px; max-width: 92vw;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 class="card-title" style="margin: 0;"><i class="fa-solid fa-users" style="color: var(--color-primary); margin-right: 6px;"></i> Create Custom Group</h3>
+            <button onclick="closeCreateGroupModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-muted);">×</button>
+        </div>
+        <form onsubmit="submitCreateGroup(event)">
+            <div style="padding: 16px 0;">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label class="form-label">Group Name *</label>
+                    <input type="text" id="group-name-input" class="form-input" placeholder="e.g. Sprint Alpha, HR Coordination, Marketing Team" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Select Group Members *</label>
+                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 8px;" id="group-member-checkboxes">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                <button type="button" class="btn btn-outline" onclick="closeCreateGroupModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Create Group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL: VIEW GROUP MEMBERS -->
+<div class="modal-backdrop" id="view-group-members-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card fade-in" style="width: 480px; max-width: 92vw;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 class="card-title" id="view-group-title" style="margin: 0;"><i class="fa-solid fa-users" style="color: var(--color-primary); margin-right: 6px;"></i> Group Members</h3>
+                <div id="view-group-subtitle" class="text-muted" style="font-size: 11px; margin-top: 2px;">Loading members...</div>
+            </div>
+            <button onclick="closeViewGroupMembersModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-muted);">×</button>
+        </div>
+        <div style="padding: 12px 0;">
+            <div style="max-height: 280px; overflow-y: auto;" id="view-group-members-list">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 6px;">
+            <div id="group-delete-container">
+                <!-- Populated if creator/founder -->
+            </div>
+            <button type="button" class="btn btn-outline" onclick="closeViewGroupMembersModal()">Close</button>
         </div>
     </div>
 </div>
@@ -369,13 +589,23 @@ let roomsData = [];
 let usersData = [];
 let pollingTimer = null;
 let selectedFile = null;
+let editingMessageId = null;
+let mentionMatchQuery = null;
+let mentionSelectedIndex = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadRooms();
     pollingTimer = setInterval(function() {
-        if (currentRoomId) loadMessages(currentRoomId, true);
+        if (currentRoomId && !editingMessageId) loadMessages(currentRoomId, true);
         loadRooms(true);
     }, 3000);
+    
+    // Close popovers on outside click
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#mention-popover') && !e.target.closest('#chat-text-input')) {
+            hideMentionPopover();
+        }
+    });
 });
 
 function loadRooms(isSilent = false) {
@@ -387,6 +617,7 @@ function loadRooms(isSilent = false) {
             usersData = data.users;
             renderDirectory(roomsData, usersData);
             populateNewDMUsers(usersData, data.current_user_id);
+            populateGroupMembers(usersData, data.current_user_id);
             
             const urlParams = new URLSearchParams(window.location.search);
             const targetRoomId = urlParams.get('room_id');
@@ -405,33 +636,53 @@ function renderDirectory(rooms, users) {
     const listEl = document.getElementById('chat-room-list');
     let html = '';
 
-    // 1. PUBLIC TEAM CHANNELS
-    html += `<div class="chat-section-header"><i class="fa-solid fa-bullhorn" style="color: var(--color-primary); font-size: 12px; width: 14px; text-align: center;"></i><span>Public Channels</span></div>`;
-    const groupRooms = rooms.filter(r => r.type === 'group');
-    groupRooms.forEach(r => {
-        const isActive = (r.id === currentRoomId) ? 'active' : '';
-        const badge = r.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${r.unread_count}</span>` : '';
-        
-        html += `
-            <div class="chat-room-item ${isActive}" onclick="switchRoom(${r.id})">
-                <div class="chat-room-avatar" style="background: var(--color-primary);"><i class="fa-solid fa-bullhorn"></i></div>
-                <div class="chat-room-info">
-                    <div class="chat-room-name">${escapeHtml(r.name)}</div>
-                    <div class="chat-room-preview">${escapeHtml(r.last_message || 'Team discussion')}</div>
+    // 1. PUBLIC TEAM CHANNELS (#General)
+    const publicRooms = rooms.filter(r => r.type === 'group' && r.id === 1);
+    if (publicRooms.length > 0) {
+        html += `<div class="chat-section-header"><i class="fa-solid fa-bullhorn" style="color: var(--color-primary); font-size: 11px;"></i><span>Public Channels</span></div>`;
+        publicRooms.forEach(r => {
+            const isActive = (r.id === currentRoomId) ? 'active' : '';
+            const badge = r.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${r.unread_count}</span>` : '';
+            html += `
+                <div class="chat-room-item ${isActive}" onclick="switchRoom(${r.id})">
+                    <div class="chat-room-avatar" style="background: var(--color-primary);"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div class="chat-room-info">
+                        <div class="chat-room-name">${escapeHtml(r.name)}</div>
+                        <div class="chat-room-preview">${escapeHtml(r.last_message || 'Team general discussion')}</div>
+                    </div>
+                    ${badge}
                 </div>
-                ${badge}
-            </div>
-        `;
-    });
+            `;
+        });
+    }
 
-    // 2. DIRECT MESSAGES — SPECIFIC PERSONS BY ROLE
-    html += `<div class="chat-section-header" style="margin-top: 12px;"><i class="fa-solid fa-user" style="color: var(--color-primary); font-size: 12px; width: 14px; text-align: center;"></i><span>Specific Persons (Direct Chat)</span></div>`;
+    // 2. CUSTOM GROUPS
+    const customGroups = rooms.filter(r => r.type === 'group' && r.id !== 1);
+    if (customGroups.length > 0) {
+        html += `<div class="chat-section-header" style="margin-top: 10px;"><i class="fa-solid fa-users" style="color: var(--color-primary); font-size: 11px;"></i><span>Custom Groups</span></div>`;
+        customGroups.forEach(r => {
+            const isActive = (r.id === currentRoomId) ? 'active' : '';
+            const badge = r.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${r.unread_count}</span>` : '';
+            html += `
+                <div class="chat-room-item ${isActive}" onclick="switchRoom(${r.id})">
+                    <div class="chat-room-avatar" style="background: #8b5cf6;"><i class="fa-solid fa-users"></i></div>
+                    <div class="chat-room-info">
+                        <div class="chat-room-name">${escapeHtml(r.name)}</div>
+                        <div class="chat-room-preview"><i class="fa-solid fa-user-group" style="font-size: 10px;"></i> ${r.member_count || 2} members • ${escapeHtml(r.last_message || 'Group created')}</div>
+                    </div>
+                    ${badge}
+                </div>
+            `;
+        });
+    }
+
+    // 3. DIRECT MESSAGES — SPECIFIC PERSONS BY ROLE
+    html += `<div class="chat-section-header" style="margin-top: 12px;"><i class="fa-solid fa-user" style="color: var(--color-primary); font-size: 11px;"></i><span>Specific Persons (Direct Chat)</span></div>`;
 
     if (!users || users.length === 0) {
         html += `<div style="padding: 10px; text-align: center; color: var(--color-text-muted); font-size: 12px;">No team members found.</div>`;
     } else {
         users.forEach(u => {
-            // Find if existing DM room exists
             const existingRoom = rooms.find(r => r.type === 'direct' && r.partner_id === u.id);
             const roomId = existingRoom ? existingRoom.id : null;
             const isActive = (roomId && roomId === currentRoomId) ? 'active' : '';
@@ -460,11 +711,13 @@ function renderDirectory(rooms, users) {
 function filterDirectory() {
     const query = document.getElementById('chat-search-input').value.toLowerCase();
     const filteredUsers = usersData.filter(u => u.name.toLowerCase().includes(query) || u.role.toLowerCase().includes(query));
-    renderDirectory(roomsData, filteredUsers);
+    const filteredRooms = roomsData.filter(r => r.name.toLowerCase().includes(query));
+    renderDirectory(filteredRooms, filteredUsers);
 }
 
 function switchRoom(roomId) {
     currentRoomId = roomId;
+    cancelEditMessage();
     renderDirectory(roomsData, usersData);
     
     document.querySelector('.chat-app-container')?.classList.add('room-active');
@@ -476,7 +729,25 @@ function switchRoom(roomId) {
     const activeRoom = roomsData.find(r => r.id === roomId);
     if (activeRoom) {
         document.getElementById('active-room-name').textContent = activeRoom.name;
-        document.getElementById('active-room-subtitle').textContent = activeRoom.type === 'group' ? 'Public Team Channel' : 'Direct Conversation';
+        let sub = 'Direct Conversation';
+        if (activeRoom.type === 'group') {
+            sub = (activeRoom.id === 1) ? 'Public Team Channel' : `Custom Group (${activeRoom.member_count || 2} members)`;
+        }
+        document.getElementById('active-room-subtitle').textContent = sub;
+        
+        const actionsBar = document.getElementById('room-actions-bar');
+        if (actionsBar) {
+            let actionsHtml = '';
+            if (activeRoom.type === 'group') {
+                actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="openViewGroupMembersModal(${activeRoom.id})" title="View Group Members" style="font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-users"></i> View Members</button>`;
+                if (activeRoom.id !== 1 && activeRoom.can_clear_history) {
+                    actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteGroup(${activeRoom.id})" title="Permanently delete this group" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-trash"></i> Delete Group</button>`;
+                }
+            }
+            actionsHtml += `<button type="button" class="btn btn-outline btn-sm" onclick="confirmDeleteHistory()" title="Permanently delete all chat history in this room from database" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px; padding: 4px 10px;"><i class="fa-solid fa-trash-can"></i> Clear History</button>`;
+            actionsBar.innerHTML = actionsHtml;
+            actionsBar.style.display = 'flex';
+        }
     }
     
     loadMessages(roomId);
@@ -502,7 +773,7 @@ function loadMessages(roomId, isSilent = false) {
 function renderMessages(messages) {
     const area = document.getElementById('chat-messages-area');
     if (!messages || messages.length === 0) {
-        area.innerHTML = '<div style="margin: auto; text-align: center; color: var(--color-text-muted); font-size: 13px;">Say hi! Send a message or link to start conversation.</div>';
+        area.innerHTML = '<div style="margin: auto; text-align: center; color: var(--color-text-muted); font-size: 13px;"><i class="fa-solid fa-comments" style="font-size: 32px; opacity: 0.3; display: block; margin-bottom: 8px;"></i>No messages here yet. Say hello or type @ to tag someone!</div>';
         return;
     }
 
@@ -527,16 +798,34 @@ function renderMessages(messages) {
             }
         }
 
+        // Action Toolbar (Edit / Delete)
+        let actionsHtml = '';
+        if (m.can_edit || m.can_delete) {
+            actionsHtml += `<div class="chat-msg-actions">`;
+            if (m.can_edit) {
+                const rawMsgEscaped = escapeAttr(m.message || '');
+                actionsHtml += `<button type="button" class="chat-action-btn" onclick="startEditMessage(${m.id}, '${rawMsgEscaped}')" title="Edit Message"><i class="fa-solid fa-pen"></i></button>`;
+            }
+            if (m.can_delete) {
+                actionsHtml += `<button type="button" class="chat-action-btn btn-delete" onclick="deleteSingleMessage(${m.id})" title="Delete Message"><i class="fa-solid fa-trash-can"></i></button>`;
+            }
+            actionsHtml += `</div>`;
+        }
+
+        const editedHtml = (m.is_edited == 1) ? `<span class="chat-edited-tag">(edited)</span>` : '';
+
         html += `
-            <div class="chat-bubble-row ${selfClass}">
+            <div class="chat-bubble-row ${selfClass}" id="msg-bubble-${m.id}">
                 <div class="chat-bubble-avatar">${m.initials}</div>
-                <div>
+                <div style="position: relative;">
+                    ${actionsHtml}
                     <div class="chat-bubble-content">
                         ${!m.is_self ? `<div style="font-weight: 600; font-size: 11px; margin-bottom: 2px; color: var(--color-primary);">${escapeHtml(m.sender_name)}</div>` : ''}
-                        ${m.formatted_html || ''}
+                        <div class="chat-msg-text">${m.formatted_html || ''}</div>
                         ${attachmentHtml}
                         <div class="chat-bubble-meta">
                             <span>${m.time}</span>
+                            ${editedHtml}
                         </div>
                     </div>
                 </div>
@@ -544,31 +833,27 @@ function renderMessages(messages) {
         `;
     });
     
-    const isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 120;
+    const isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 140;
     area.innerHTML = html;
     if (isAtBottom || area.scrollTop === 0) {
         area.scrollTop = area.scrollHeight;
     }
 }
 
-function handleFileSelected(input) {
-    if (input.files && input.files[0]) {
-        selectedFile = input.files[0];
-        document.getElementById('file-preview-name').textContent = selectedFile.name;
-        document.getElementById('file-preview-container').style.display = 'block';
-    }
-}
+// ---------------- MESSAGE SUBMIT / EDIT / DELETE ----------------
 
-function clearFileAttachment() {
-    selectedFile = null;
-    document.getElementById('chat-file-input').value = '';
-    document.getElementById('file-preview-container').style.display = 'none';
-}
-
-function sendMessage(e) {
+function handleChatSubmit(e) {
     e.preventDefault();
     if (!currentRoomId) return;
 
+    if (editingMessageId) {
+        saveEditedMessage();
+    } else {
+        sendMessage();
+    }
+}
+
+function sendMessage() {
     const input = document.getElementById('chat-text-input');
     const messageText = input.value.trim();
 
@@ -594,6 +879,7 @@ function sendMessage(e) {
         if (data.success) {
             input.value = '';
             clearFileAttachment();
+            hideMentionPopover();
             loadMessages(currentRoomId);
             loadRooms(true);
         } else {
@@ -602,12 +888,385 @@ function sendMessage(e) {
     });
 }
 
+function startEditMessage(messageId, currentText) {
+    editingMessageId = messageId;
+    const input = document.getElementById('chat-text-input');
+    input.value = currentText;
+    input.focus();
+
+    document.getElementById('edit-preview-text').textContent = currentText.length > 50 ? currentText.substring(0, 50) + '...' : currentText;
+    document.getElementById('edit-banner').style.display = 'flex';
+    document.getElementById('chat-btn-label').textContent = 'Save';
+    document.getElementById('chat-btn-icon').className = 'fa-solid fa-check';
+}
+
+function cancelEditMessage() {
+    editingMessageId = null;
+    const input = document.getElementById('chat-text-input');
+    input.value = '';
+    document.getElementById('edit-banner').style.display = 'none';
+    document.getElementById('chat-btn-label').textContent = 'Send';
+    document.getElementById('chat-btn-icon').className = 'fa-solid fa-paper-plane';
+}
+
+function saveEditedMessage() {
+    const input = document.getElementById('chat-text-input');
+    const newText = input.value.trim();
+    if (!newText || !editingMessageId) return;
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=edit_message&message_id=${editingMessageId}&message=${encodeURIComponent(newText)}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            cancelEditMessage();
+            loadMessages(currentRoomId);
+        } else {
+            alert(data.message || 'Failed to edit message.');
+        }
+    });
+}
+
+function deleteSingleMessage(messageId) {
+    if (!confirm('Are you sure you want to permanently delete this message?')) return;
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=delete_message&message_id=${messageId}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            loadMessages(currentRoomId);
+            loadRooms(true);
+        } else {
+            alert(data.message || 'Failed to delete message.');
+        }
+    });
+}
+
+function confirmDeleteHistory() {
+    if (!currentRoomId) return;
+    const confirmed = confirm('WARNING: This will permanently wipe and delete ALL chat messages and attachments in this conversation from the database.\n\nAre you sure you want to proceed?');
+    if (!confirmed) return;
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=delete_room_history&room_id=${currentRoomId}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            loadMessages(currentRoomId);
+            loadRooms(true);
+            alert('Chat history completely cleared from database.');
+        } else {
+            alert(data.message || 'Failed to clear chat history.');
+        }
+    });
+}
+
+// ---------------- GROUP MEMBERS & GROUP DELETION ----------------
+
+function openViewGroupMembersModal(roomId = null) {
+    const targetRoomId = roomId || currentRoomId;
+    if (!targetRoomId) return;
+
+    document.getElementById('view-group-members-modal').style.display = 'flex';
+    document.getElementById('view-group-members-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted); font-size: 12px;">Loading group members...</div>';
+    document.getElementById('group-delete-container').innerHTML = '';
+
+    fetch(window.BASE_URL + '/api/chat.php?action=get_group_members&room_id=' + targetRoomId)
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('view-group-title').innerHTML = `<i class="fa-solid fa-users" style="color: var(--color-primary); margin-right: 6px;"></i> ${escapeHtml(data.group_name)}`;
+            document.getElementById('view-group-subtitle').textContent = `${data.members.length} Member(s) in this group`;
+
+            let html = '';
+
+            // If admin, show add member bar
+            if (data.is_admin_or_founder && data.available_users && data.available_users.length > 0) {
+                html += `
+                    <div style="display: flex; gap: 8px; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 12px;">
+                        <select id="group-add-member-select" class="form-select" style="font-size: 13px; padding: 6px 36px 6px 12px; height: 38px; line-height: 24px; flex: 1; border-radius: var(--radius-md); box-sizing: border-box;">
+                            <option value="">+ Select Team Member to Add</option>
+                            ${data.available_users.map(u => `<option value="${u.id}">${escapeHtml(u.name)} (${u.role})</option>`).join('')}
+                        </select>
+                        <button type="button" class="btn btn-primary" onclick="addMemberToGroup(${data.room_id})" style="font-size: 12px; height: 38px; padding: 0 16px; border-radius: var(--radius-md); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
+                            <i class="fa-solid fa-user-plus"></i> Add Member
+                        </button>
+                    </div>
+                `;
+            }
+
+            data.members.forEach(m => {
+                const roleClass = 'badge-role-' + m.role;
+                const adminBadge = (m.is_creator == 1) ? '<span class="badge badge-primary" style="font-size: 9px; padding: 1px 6px; margin-left: 6px;"><i class="fa-solid fa-crown" style="font-size: 8px;"></i> Admin</span>' : '';
+                
+                let removeBtn = '';
+                if (data.is_admin_or_founder && m.is_creator != 1) {
+                    removeBtn = `
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="removeMemberFromGroup(${data.room_id}, ${m.id}, '${escapeAttr(m.name)}')" title="Remove ${escapeAttr(m.name)} from group" style="color: var(--color-danger); padding: 3px 8px; font-size: 11px; margin-left: 8px;">
+                            <i class="fa-solid fa-user-minus"></i> Remove
+                        </button>
+                    `;
+                }
+
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--color-border);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">${m.initials}</div>
+                            <div>
+                                <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main); display: flex; align-items: center;">
+                                    ${escapeHtml(m.name)} ${adminBadge}
+                                </div>
+                                <div style="font-size: 11px; color: var(--color-text-muted);">${escapeHtml(m.designation || ucfirst(m.role))} • Joined: ${m.joined_formatted}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            <span class="chat-role-badge ${roleClass}">${m.role}</span>
+                            ${removeBtn}
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('view-group-members-list').innerHTML = html;
+
+            if (data.can_delete_group) {
+                document.getElementById('group-delete-container').innerHTML = `
+                    <button type="button" class="btn btn-sm btn-outline" onclick="closeViewGroupMembersModal(); confirmDeleteGroup(${data.room_id});" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.4); font-size: 11px;">
+                        <i class="fa-solid fa-trash"></i> Delete Group
+                    </button>
+                `;
+            }
+        } else {
+            document.getElementById('view-group-members-list').innerHTML = `<div style="color: var(--color-danger); padding: 15px; font-size: 12px;">${escapeHtml(data.message || 'Failed to load group members.')}</div>`;
+        }
+    });
+}
+
+function removeMemberFromGroup(roomId, userId, userName) {
+    if (!confirm(`Are you sure you want to remove "${userName}" from this group?`)) return;
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=remove_group_member&room_id=${roomId}&user_id=${userId}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            openViewGroupMembersModal(roomId);
+            loadRooms();
+            loadMessages(roomId);
+        } else {
+            alert(data.message || 'Failed to remove member.');
+        }
+    });
+}
+
+function addMemberToGroup(roomId) {
+    const select = document.getElementById('group-add-member-select');
+    const userId = parseInt(select.value);
+    if (!userId) {
+        alert('Please select a team member to add.');
+        return;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=add_group_member&room_id=${roomId}&user_id=${userId}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            openViewGroupMembersModal(roomId);
+            loadRooms();
+            loadMessages(roomId);
+        } else {
+            alert(data.message || 'Failed to add member.');
+        }
+    });
+}
+
+function closeViewGroupMembersModal() {
+    document.getElementById('view-group-members-modal').style.display = 'none';
+}
+
+function confirmDeleteGroup(roomId = null) {
+    const targetRoomId = roomId || currentRoomId;
+    if (!targetRoomId || targetRoomId === 1) return;
+
+    const confirmed = confirm('WARNING: Are you sure you want to permanently delete this group? All group conversations, messages, files, and memberships will be removed from the database.');
+    if (!confirmed) return;
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `action=delete_group&room_id=${targetRoomId}&csrf_token=${csrfToken}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('Group deleted successfully.');
+            currentRoomId = 1;
+            loadRooms();
+            setTimeout(() => switchRoom(1), 300);
+        } else {
+            alert(data.message || 'Failed to delete group.');
+        }
+    });
+}
+
+// ---------------- @MENTIONS SYSTEM ----------------
+
+function handleInputForMentions(e) {
+    const input = document.getElementById('chat-text-input');
+    const val = input.value;
+    const cursorPos = input.selectionStart;
+    
+    // Find last @ before cursor
+    const lastAt = val.lastIndexOf('@', cursorPos - 1);
+    if (lastAt !== -1 && (lastAt === 0 || val.charAt(lastAt - 1) === ' ')) {
+        const query = val.substring(lastAt + 1, cursorPos).toLowerCase();
+        showMentionPopover(query, lastAt);
+    } else {
+        hideMentionPopover();
+    }
+}
+
+function showMentionPopover(query, atIndex) {
+    const popover = document.getElementById('mention-popover');
+    const filtered = usersData.filter(u => u.name.toLowerCase().includes(query) || u.role.toLowerCase().includes(query));
+    
+    if (filtered.length === 0) {
+        hideMentionPopover();
+        return;
+    }
+    
+    mentionSelectedIndex = 0;
+    let html = '';
+    filtered.forEach((u, idx) => {
+        const isSelected = (idx === 0) ? 'selected' : '';
+        const roleClass = 'badge-role-' + u.role;
+        html += `
+            <div class="mention-item ${isSelected}" onclick="selectMentionUser('${escapeAttr(u.name)}', ${atIndex})">
+                <div class="mention-avatar">${u.initials}</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 12px; color: var(--color-text-main);">${escapeHtml(u.name)}</div>
+                    <div style="font-size: 10px; color: var(--color-text-muted);">${escapeHtml(u.designation || u.role)}</div>
+                </div>
+                <span class="chat-role-badge ${roleClass}">${u.role}</span>
+            </div>
+        `;
+    });
+    
+    popover.innerHTML = html;
+    popover.style.display = 'block';
+}
+
+function hideMentionPopover() {
+    const popover = document.getElementById('mention-popover');
+    if (popover) popover.style.display = 'none';
+}
+
+function selectMentionUser(name, atIndex) {
+    const input = document.getElementById('chat-text-input');
+    const val = input.value;
+    const cursorPos = input.selectionStart;
+    
+    const before = val.substring(0, atIndex);
+    const after = val.substring(cursorPos);
+    
+    input.value = before + '@' + name + ' ' + after;
+    input.focus();
+    const newPos = (before + '@' + name + ' ').length;
+    input.setSelectionRange(newPos, newPos);
+    
+    hideMentionPopover();
+}
+
+function handleInputKeydown(e) {
+    const popover = document.getElementById('mention-popover');
+    if (popover && popover.style.display === 'block') {
+        const items = popover.querySelectorAll('.mention-item');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            mentionSelectedIndex = (mentionSelectedIndex + 1) % items.length;
+            updateMentionSelection(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            mentionSelectedIndex = (mentionSelectedIndex - 1 + items.length) % items.length;
+            updateMentionSelection(items);
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            if (items[mentionSelectedIndex]) {
+                items[mentionSelectedIndex].click();
+            }
+        } else if (e.key === 'Escape') {
+            hideMentionPopover();
+        }
+    } else if (e.key === 'Escape' && editingMessageId) {
+        cancelEditMessage();
+    }
+}
+
+function updateMentionSelection(items) {
+    items.forEach((item, idx) => {
+        if (idx === mentionSelectedIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+// ---------------- FILE ATTACHMENTS ----------------
+
+function handleFileSelected(input) {
+    if (input.files && input.files[0]) {
+        selectedFile = input.files[0];
+        document.getElementById('file-preview-name').textContent = selectedFile.name;
+        document.getElementById('file-preview-container').style.display = 'block';
+    }
+}
+
+function clearFileAttachment() {
+    selectedFile = null;
+    document.getElementById('chat-file-input').value = '';
+    document.getElementById('file-preview-container').style.display = 'none';
+}
+
+// ---------------- GROUP & DM MODALS ----------------
+
 function openNewDMModal() {
     document.getElementById('new-dm-modal').style.display = 'flex';
 }
 
 function closeNewDMModal() {
     document.getElementById('new-dm-modal').style.display = 'none';
+}
+
+function openCreateGroupModal() {
+    document.getElementById('new-group-modal').style.display = 'flex';
+}
+
+function closeCreateGroupModal() {
+    document.getElementById('new-group-modal').style.display = 'none';
 }
 
 function populateNewDMUsers(users, currentUserId) {
@@ -619,16 +1278,78 @@ function populateNewDMUsers(users, currentUserId) {
         const roleClass = 'badge-role-' + u.role;
         html += `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--color-border); cursor: pointer;" onclick="startDMWithUser(${u.id})">
-                <div>
-                    <strong style="font-size: 13px; color: var(--color-text-main);">${escapeHtml(u.name)}</strong>
-                    <span class="chat-role-badge ${roleClass}" style="margin-left: 6px;">${u.role}</span>
-                    <div class="text-muted" style="font-size: 11px;">${escapeHtml(u.designation || ucfirst(u.role))}</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">${u.initials}</div>
+                    <div>
+                        <strong style="font-size: 13px; color: var(--color-text-main);">${escapeHtml(u.name)}</strong>
+                        <span class="chat-role-badge ${roleClass}" style="margin-left: 6px;">${u.role}</span>
+                        <div class="text-muted" style="font-size: 11px;">${escapeHtml(u.designation || ucfirst(u.role))}</div>
+                    </div>
                 </div>
                 <button class="btn btn-primary btn-sm" style="font-size: 11px;"><i class="fa-solid fa-comments"></i> Message</button>
             </div>
         `;
     });
     listEl.innerHTML = html;
+}
+
+function populateGroupMembers(users, currentUserId) {
+    const container = document.getElementById('group-member-checkboxes');
+    let html = '';
+    
+    users.forEach(u => {
+        if (u.id === currentUserId) return;
+        const roleClass = 'badge-role-' + u.role;
+        html += `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='rgba(79, 110, 247, 0.1)'" onmouseout="this.style.background='none'">
+                <input type="checkbox" name="group_members[]" value="${u.id}" style="accent-color: var(--color-primary); width: 16px; height: 16px;">
+                <div style="flex: 1; display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-size: 12.5px; font-weight: 500;">${escapeHtml(u.name)}</span>
+                    <span class="chat-role-badge ${roleClass}">${u.role}</span>
+                </div>
+            </label>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function submitCreateGroup(e) {
+    e.preventDefault();
+    const groupName = document.getElementById('group-name-input').value.trim();
+    const checkboxes = document.querySelectorAll('input[name="group_members[]"]:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+    if (!groupName) {
+        alert('Please enter a group name.');
+        return;
+    }
+    if (selectedIds.length === 0) {
+        alert('Please select at least 1 team member to add to the group.');
+        return;
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const formData = new FormData();
+    formData.append('action', 'create_group');
+    formData.append('group_name', groupName);
+    formData.append('members', JSON.stringify(selectedIds));
+    formData.append('csrf_token', csrfToken);
+
+    fetch(window.BASE_URL + '/api/chat.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            closeCreateGroupModal();
+            document.getElementById('group-name-input').value = '';
+            loadRooms();
+            setTimeout(() => switchRoom(data.room_id), 300);
+        } else {
+            alert(data.message || 'Failed to create group.');
+        }
+    });
 }
 
 function startDMWithUser(partnerId) {
@@ -652,6 +1373,11 @@ function startDMWithUser(partnerId) {
 function escapeHtml(text) {
     if (!text) return '';
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function escapeAttr(text) {
+    if (!text) return '';
+    return text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
 }
 
 function ucfirst(str) {

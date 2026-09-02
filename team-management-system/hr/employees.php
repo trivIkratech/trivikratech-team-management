@@ -57,9 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_employ
         $hash = password_hash($password, PASSWORD_BCRYPT);
         $usePin = !empty($pin) ? $pin : '1234';
         $pinHash = password_hash($usePin, PASSWORD_BCRYPT);
+        $joiningDate = post('joining_date') ?: date('Y-m-d');
         
-        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, base_salary, password, pin, role, manager_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'employee', ?, 'active')");
-        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $baseSalary, $hash, $pinHash, $managerId]);
+        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, joining_date, base_salary, password, pin, role, manager_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'employee', ?, 'active')");
+        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $baseSalary, $hash, $pinHash, $managerId]);
         
         setFlash('success', 'Employee added successfully.');
         header('Location: ' . BASE_URL . '/hr/employees.php');
@@ -77,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_emplo
     $email = post('email');
     $contactNo = post('contact_no');
     $designation = post('designation');
+    $joiningDate = post('joining_date') ?: null;
     $baseSalary = post('base_salary') !== '' ? (float)post('base_salary') : 30000.00;
     $status = post('status');
     $managerId = post('manager_id') ? (int)post('manager_id') : null;
@@ -101,8 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_emplo
     }
     
     if (empty($formErrors)) {
-        $query = "UPDATE users SET employee_id = ?, name = ?, email = ?, contact_no = ?, designation = ?, base_salary = ?, status = ?, manager_id = ?, updated_at = NOW()";
-        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $baseSalary, $status, $managerId];
+        $query = "UPDATE users SET employee_id = ?, name = ?, email = ?, contact_no = ?, designation = ?, joining_date = ?, base_salary = ?, status = ?, manager_id = ?, updated_at = NOW()";
+        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $baseSalary, $status, $managerId];
         
         if (!empty($newPassword)) {
             if (strlen($newPassword) < 6) {
@@ -266,6 +268,7 @@ include __DIR__ . '/../includes/header.php';
                     <th>Designation</th>
                     <th>Reporting Manager</th>
                     <th>Status</th>
+                    <th>Joining Date</th>
                     <th style="text-align: right;">Actions</th>
                 </tr>
             </thead>
@@ -293,6 +296,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo e($emp['designation'] ?: '—'); ?></td>
                         <td><?php echo e($emp['manager_name'] ?? '—'); ?></td>
                         <td><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
+                        <td><?php echo !empty($emp['joining_date']) ? formatDate($emp['joining_date']) : formatDate($emp['created_at']); ?></td>
                         <td style="text-align: right;">
                             <a href="?tab=profiles&overview=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-info); text-decoration: none;" title="Employee Overview">
                                 <i class="fa-solid fa-magnifying-glass"></i> Overview
@@ -408,14 +412,20 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Assign to Manager</label>
-                <select name="manager_id" class="form-select">
-                    <option value="">— No Manager —</option>
-                    <?php foreach ($managers as $mgr): ?>
-                        <option value="<?php echo $mgr['id']; ?>"><?php echo e($mgr['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Joining Date *</label>
+                    <input type="date" name="joining_date" class="form-input" required value="<?php echo e(post('joining_date', date('Y-m-d'))); ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign to Manager</label>
+                    <select name="manager_id" class="form-select">
+                        <option value="">— No Manager —</option>
+                        <?php foreach ($managers as $mgr): ?>
+                            <option value="<?php echo $mgr['id']; ?>"><?php echo e($mgr['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             
             <div class="form-row">
@@ -472,14 +482,20 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Assign to Manager</label>
-                <select name="manager_id" class="form-select">
-                    <option value="">— No Manager —</option>
-                    <?php foreach ($managers as $mgr): ?>
-                        <option value="<?php echo $mgr['id']; ?>" <?php echo $editUser['manager_id'] == $mgr['id'] ? 'selected' : ''; ?>><?php echo e($mgr['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Joining Date</label>
+                    <input type="date" name="joining_date" class="form-input" value="<?php echo e(post('joining_date', $editUser['joining_date'] ?? '')); ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign to Manager</label>
+                    <select name="manager_id" class="form-select">
+                        <option value="">— No Manager —</option>
+                        <?php foreach ($managers as $mgr): ?>
+                            <option value="<?php echo $mgr['id']; ?>" <?php echo $editUser['manager_id'] == $mgr['id'] ? 'selected' : ''; ?>><?php echo e($mgr['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             
             <div class="form-row">
@@ -533,6 +549,10 @@ include __DIR__ . '/../includes/header.php';
                 <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 8px;">
                     <small class="text-muted">Reporting Manager</small>
                     <div><strong><?php echo e($overviewData['user']['manager_name'] ?: 'Direct HR'); ?></strong></div>
+                </div>
+                <div style="background: var(--color-bg-secondary); padding: 12px; border-radius: 8px; grid-column: 1 / -1;">
+                    <small class="text-muted">Joining Date</small>
+                    <div><strong><?php echo !empty($overviewData['user']['joining_date']) ? formatDate($overviewData['user']['joining_date']) : formatDate($overviewData['user']['created_at']); ?></strong></div>
                 </div>
             </div>
 

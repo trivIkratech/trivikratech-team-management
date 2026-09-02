@@ -57,6 +57,8 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php echo renderWorkingModuleBanner(); ?>
+
 <!-- Month Filter -->
 <form method="GET" class="filter-bar">
     <input type="month" name="month" class="form-input" value="<?php echo e($filterMonth); ?>" onchange="this.form.submit()">

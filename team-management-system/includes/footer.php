@@ -99,14 +99,18 @@
                     }
                 }
 
+                const isEdited = (m.is_edited == 1) ? '<span style="font-size: 8px; opacity: 0.7; font-style: italic; margin-left: 4px;">(edited)</span>' : '';
+
                 html += `
                     <div style="align-self: ${align}; max-width: 85%;">
-                        <div style="background: ${bg}; color: ${color}; padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.35;">
+                        <div style="background: ${bg}; color: ${color}; padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.35; word-break: break-word;">
                             ${!isSelf ? `<strong style="display: block; font-size: 10px; color: var(--color-primary); margin-bottom: 2px;">${m.sender_name}</strong>` : ''}
                             ${m.formatted_html || ''}
                             ${fileHtml}
                         </div>
-                        <div style="font-size: 9px; color: var(--color-text-muted); text-align: ${isSelf ? 'right' : 'left'}; margin-top: 2px;">${m.time}</div>
+                        <div style="font-size: 9px; color: var(--color-text-muted); text-align: ${isSelf ? 'right' : 'left'}; margin-top: 2px;">
+                            ${m.time} ${isEdited}
+                        </div>
                     </div>
                 `;
             });

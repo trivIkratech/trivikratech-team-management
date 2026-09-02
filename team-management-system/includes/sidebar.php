@@ -160,6 +160,9 @@ function isActive(string $dir, string $page): string {
             <a href="<?php echo BASE_URL; ?>/hr/employees.php" class="sidebar-nav-item<?php echo isActive('hr', 'employees'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Employees
             </a>
+            <a href="<?php echo BASE_URL; ?>/hr/tasks.php" class="sidebar-nav-item<?php echo isActive('hr', 'tasks'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-list-check"></i></span> Tasks
+            </a>
             <a href="<?php echo BASE_URL; ?>/hr/attendance.php" class="sidebar-nav-item<?php echo isActive('hr', 'attendance'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-clipboard-user"></i></span> Attendance
             </a>

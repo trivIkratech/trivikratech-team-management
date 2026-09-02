@@ -63,9 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_employ
         // Default pin to '1234' if none provided
         $usePin = !empty($pin) ? $pin : '1234';
         $pinHash = password_hash($usePin, PASSWORD_BCRYPT);
+        $joiningDate = post('joining_date') ?: date('Y-m-d');
         
-        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, password, pin, role, manager_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'employee', ?, 'active')");
-        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $hash, $pinHash, $managerId]);
+        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, joining_date, password, pin, role, manager_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'employee', ?, 'active')");
+        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $hash, $pinHash, $managerId]);
         
         setFlash('success', 'Employee added successfully.');
         header('Location: ' . BASE_URL . '/manager/employees.php');
@@ -83,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_emplo
     $email = post('email');
     $contactNo = post('contact_no');
     $designation = post('designation');
+    $joiningDate = post('joining_date') ?: null;
     $status = post('status');
     $newPassword = $_POST['new_password'] ?? '';
     $pin = post('pin');
@@ -119,8 +121,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_emplo
     }
     
     if (empty($formErrors)) {
-        $query = "UPDATE users SET employee_id = ?, name = ?, email = ?, contact_no = ?, designation = ?, status = ?, updated_at = NOW()";
-        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $status];
+        $query = "UPDATE users SET employee_id = ?, name = ?, email = ?, contact_no = ?, designation = ?, joining_date = ?, status = ?, updated_at = NOW()";
+        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $status];
         
         if (!empty($newPassword)) {
             if (strlen($newPassword) < 6) {
@@ -256,6 +258,11 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" name="designation" class="form-input" placeholder="e.g. Software Engineer" value="<?php echo e(post('designation')); ?>">
                 </div>
             </div>
+
+            <div class="form-group">
+                <label class="form-label">Joining Date *</label>
+                <input type="date" name="joining_date" class="form-input" required value="<?php echo e(post('joining_date', date('Y-m-d'))); ?>">
+            </div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -310,6 +317,11 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" name="designation" class="form-input" value="<?php echo e(post('designation', $editUser['designation'])); ?>">
                 </div>
             </div>
+
+            <div class="form-group">
+                <label class="form-label">Joining Date</label>
+                <input type="date" name="joining_date" class="form-input" value="<?php echo e(post('joining_date', $editUser['joining_date'] ?? '')); ?>">
+            </div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -358,6 +370,7 @@ include __DIR__ . '/../includes/header.php';
                         <th>Tasks (Pending)</th>
                         <th>Tasks (Done)</th>
                         <th>Status</th>
+                        <th>Joined</th>
                         <th style="text-align: right;">Actions</th>
                     </tr>
                 </thead>
@@ -388,6 +401,7 @@ include __DIR__ . '/../includes/header.php';
                             <td><span class="badge badge-warning"><?php echo $emp['pending_tasks']; ?></span></td>
                             <td><span class="badge badge-success"><?php echo $emp['completed_tasks']; ?></span></td>
                             <td><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
+                            <td><?php echo !empty($emp['joining_date']) ? formatDate($emp['joining_date']) : formatDate($emp['created_at']); ?></td>
                             <td style="text-align: right;">
                                 <a href="?action=edit&id=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-primary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); text-decoration: none;">
                                     <i class="fa-solid fa-pen-to-square"></i> Edit

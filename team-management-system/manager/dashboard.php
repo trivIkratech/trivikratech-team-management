@@ -144,19 +144,8 @@ include __DIR__ . '/../includes/header.php';
         <?php echo date('l, d F Y'); ?> · <span id="live-clock"></span>
     </p>
 
-    <!-- Shift Info Banner -->
-    <div style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 10px 16px; max-width: 540px; margin: 0 auto 20px; font-size: 13px; text-align: left;">
-        <div style="font-weight: 600; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-            <span><i class="fa-solid fa-stopwatch"></i> Manager Shift Requirement: 7-Hour Total</span>
-            <span class="badge badge-info" style="font-size: 11px;">6h Net Work + 1h Break</span>
-        </div>
-        <div style="display: flex; gap: 14px; color: var(--color-text-secondary); font-size: 12px; margin-top: 6px; flex-wrap: wrap;">
-            <span>1st Half: <strong>3h</strong> (Half Day)</span>
-            <span>Break: <strong>1h</strong> (Not counted)</span>
-            <span>2nd Half: <strong>3h</strong> (Half Day)</span>
-            <span>Total: <strong>6h</strong> (Full Day)</span>
-        </div>
-    </div>
+    <!-- Official Working Module & Shift Info Banner -->
+    <?php echo renderWorkingModuleBanner(); ?>
 
     <!-- Live 6-Hour Shift Timer & Break Widget -->
     <?php if ($checkedIn && !$checkedOut): ?>

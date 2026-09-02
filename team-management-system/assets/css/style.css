@@ -1955,3 +1955,28 @@ h4 { font-size: var(--text-lg); }
         padding: 12px !important;
     }
 }
+
+/* =============================================
+   Chat Mentions & Edited Tags
+   ============================================= */
+.chat-mention {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(79, 110, 247, 0.25);
+    color: #93c5fd;
+    padding: 1px 7px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+    border: 1px solid rgba(79, 110, 247, 0.4);
+}
+
+.chat-edited-tag {
+    font-size: 9px;
+    opacity: 0.8;
+    font-style: italic;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 1px 5px;
+    border-radius: 3px;
+}

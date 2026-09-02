@@ -25,7 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_tas
     $description = post('description');
     $assignedToInput = post('assigned_to');
     $priority = post('priority');
-    $deadline = post('deadline');
+    $startDate = post('start_date') ?: null;
+    $deadline = post('deadline') ?: null;
     
     if (empty($title)) {
         setFlash('error', 'Task title cannot be empty.');
@@ -38,9 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_tas
         if (empty($teamMemberIds)) {
             setFlash('error', 'Your team is empty. Please assign employees first.');
         } else {
-            $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, deadline) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
             foreach ($teamMemberIds as $empId) {
-                $stmt->execute([$title, $description, $empId, $managerId, $priority ?: 'medium', $deadline ?: null]);
+                $stmt->execute([$title, $description, $empId, $managerId, $priority ?: 'medium', $startDate, $deadline]);
             }
             setFlash('success', 'Team task created and assigned to all team members.');
             header('Location: ' . BASE_URL . '/manager/tasks.php');
@@ -55,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_tas
         if (!$stmt->fetch()) {
             setFlash('error', 'Invalid task data. Employee must be in your team.');
         } else {
-            $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, deadline) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$title, $description, $assignedTo, $managerId, $priority ?: 'medium', $deadline ?: null]);
+            $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$title, $description, $assignedTo, $managerId, $priority ?: 'medium', $startDate, $deadline]);
             setFlash('success', 'Task created successfully.');
             header('Location: ' . BASE_URL . '/manager/tasks.php');
             exit;
@@ -73,7 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task'
     $description = post('description');
     $assignedTo = (int)post('assigned_to');
     $priority = post('priority');
-    $deadline = post('deadline');
+    $startDate = post('start_date') ?: null;
+    $deadline = post('deadline') ?: null;
     $status = post('status');
     $comments = post('comments');
     
@@ -88,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task'
         setFlash('error', 'Invalid request or permission denied.');
     } else {
         $completedAt = ($status === 'completed') ? date('Y-m-d H:i:s') : null;
-        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, deadline=?, status=?, comments=?, completed_at=?, updated_at=NOW() WHERE id=?");
-        $stmt->execute([$title, $description, $assignedTo, $priority, $deadline ?: null, $status, $comments, $completedAt, $taskId]);
+        $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, start_date=?, deadline=?, status=?, comments=?, completed_at=?, updated_at=NOW() WHERE id=?");
+        $stmt->execute([$title, $description, $assignedTo, $priority, $startDate, $deadline, $status, $comments, $completedAt, $taskId]);
         setFlash('success', 'Task updated.');
         header('Location: ' . BASE_URL . '/manager/tasks.php');
         exit;
@@ -280,9 +282,13 @@ include __DIR__ . '/../includes/header.php';
                         
                         <div class="task-meta" style="margin-top: 8px; font-size: 12px; color: var(--color-text-muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                             <span><i class="fa-solid fa-calendar-days"></i> Assigned: <?php echo formatDate($task['created_at']); ?></span>
+                            <?php if (!empty($task['start_date'])): ?>
+                                <span>•</span>
+                                <span><i class="fa-regular fa-calendar-plus" style="color: var(--color-primary);"></i> Start: <strong><?php echo formatDate($task['start_date']); ?></strong></span>
+                            <?php endif; ?>
                             <?php if ($task['deadline']): ?>
                                 <span>•</span>
-                                <span><i class="fa-solid fa-clock"></i> Due: <?php echo formatDate($task['deadline']); ?></span>
+                                <span><i class="fa-regular fa-calendar-check" style="<?php echo $overdue ? 'color: var(--color-danger); font-weight: 600;' : ''; ?>"></i> Due: <strong><?php echo formatDate($task['deadline']); ?></strong></span>
                             <?php endif; ?>
                             <span>•</span>
                             <span>Assigned By: <strong style="color: var(--color-text-main);"><?php echo e($task['assigned_by_name']); ?></strong> (<?php echo ucfirst($task['assigned_by_role']); ?>)</span>
@@ -341,12 +347,12 @@ include __DIR__ . '/../includes/header.php';
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width: 38%;">Task Title</th>
-                        <th style="width: 18%;">Assigned To</th>
-                        <th style="width: 12%;">Priority</th>
-                        <th style="width: 14%;">Status</th>
-                        <th style="width: 10%;">Deadline</th>
-                        <th style="width: 8%; text-align: right;">Actions</th>
+                        <th style="width: 34%;">Task Title</th>
+                        <th style="width: 16%;">Assigned To</th>
+                        <th style="width: 10%;">Priority</th>
+                        <th style="width: 12%;">Status</th>
+                        <th style="width: 18%;">Timeline / Dates</th>
+                        <th style="width: 10%; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -397,7 +403,20 @@ include __DIR__ . '/../includes/header.php';
                                     <i class="fa-solid fa-circle-check" style="color: var(--color-success); font-size: 10px;"></i> Done: <?php echo $task['completed_at'] ? formatDate($task['completed_at']) : ''; ?>
                                 </div>
                             </td>
-                            <td style="white-space: nowrap;"><?php echo formatDate($task['deadline']); ?></td>
+                            <td style="white-space: nowrap; font-size: 12px;">
+                                <?php if (!empty($task['start_date'])): ?>
+                                    <div style="color: var(--color-text-secondary); margin-bottom: 3px;">
+                                        <i class="fa-regular fa-calendar-plus" style="color: var(--color-primary); font-size: 11px;"></i> Start: <strong><?php echo formatDate($task['start_date']); ?></strong>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($task['deadline'])): ?>
+                                    <div style="<?php echo $overdue ? 'color: var(--color-danger); font-weight: 600;' : 'color: var(--color-text-secondary);'; ?>">
+                                        <i class="fa-regular fa-calendar-check" style="<?php echo $overdue ? 'color: var(--color-danger);' : 'color: var(--color-warning);'; ?> font-size: 11px;"></i> End: <strong><?php echo formatDate($task['deadline']); ?></strong>
+                                    </div>
+                                <?php else: ?>
+                                    <?php if (empty($task['start_date'])): ?><span class="text-muted">—</span><?php endif; ?>
+                                <?php endif; ?>
+                            </td>
                             <td style="text-align: right;">
                                 <div class="table-actions" style="justify-content: flex-end;">
                                     <a href="?tab=assigned_by&edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
@@ -420,7 +439,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="create-task-modal">
     <div class="modal">
         <div class="modal-header">
-            <h3 class="modal-title">Create New Task</h3>
+            <h3 class="modal-title"><i class="fa-solid fa-list-check"></i> Create New Task</h3>
             <button class="modal-close" onclick="closeModal('create-task-modal')">×</button>
         </div>
         <form method="POST" action="" data-validate>
@@ -456,14 +475,20 @@ include __DIR__ . '/../includes/header.php';
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Deadline</label>
-                    <input type="date" name="deadline" class="form-input">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-regular fa-calendar-plus" style="color: var(--color-primary);"></i> Starting Date</label>
+                        <input type="date" name="start_date" class="form-input" value="<?php echo today(); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label"><i class="fa-regular fa-calendar-check" style="color: var(--color-warning);"></i> End Date / Deadline *</label>
+                        <input type="date" name="deadline" class="form-input" required>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeModal('create-task-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Task</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Create Task</button>
             </div>
         </form>
     </div>
@@ -474,7 +499,7 @@ include __DIR__ . '/../includes/header.php';
 <div class="modal-overlay active" id="edit-task-modal">
     <div class="modal">
         <div class="modal-header">
-            <h3 class="modal-title">Edit Task</h3>
+            <h3 class="modal-title"><i class="fa-solid fa-pen-to-square"></i> Edit Task</h3>
             <a href="<?php echo BASE_URL; ?>/manager/tasks.php" class="modal-close">×</a>
         </div>
         <form method="POST" action="" data-validate>
@@ -511,17 +536,21 @@ include __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="todo" <?php echo $editTask['status'] === 'todo' ? 'selected' : ''; ?>>To Do</option>
-                            <option value="in_progress" <?php echo $editTask['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
-                            <option value="completed" <?php echo $editTask['status'] === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                        </select>
+                        <label class="form-label"><i class="fa-regular fa-calendar-plus" style="color: var(--color-primary);"></i> Starting Date</label>
+                        <input type="date" name="start_date" class="form-input" value="<?php echo e($editTask['start_date'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Deadline</label>
-                        <input type="date" name="deadline" class="form-input" value="<?php echo e($editTask['deadline']); ?>">
+                        <label class="form-label"><i class="fa-regular fa-calendar-check" style="color: var(--color-warning);"></i> End Date / Deadline</label>
+                        <input type="date" name="deadline" class="form-input" value="<?php echo e($editTask['deadline'] ?? ''); ?>">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="todo" <?php echo $editTask['status'] === 'todo' ? 'selected' : ''; ?>>To Do</option>
+                        <option value="in_progress" <?php echo $editTask['status'] === 'in_progress' ? 'selected' : ''; ?>>In Progress</option>
+                        <option value="completed" <?php echo $editTask['status'] === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -531,7 +560,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
             <div class="modal-footer">
                 <a href="<?php echo BASE_URL; ?>/manager/tasks.php" class="btn btn-outline">Cancel</a>
-                <button type="submit" class="btn btn-primary">Update Task</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Update Task</button>
             </div>
         </form>
     </div>

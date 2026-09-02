@@ -64,9 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_user')
         // Default pin to '1234' for employees/managers/hr if none provided
         $usePin = !empty($pin) ? $pin : '1234';
         $pinHash = password_hash($usePin, PASSWORD_BCRYPT);
+        $joiningDate = post('joining_date') ?: date('Y-m-d');
         
-        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, password, pin, role, manager_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $hash, $pinHash, $role, $managerId]);
+        $stmt = $db->prepare("INSERT INTO users (employee_id, name, email, contact_no, designation, joining_date, password, pin, role, manager_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $hash, $pinHash, $role, $managerId]);
         setFlash('success', ucfirst($role) . ' added successfully.');
         header('Location: ' . BASE_URL . '/founder/user-management.php');
         exit;
@@ -83,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_user'
     $email = post('email');
     $contactNo = post('contact_no');
     $designation = post('designation');
+    $joiningDate = post('joining_date') ?: null;
     $role = post('role');
     $status = post('status');
     $managerId = post('manager_id') ? (int)post('manager_id') : null;
@@ -114,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_user'
     }
     
     if (empty($formErrors)) {
-        $query = "UPDATE users SET employee_id=?, name=?, email=?, contact_no=?, designation=?, role=?, manager_id=?, status=?, updated_at=NOW()";
-        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $role, $managerId, $status];
+        $query = "UPDATE users SET employee_id=?, name=?, email=?, contact_no=?, designation=?, joining_date=?, role=?, manager_id=?, status=?, updated_at=NOW()";
+        $params = [$employeeId, $name, $email, $contactNo ?: null, $designation ?: null, $joiningDate, $role, $managerId, $status];
         
         if (!empty($newPassword)) {
             if (strlen($newPassword) < 6) {
@@ -274,6 +276,21 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" name="designation" class="form-input" placeholder="e.g. Software Engineer" value="<?php echo e(post('designation')); ?>">
                 </div>
             </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Joining Date *</label>
+                    <input type="date" name="joining_date" class="form-input" required value="<?php echo e(post('joining_date', date('Y-m-d'))); ?>">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role *</label>
+                    <select name="role" class="form-select" required id="role-select">
+                        <option value="employee" <?php echo $preRole === 'employee' ? 'selected' : ''; ?>>Employee</option>
+                        <option value="manager" <?php echo $preRole === 'manager' ? 'selected' : ''; ?>>Manager</option>
+                        <option value="hr" <?php echo $preRole === 'hr' ? 'selected' : ''; ?>>HR</option>
+                    </select>
+                </div>
+            </div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -283,17 +300,6 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-group">
                     <label class="form-label">4-Digit Security PIN (Optional)</label>
                     <input type="text" name="pin" class="form-input" placeholder="Default is 1234" maxlength="4" pattern="\d{4}">
-                </div>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Role *</label>
-                    <select name="role" class="form-select" required id="role-select">
-                        <option value="employee" <?php echo $preRole === 'employee' ? 'selected' : ''; ?>>Employee</option>
-                        <option value="manager" <?php echo $preRole === 'manager' ? 'selected' : ''; ?>>Manager</option>
-                        <option value="hr" <?php echo $preRole === 'hr' ? 'selected' : ''; ?>>HR</option>
-                    </select>
                 </div>
             </div>
             
@@ -357,6 +363,11 @@ include __DIR__ . '/../includes/header.php';
                     <label class="form-label">Employee Designation</label>
                     <input type="text" name="designation" class="form-input" value="<?php echo e(post('designation', $editUser['designation'])); ?>">
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Joining Date</label>
+                <input type="date" name="joining_date" class="form-input" value="<?php echo e(post('joining_date', $editUser['joining_date'] ?? '')); ?>">
             </div>
             
             <div class="form-row">
@@ -436,7 +447,7 @@ include __DIR__ . '/../includes/header.php';
                     <th>Role</th>
                     <th>Manager</th>
                     <th>Status</th>
-                    <th>Joined</th>
+                    <th>Joining Date</th>
                     <th style="text-align: right;">Actions</th>
                 </tr>
             </thead>
@@ -460,7 +471,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><span class="badge <?php echo roleBadge($user['role']); ?>"><?php echo ucfirst(e($user['role'])); ?></span></td>
                         <td><?php echo e($user['manager_name'] ?? '—'); ?></td>
                         <td><span class="badge <?php echo userStatusBadge($user['status']); ?>"><?php echo ucfirst(e($user['status'])); ?></span></td>
-                        <td><?php echo formatDate($user['created_at']); ?></td>
+                        <td><?php echo !empty($user['joining_date']) ? formatDate($user['joining_date']) : formatDate($user['created_at']); ?></td>
                         <td style="text-align: right;">
                             <div class="table-actions" style="display: inline-flex; gap: var(--space-1);">
                                 <a href="?action=edit&id=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>

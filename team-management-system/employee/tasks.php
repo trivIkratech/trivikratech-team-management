@@ -92,14 +92,18 @@ include __DIR__ . '/../includes/header.php';
                         </p>
                     <?php endif; ?>
                     
-                    <div class="task-meta" style="margin-top: var(--space-2);">
+                    <div class="task-meta" style="margin-top: var(--space-2); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <span><i class="fa-solid fa-calendar-days"></i> Assigned: <?php echo formatDate($task['created_at']); ?></span>
+                        <?php if (!empty($task['start_date'])): ?>
+                            <span>•</span>
+                            <span><i class="fa-regular fa-calendar-plus" style="color: var(--color-primary);"></i> Start: <strong><?php echo formatDate($task['start_date']); ?></strong></span>
+                        <?php endif; ?>
                         <?php if ($task['deadline']): ?>
                             <span>•</span>
-                            <span><i class="fa-solid fa-clock"></i> Due: <?php echo formatDate($task['deadline']); ?></span>
+                            <span><i class="fa-regular fa-calendar-check" style="<?php echo $overdue ? 'color: var(--color-danger); font-weight: 600;' : ''; ?>"></i> Due: <strong><?php echo formatDate($task['deadline']); ?></strong></span>
                         <?php endif; ?>
                         <span>•</span>
-                        <span>By: <?php echo e($task['assigned_by_name']); ?></span>
+                        <span>By: <strong><?php echo e($task['assigned_by_name']); ?></strong></span>
                         <span>•</span>
                         <span class="badge <?php echo priorityBadge($task['priority']); ?>"><?php echo priorityLabel($task['priority']); ?></span>
                     </div>

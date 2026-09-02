@@ -75,7 +75,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><span class="badge badge-info"><?php echo $manager['employee_count']; ?></span></td>
                         <td><?php echo $manager['tasks_assigned']; ?></td>
                         <td><span class="badge <?php echo userStatusBadge($manager['status']); ?>"><?php echo ucfirst(e($manager['status'])); ?></span></td>
-                        <td><?php echo formatDate($manager['created_at']); ?></td>
+                        <td><?php echo !empty($manager['joining_date']) ? formatDate($manager['joining_date']) : formatDate($manager['created_at']); ?></td>
                         <td>
                             <div class="table-actions">
                                 <a href="<?php echo BASE_URL; ?>/founder/user-management.php?action=edit&id=<?php echo $manager['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>

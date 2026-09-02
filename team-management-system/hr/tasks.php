@@ -1,6 +1,8 @@
 <?php
 /**
- * Founder — All Tasks
+ * HR — Task Management
+ * 
+ * Create, assign, edit, and monitor tasks for workforce employees.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -9,11 +11,13 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/middleware.php';
 
-requireRole([ROLE_FOUNDER]);
+requireRole([ROLE_HR]);
 
 $db = getDB();
+$hrId = getUserId();
+$today = today();
 
-// Handle task creation
+// Handle task creation by HR
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_task') {
     requireCsrf();
     
@@ -28,33 +32,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_tas
         setFlash('error', 'Task title and assignee are required.');
     } elseif (strpos($assignedToInput, 'team_') === 0) {
         $targetManagerId = (int)str_replace('team_', '', $assignedToInput);
-        // Fetch all active employees under this manager
         $stmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active'");
         $stmt->execute([$targetManagerId]);
         $teamMemberIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
         if (empty($teamMemberIds)) {
-            setFlash('error', 'This manager team is empty or has no active employees.');
+            setFlash('error', 'This team is empty or has no active employees.');
         } else {
             $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
             foreach ($teamMemberIds as $empId) {
-                $stmt->execute([$title, $description, $empId, getUserId(), $priority ?: 'medium', $startDate, $deadline]);
+                $stmt->execute([$title, $description, $empId, $hrId, $priority ?: 'medium', $startDate, $deadline]);
             }
-            setFlash('success', 'Team task created and assigned to all team members under the manager.');
-            header('Location: ' . BASE_URL . '/founder/tasks.php');
+            setFlash('success', 'Team task created and assigned to all team members.');
+            header('Location: ' . BASE_URL . '/hr/tasks.php');
             exit;
         }
     } else {
         $assignedTo = (int)$assignedToInput;
         $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$title, $description, $assignedTo, getUserId(), $priority ?: 'medium', $startDate, $deadline]);
+        $stmt->execute([$title, $description, $assignedTo, $hrId, $priority ?: 'medium', $startDate, $deadline]);
         setFlash('success', 'Task created successfully.');
-        header('Location: ' . BASE_URL . '/founder/tasks.php');
+        header('Location: ' . BASE_URL . '/hr/tasks.php');
         exit;
     }
 }
 
-// Handle task edit
+// Handle task edit by HR
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task') {
     requireCsrf();
     
@@ -75,17 +78,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_task'
         $stmt = $db->prepare("UPDATE tasks SET title=?, description=?, assigned_to=?, priority=?, start_date=?, deadline=?, status=?, comments=?, completed_at=?, updated_at=NOW() WHERE id=?");
         $stmt->execute([$title, $description, $assignedTo, $priority, $startDate, $deadline, $status, $comments, $completedAt, $taskId]);
         setFlash('success', 'Task updated successfully.');
-        header('Location: ' . BASE_URL . '/founder/tasks.php');
+        header('Location: ' . BASE_URL . '/hr/tasks.php');
         exit;
     }
 }
 
-// Handle task delete
+// Handle task delete by HR (if assigned by HR)
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $taskId = (int)$_GET['delete'];
-    $db->prepare("DELETE FROM tasks WHERE id = ?")->execute([$taskId]);
+    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND assigned_by = ?");
+    $stmt->execute([$taskId, $hrId]);
     setFlash('success', 'Task deleted.');
-    header('Location: ' . BASE_URL . '/founder/tasks.php');
+    header('Location: ' . BASE_URL . '/hr/tasks.php');
     exit;
 }
 
@@ -95,7 +99,7 @@ $filterPriority = get('priority');
 $filterAssignee = get('assigned_to');
 $page = max(1, (int)get('page', '1'));
 
-$where = ['1=1'];
+$where = ["u1.role = 'employee'"];
 $params = [];
 
 if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
@@ -104,13 +108,13 @@ if ($filterAssignee) { $where[] = "t.assigned_to = ?"; $params[] = (int)$filterA
 
 $whereClause = implode(' AND ', $where);
 
-$countStmt = $db->prepare("SELECT COUNT(*) FROM tasks t WHERE {$whereClause}");
+$countStmt = $db->prepare("SELECT COUNT(*) FROM tasks t JOIN users u1 ON t.assigned_to = u1.id WHERE {$whereClause}");
 $countStmt->execute($params);
 $totalRecords = $countStmt->fetchColumn();
 $pagination = paginate($totalRecords, $page);
 
 $stmt = $db->prepare("
-    SELECT t.*, u1.name AS assigned_to_name, u1.designation AS assigned_to_designation, u2.name AS assigned_by_name
+    SELECT t.*, u1.name AS assigned_to_name, u1.designation AS assigned_to_designation, u2.name AS assigned_by_name, u2.role AS assigned_by_role
     FROM tasks t
     JOIN users u1 ON t.assigned_to = u1.id
     JOIN users u2 ON t.assigned_by = u2.id
@@ -124,8 +128,9 @@ $stmt = $db->prepare("
 $stmt->execute($params);
 $tasks = $stmt->fetchAll();
 
-// Get employees for assignment dropdown
-$allUsers = $db->query("SELECT id, name, role FROM users WHERE role IN ('employee','manager') AND status = 'active' ORDER BY name")->fetchAll();
+// Get employees & managers for assignment dropdown
+$allEmployees = $db->query("SELECT id, name, designation FROM users WHERE role = 'employee' AND status = 'active' ORDER BY name")->fetchAll();
+$allManagers = $db->query("SELECT id, name FROM users WHERE role = 'manager' AND status = 'active' ORDER BY name")->fetchAll();
 
 // Edit task data
 $editTask = null;
@@ -135,17 +140,17 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $editTask = $stmt->fetch();
 }
 
-$pageTitle = 'Tasks';
+$pageTitle = 'HR — Employee Tasks';
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">Tasks</h1>
-        <p class="page-subtitle"><?php echo $totalRecords; ?> task(s) across the company</p>
+        <h1 class="page-title">Employee Tasks</h1>
+        <p class="page-subtitle"><?php echo $totalRecords; ?> task(s) in employee workforce</p>
     </div>
     <div class="page-header-actions">
-        <button class="btn btn-primary" onclick="openModal('create-task-modal')">+ Create Task</button>
+        <button class="btn btn-primary" onclick="openModal('create-task-modal')"><i class="fa-solid fa-plus"></i> Create Task</button>
     </div>
 </div>
 
@@ -164,13 +169,13 @@ include __DIR__ . '/../includes/header.php';
         <option value="low" <?php echo $filterPriority === 'low' ? 'selected' : ''; ?>>Low</option>
     </select>
     <select name="assigned_to" class="form-select" onchange="this.form.submit()">
-        <option value="">All Assignees</option>
-        <?php foreach ($allUsers as $u): ?>
+        <option value="">All Employees</option>
+        <?php foreach ($allEmployees as $u): ?>
             <option value="<?php echo $u['id']; ?>" <?php echo $filterAssignee == $u['id'] ? 'selected' : ''; ?>><?php echo e($u['name']); ?></option>
         <?php endforeach; ?>
     </select>
     <?php if ($filterStatus || $filterPriority || $filterAssignee): ?>
-        <a href="<?php echo BASE_URL; ?>/founder/tasks.php" class="btn btn-sm btn-outline">Clear</a>
+        <a href="<?php echo BASE_URL; ?>/hr/tasks.php" class="btn btn-sm btn-outline">Clear</a>
     <?php endif; ?>
 </form>
 
@@ -201,7 +206,9 @@ include __DIR__ . '/../includes/header.php';
                     <tr data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>">
                         <td>
                             <div class="table-user-name" style="font-weight: 600;"><?php echo e($task['title']); ?></div>
-                            <div class="table-user-email" style="margin-top: 2px;">by <?php echo e($task['assigned_by_name']); ?> • <?php echo formatDate($task['created_at']); ?></div>
+                            <div class="table-user-email" style="margin-top: 2px;">
+                                by <strong><?php echo e($task['assigned_by_name']); ?></strong> (<?php echo ucfirst($task['assigned_by_role']); ?>) • <?php echo formatDate($task['created_at']); ?>
+                            </div>
                             <?php if ($task['description']): ?>
                                 <div style="font-size: var(--text-xs); color: var(--color-text-secondary); margin-top: 4px; line-height: 1.4;">
                                     <?php echo e($task['description']); ?>
@@ -218,7 +225,7 @@ include __DIR__ . '/../includes/header.php';
                         </td>
                         <td>
                             <div style="font-weight: 500;"><?php echo e($task['assigned_to_name']); ?></div>
-                            <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($task['assigned_to_designation'] ?: '—'); ?></small>
+                            <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($task['assigned_to_designation'] ?: 'Employee'); ?></small>
                         </td>
                         <td><span class="badge <?php echo priorityBadge($task['priority']); ?>"><?php echo priorityLabel($task['priority']); ?></span></td>
                         <td>
@@ -248,8 +255,10 @@ include __DIR__ . '/../includes/header.php';
                         </td>
                         <td style="text-align: right;">
                             <div class="table-actions" style="justify-content: flex-end;">
-                                <a href="<?php echo BASE_URL; ?>/founder/tasks.php?edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
-                                <a href="<?php echo BASE_URL; ?>/founder/tasks.php?delete=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this task permanently?" title="Delete"><i class="fa-solid fa-trash-can"></i></a>
+                                <a href="<?php echo BASE_URL; ?>/hr/tasks.php?edit=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                                <?php if ($task['assigned_by'] == $hrId): ?>
+                                    <a href="<?php echo BASE_URL; ?>/hr/tasks.php?delete=<?php echo $task['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this task permanently?" title="Delete"><i class="fa-solid fa-trash-can"></i></a>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
@@ -260,7 +269,7 @@ include __DIR__ . '/../includes/header.php';
     
     <?php
     $qs = http_build_query(array_filter(['status' => $filterStatus, 'priority' => $filterPriority, 'assigned_to' => $filterAssignee]));
-    echo renderPagination($pagination, BASE_URL . '/founder/tasks.php?' . $qs);
+    echo renderPagination($pagination, BASE_URL . '/hr/tasks.php?' . $qs);
     ?>
 <?php endif; ?>
 
@@ -289,17 +298,14 @@ include __DIR__ . '/../includes/header.php';
                         <label class="form-label">Assign To *</label>
                         <select name="assigned_to" class="form-select" required>
                             <option value="">Select Employee</option>
-                            <optgroup label="Entire Teams">
-                                <?php 
-                                $managers = array_filter($allUsers, fn($u) => $u['role'] === 'manager');
-                                foreach ($managers as $m): 
-                                ?>
+                            <optgroup label="Entire Manager Teams">
+                                <?php foreach ($allManagers as $m): ?>
                                     <option value="team_<?php echo $m['id']; ?>">Assign to <?php echo e($m['name']); ?>'s Team</option>
                                 <?php endforeach; ?>
                             </optgroup>
                             <optgroup label="Individual Employees">
-                                <?php foreach ($allUsers as $u): ?>
-                                    <option value="<?php echo $u['id']; ?>"><?php echo e($u['name']); ?> (<?php echo ucfirst($u['role']); ?>)</option>
+                                <?php foreach ($allEmployees as $u): ?>
+                                    <option value="<?php echo $u['id']; ?>"><?php echo e($u['name']); ?> (<?php echo e($u['designation'] ?: 'Employee'); ?>)</option>
                                 <?php endforeach; ?>
                             </optgroup>
                         </select>
@@ -338,7 +344,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="modal">
         <div class="modal-header">
             <h3 class="modal-title"><i class="fa-solid fa-pen-to-square"></i> Edit Task</h3>
-            <a href="<?php echo BASE_URL; ?>/founder/tasks.php" class="modal-close">×</a>
+            <a href="<?php echo BASE_URL; ?>/hr/tasks.php" class="modal-close">×</a>
         </div>
         <form method="POST" action="" data-validate>
             <div class="modal-body">
@@ -358,7 +364,7 @@ include __DIR__ . '/../includes/header.php';
                     <div class="form-group">
                         <label class="form-label">Assign To *</label>
                         <select name="assigned_to" class="form-select" required>
-                            <?php foreach ($allUsers as $u): ?>
+                            <?php foreach ($allEmployees as $u): ?>
                                 <option value="<?php echo $u['id']; ?>" <?php echo $editTask['assigned_to'] == $u['id'] ? 'selected' : ''; ?>><?php echo e($u['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -397,7 +403,7 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div class="modal-footer">
-                <a href="<?php echo BASE_URL; ?>/founder/tasks.php" class="btn btn-outline">Cancel</a>
+                <a href="<?php echo BASE_URL; ?>/hr/tasks.php" class="btn btn-outline">Cancel</a>
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Update Task</button>
             </div>
         </form>

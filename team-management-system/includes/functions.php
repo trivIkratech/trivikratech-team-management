@@ -405,3 +405,40 @@ function countUnreadNotifications(int $userId): int {
         return 0;
     }
 }
+
+/**
+ * Render standard Working Module & Shift Information Banner
+ */
+function renderWorkingModuleBanner(): string {
+    $todayDay = date('l');
+    $isWeekend = ($todayDay === 'Sunday');
+    $badgeText = $isWeekend ? 'Sunday · Weekly Off' : 'Mon – Sat · Working Day';
+    $badgeClass = $isWeekend ? 'badge-warning' : 'badge-info';
+    
+    return '
+    <div class="working-module-banner" style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px 18px; max-width: 580px; margin: 0 auto 20px; font-size: 13px; text-align: left; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+        <div style="font-weight: 600; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span style="display: flex; align-items: center; gap: 6px; color: var(--color-primary); font-size: 14px;">
+                <i class="fa-solid fa-business-time"></i> Working Shift: 10:00 AM – 05:00 PM
+            </span>
+            <span class="badge ' . $badgeClass . '" style="font-size: 11px;">' . $badgeText . '</span>
+        </div>
+        <div style="display: flex; gap: 16px; color: var(--color-text-secondary); font-size: 12px; margin-top: 6px; flex-wrap: wrap; border-top: 1px dashed var(--color-border); padding-top: 8px;">
+            <span><i class="fa-solid fa-calendar-days"></i> <strong>Mon – Sat</strong></span>
+            <span><i class="fa-solid fa-clock"></i> <strong>7h Shift</strong></span>
+            <span><i class="fa-solid fa-mug-hot"></i> <strong>1h Break (Excluded)</strong></span>
+            <span><i class="fa-solid fa-laptop-code"></i> <strong>6h Net Work</strong></span>
+            <span><i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Full Day: <strong>≥ 6h</strong> (Half Day: <strong>≥ 3h</strong>)</span>
+        </div>
+    </div>';
+}
+
+/**
+ * Safe HTTP Redirect Helper
+ */
+function redirect(string $url): void {
+    header('Location: ' . $url);
+    exit;
+}
+
+

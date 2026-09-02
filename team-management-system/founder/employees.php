@@ -114,7 +114,7 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo e($emp['email']); ?></td>
                         <td><?php echo e($emp['manager_name'] ?? '—'); ?></td>
                         <td><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
-                        <td><?php echo formatDate($emp['created_at']); ?></td>
+                        <td><?php echo !empty($emp['joining_date']) ? formatDate($emp['joining_date']) : formatDate($emp['created_at']); ?></td>
                         <td>
                             <div class="table-actions">
                                 <a href="<?php echo BASE_URL; ?>/founder/user-management.php?action=edit&id=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>

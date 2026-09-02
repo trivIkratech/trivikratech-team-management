@@ -52,10 +52,10 @@ try {
         }
         
         if ($existing) {
-            $stmt = $db->prepare("UPDATE attendance SET check_in = ?, status = 'absent' WHERE id = ?");
+            $stmt = $db->prepare("UPDATE attendance SET check_in = ?, status = 'present' WHERE id = ?");
             $stmt->execute([$currentTime, $existing['id']]);
         } else {
-            $stmt = $db->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, 'absent')");
+            $stmt = $db->prepare("INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, 'present')");
             $stmt->execute([$userId, $today, $currentTime]);
         }
         

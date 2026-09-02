@@ -48,6 +48,15 @@ define('ATTENDANCE_PRESENT', 'present');
 define('ATTENDANCE_ABSENT', 'absent');
 define('ATTENDANCE_HALF_DAY', 'half-day');
 
+// Working Schedule & Shift Configuration (Monday to Saturday, 10 AM to 5 PM, 6h Work + 1h Break)
+define('WORKING_DAYS', 'Monday to Saturday');
+define('WORKING_SHIFT_START', '10:00 AM');
+define('WORKING_SHIFT_END', '05:00 PM');
+define('WORKING_SHIFT_TOTAL_HOURS', 7); // 7 Hours total shift span
+define('WORKING_HOURS_PER_DAY', 6);     // 6 Hours net working time required
+define('BREAK_HOURS_PER_DAY', 1);       // 1 Hour break excluded from net working hours
+define('HALF_DAY_HOURS', 3);            // 3 Hours for half-day
+
 // User status constants
 define('USER_ACTIVE', 'active');
 define('USER_INACTIVE', 'inactive');
