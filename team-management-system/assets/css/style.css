@@ -2158,3 +2158,56 @@ h4 { font-size: var(--text-lg); }
 .fade-slide-right {
     animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* =============================================
+   Chat Notification Badges (Sidebar & Floating Button)
+   ============================================= */
+.sidebar-chat-badge {
+    margin-left: auto;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+    animation: chatPulse 2.5s infinite;
+}
+
+.floating-chat-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--color-bg-card);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+    animation: chatPulse 2.5s infinite;
+}
+
+@keyframes chatPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+    }
+    100% {
+        transform: scale(1);
+    }
+}

@@ -39,6 +39,7 @@ try {
         $isInit = (bool)($_GET['init'] ?? false);
         
         $unreadCount = countUnreadNotifications($userId);
+        $chatUnreadCount = countUnreadChatMessages($userId);
         
         // Get max notification id
         $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ?");
@@ -50,6 +51,7 @@ try {
                 'success' => true,
                 'max_id' => $maxId,
                 'unread_count' => $unreadCount,
+                'chat_unread_count' => $chatUnreadCount,
                 'new_notifications' => []
             ]);
             exit;
@@ -115,15 +117,18 @@ try {
             'success' => true,
             'max_id' => $maxId > $lastId ? $maxId : $lastId,
             'unread_count' => $unreadCount,
+            'chat_unread_count' => $chatUnreadCount,
             'new_notifications' => $newNotifs
         ]);
         exit;
     } elseif ($action === 'get_unread') {
         $unreadCount = countUnreadNotifications($userId);
+        $chatUnreadCount = countUnreadChatMessages($userId);
         $notifs = getUnreadNotifications($userId, 7);
         echo json_encode([
             'success' => true,
             'count' => $unreadCount,
+            'chat_unread_count' => $chatUnreadCount,
             'notifications' => $notifs
         ]);
     } else {

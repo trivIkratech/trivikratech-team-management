@@ -761,6 +761,13 @@ function loadRooms(isSilent = false) {
             populateNewDMUsers(usersData, data.current_user_id);
             populateGroupMembers(usersData, data.current_user_id);
             
+            const totalUnread = roomsData.reduce((acc, r) => acc + (parseInt(r.unread_count || 0, 10)), 0);
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ type: 'chat_unread_updated', unread_count: totalUnread }, '*');
+                } catch(e) {}
+            }
+            
             const urlParams = new URLSearchParams(window.location.search);
             const targetRoomId = urlParams.get('room_id');
             if (!currentRoomId && !isSilent) {

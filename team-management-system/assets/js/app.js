@@ -897,6 +897,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    window.updateChatNotificationBadges = function(count) {
+        const num = parseInt(count || 0, 10);
+        const text = num > 99 ? '99+' : num;
+
+        document.querySelectorAll('.sidebar-chat-badge').forEach(badge => {
+            if (num > 0) {
+                badge.textContent = text;
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        });
+
+        const floatingBadge = document.getElementById('floating-chat-badge');
+        if (floatingBadge) {
+            if (num > 0) {
+                floatingBadge.textContent = text;
+                floatingBadge.style.display = 'flex';
+            } else {
+                floatingBadge.style.display = 'none';
+            }
+        }
+    };
+
+    // Listen for postMessage from embedded chat iframe when messages are read
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'chat_unread_updated') {
+            window.updateChatNotificationBadges(event.data.unread_count);
+        }
+    });
+
     // =============================================
     // Background Poller for All Notifications
     // =============================================
@@ -932,6 +963,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 updateHeaderBellCount(data.unread_count);
+                if (typeof data.chat_unread_count !== 'undefined') {
+                    window.updateChatNotificationBadges(data.chat_unread_count);
+                }
             })
             .catch(() => {});
         }

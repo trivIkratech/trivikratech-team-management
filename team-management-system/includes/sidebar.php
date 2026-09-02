@@ -9,6 +9,7 @@
 $currentUser = getCurrentUser();
 $userRole = $currentUser['role'] ?? '';
 $userInitials = getInitials($currentUser['name'] ?? 'U');
+$sidebarChatUnread = isLoggedIn() ? countUnreadChatMessages((int)($currentUser['id'] ?? 0)) : 0;
 
 // Determine current page for active state
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
@@ -40,6 +41,7 @@ function isActive(string $dir, string $page): string {
             </a>
             <a href="<?php echo BASE_URL; ?>/chat/index.php" class="sidebar-nav-item<?php echo isActive('chat', 'index'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Team Chat
+                <span class="sidebar-chat-badge" style="display: <?php echo $sidebarChatUnread > 0 ? 'inline-flex' : 'none'; ?>;"><?php echo $sidebarChatUnread > 99 ? '99+' : $sidebarChatUnread; ?></span>
             </a>
 
             <div class="sidebar-nav-label">People</div>
@@ -86,6 +88,7 @@ function isActive(string $dir, string $page): string {
             </a>
             <a href="<?php echo BASE_URL; ?>/chat/index.php" class="sidebar-nav-item<?php echo isActive('chat', 'index'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Team Chat
+                <span class="sidebar-chat-badge" style="display: <?php echo $sidebarChatUnread > 0 ? 'inline-flex' : 'none'; ?>;"><?php echo $sidebarChatUnread > 99 ? '99+' : $sidebarChatUnread; ?></span>
             </a>
 
             <div class="sidebar-nav-label">Management</div>
@@ -119,6 +122,7 @@ function isActive(string $dir, string $page): string {
             </a>
             <a href="<?php echo BASE_URL; ?>/chat/index.php" class="sidebar-nav-item<?php echo isActive('chat', 'index'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Team Chat
+                <span class="sidebar-chat-badge" style="display: <?php echo $sidebarChatUnread > 0 ? 'inline-flex' : 'none'; ?>;"><?php echo $sidebarChatUnread > 99 ? '99+' : $sidebarChatUnread; ?></span>
             </a>
 
             <div class="sidebar-nav-label">My Workspace</div>
@@ -151,6 +155,7 @@ function isActive(string $dir, string $page): string {
             </a>
             <a href="<?php echo BASE_URL; ?>/chat/index.php" class="sidebar-nav-item<?php echo isActive('chat', 'index'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Team Chat
+                <span class="sidebar-chat-badge" style="display: <?php echo $sidebarChatUnread > 0 ? 'inline-flex' : 'none'; ?>;"><?php echo $sidebarChatUnread > 99 ? '99+' : $sidebarChatUnread; ?></span>
             </a>
             <a href="<?php echo BASE_URL; ?>/profile.php" class="sidebar-nav-item<?php echo isActive('', 'profile'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-circle-user"></i></span> My Profile

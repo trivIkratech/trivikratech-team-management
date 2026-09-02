@@ -407,6 +407,25 @@ function countUnreadNotifications(int $userId): int {
 }
 
 /**
+ * Count unread chat messages for a specific user across all rooms they are a member of
+ */
+function countUnreadChatMessages(int $userId): int {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM chat_messages m
+            JOIN chat_room_members rm ON m.room_id = rm.room_id
+            WHERE rm.user_id = ? AND m.sender_id != ? AND m.is_read = 0
+        ");
+        $stmt->execute([$userId, $userId]);
+        return (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+/**
  * Render standard Working Module & Shift Information Banner
  */
 function renderWorkingModuleBanner(): string {

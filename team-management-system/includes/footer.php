@@ -5,13 +5,15 @@
     <?php 
     $currentScript = $_SERVER['SCRIPT_NAME'] ?? '';
     $isChatDashboard = (strpos($currentScript, 'chat/index.php') !== false);
+    $footerChatUnread = isLoggedIn() ? countUnreadChatMessages((int)($_SESSION['user_id'] ?? 0)) : 0;
     ?>
 
     <?php if (isLoggedIn() && !$isChatDashboard): ?>
         <!-- FLOATING SYSTEM-WIDE CHAT WIDGET (Loads Full-Featured Team Chat) -->
-        <button id="floating-chat-trigger" onclick="toggleFloatingChat()" style="position: fixed; bottom: 24px; right: 24px; z-index: 9998; background: var(--color-primary); color: #ffffff; border: none; border-radius: 30px; padding: 12px 20px; font-weight: 600; box-shadow: 0 8px 24px rgba(79, 110, 247, 0.4); display: flex; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <button id="floating-chat-trigger" class="floating-chat-trigger" onclick="toggleFloatingChat()" style="position: fixed; bottom: 24px; right: 24px; z-index: 9998; background: var(--color-primary); color: #ffffff; border: none; border-radius: 30px; padding: 12px 20px; font-weight: 600; box-shadow: 0 8px 24px rgba(79, 110, 247, 0.4); display: flex; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
             <i class="fa-solid fa-comments" style="font-size: 18px;"></i>
             <span>Team Chat</span>
+            <span class="floating-chat-badge" id="floating-chat-badge" style="display: <?php echo $footerChatUnread > 0 ? 'flex' : 'none'; ?>;"><?php echo $footerChatUnread > 99 ? '99+' : $footerChatUnread; ?></span>
         </button>
 
         <div id="floating-chat-box" style="display: none; position: fixed; bottom: 84px; right: 24px; width: 440px; height: 600px; max-width: calc(100vw - 32px); max-height: calc(100vh - 100px); z-index: 9999; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 16px 48px rgba(0,0,0,0.5); flex-direction: column; overflow: hidden;" class="fade-in">
