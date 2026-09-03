@@ -8,6 +8,7 @@
 
 $currentUser = getCurrentUser();
 $userRole = $currentUser['role'] ?? '';
+$baseRole = function_exists('getRoleBaseType') ? getRoleBaseType($userRole) : $userRole;
 $userInitials = getInitials($currentUser['name'] ?? 'U');
 $sidebarChatUnread = isLoggedIn() ? countUnreadChatMessages((int)($currentUser['id'] ?? 0)) : 0;
 
@@ -28,12 +29,15 @@ function isActive(string $dir, string $page): string {
             Team Manager
             <span><?php echo ucfirst(e($userRole)); ?> Panel</span>
         </div>
+        <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" aria-label="Close sidebar">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
     </div>
 
     <!-- Navigation -->
     <nav class="sidebar-nav">
 
-        <?php if ($userRole === ROLE_FOUNDER): ?>
+        <?php if ($baseRole === ROLE_FOUNDER): ?>
             <!-- ===== FOUNDER NAVIGATION ===== -->
             <div class="sidebar-nav-label">Main</div>
             <a href="<?php echo BASE_URL; ?>/founder/dashboard.php" class="sidebar-nav-item<?php echo isActive('founder', 'dashboard'); ?>">
@@ -45,14 +49,11 @@ function isActive(string $dir, string $page): string {
             </a>
 
             <div class="sidebar-nav-label">People</div>
-            <a href="<?php echo BASE_URL; ?>/founder/managers.php" class="sidebar-nav-item<?php echo isActive('founder', 'managers'); ?>">
-                <span class="nav-icon"><i class="fa-solid fa-user-tie"></i></span> Managers
-            </a>
-            <a href="<?php echo BASE_URL; ?>/founder/employees.php" class="sidebar-nav-item<?php echo isActive('founder', 'employees'); ?>">
-                <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Employees
-            </a>
             <a href="<?php echo BASE_URL; ?>/founder/user-management.php" class="sidebar-nav-item<?php echo isActive('founder', 'user-management'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-gears"></i></span> User Management
+            </a>
+            <a href="<?php echo BASE_URL; ?>/founder/roles.php" class="sidebar-nav-item<?php echo isActive('founder', 'roles'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-user-shield"></i></span> Roles & Permissions
             </a>
 
             <div class="sidebar-nav-label">Modules</div>
@@ -80,7 +81,7 @@ function isActive(string $dir, string $page): string {
                 <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Announcements
             </a>
 
-        <?php elseif ($userRole === ROLE_MANAGER): ?>
+        <?php elseif ($baseRole === ROLE_MANAGER): ?>
             <!-- ===== MANAGER NAVIGATION ===== -->
             <div class="sidebar-nav-label">Main</div>
             <a href="<?php echo BASE_URL; ?>/manager/dashboard.php" class="sidebar-nav-item<?php echo isActive('manager', 'dashboard'); ?>">
@@ -114,7 +115,7 @@ function isActive(string $dir, string $page): string {
                 <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Announcements
             </a>
 
-        <?php elseif ($userRole === ROLE_EMPLOYEE): ?>
+        <?php elseif ($baseRole === ROLE_EMPLOYEE): ?>
             <!-- ===== EMPLOYEE NAVIGATION ===== -->
             <div class="sidebar-nav-label">Main</div>
             <a href="<?php echo BASE_URL; ?>/employee/dashboard.php" class="sidebar-nav-item<?php echo isActive('employee', 'dashboard'); ?>">
@@ -138,6 +139,9 @@ function isActive(string $dir, string $page): string {
             <a href="<?php echo BASE_URL; ?>/employee/leaves.php" class="sidebar-nav-item<?php echo isActive('employee', 'leaves'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-umbrella-beach"></i></span> Apply Leave
             </a>
+            <a href="<?php echo BASE_URL; ?>/employee/announcements.php" class="sidebar-nav-item<?php echo isActive('employee', 'announcements'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Announcements
+            </a>
             <a href="<?php echo BASE_URL; ?>/employee/team.php" class="sidebar-nav-item<?php echo isActive('employee', 'team'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-users"></i></span> My Team
             </a>
@@ -147,7 +151,7 @@ function isActive(string $dir, string $page): string {
                 <span class="nav-icon"><i class="fa-solid fa-headset"></i></span> Support & Help
             </a>
 
-        <?php elseif ($userRole === ROLE_HR): ?>
+        <?php elseif ($baseRole === ROLE_HR): ?>
             <!-- ===== HR NAVIGATION ===== -->
             <div class="sidebar-nav-label">Main</div>
             <a href="<?php echo BASE_URL; ?>/hr/dashboard.php" class="sidebar-nav-item<?php echo isActive('hr', 'dashboard'); ?>">

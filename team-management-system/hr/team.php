@@ -30,6 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_ann
         $stmt = $db->prepare("INSERT INTO announcements (sender_id, title, content, created_at) VALUES (?, ?, ?, NOW())");
         $stmt->execute([$hrId, $title, $content]);
         
+        // Notify all active employees and managers
+        $usersStmt = $db->prepare("SELECT id, role FROM users WHERE status = 'active' AND id != ?");
+        $usersStmt->execute([$hrId]);
+        $activeUsers = $usersStmt->fetchAll();
+        foreach ($activeUsers as $u) {
+            $link = ($u['role'] === 'employee') ? BASE_URL . '/employee/announcements.php' : (($u['role'] === 'manager') ? BASE_URL . '/manager/announcements.php' : BASE_URL . '/founder/announcements.php');
+            createNotification(
+                $u['id'],
+                '📢 HR Announcement: ' . $title,
+                $content,
+                $link,
+                'info'
+            );
+        }
+
         setFlash('success', 'Announcement published and sent successfully.');
         header('Location: ' . BASE_URL . '/hr/team.php?tab=announcements');
         exit;

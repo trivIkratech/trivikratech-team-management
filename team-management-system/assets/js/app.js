@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebar = document.querySelector('.sidebar');
     const backdrop = document.querySelector('.sidebar-backdrop');
     const menuBtn = document.querySelector('.mobile-menu-btn');
+    const closeBtn = document.getElementById('sidebar-close-btn');
 
     function openSidebar() {
         if (sidebar) sidebar.classList.add('open');
@@ -37,8 +38,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            closeSidebar();
+        });
+    }
+
     if (backdrop) {
         backdrop.addEventListener('click', closeSidebar);
+    }
+
+    // Auto close mobile/tablet drawer when nav link is clicked
+    if (sidebar) {
+        sidebar.querySelectorAll('.sidebar-nav-item').forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 1024) {
+                    closeSidebar();
+                }
+            });
+        });
     }
 
     // =============================================

@@ -105,7 +105,7 @@ try {
             $room['can_clear_history'] = ($room['type'] === 'direct' || $room['created_by'] == $currentUserId || $userRole === ROLE_FOUNDER);
         }
         
-        // Fetch ALL specific persons categorized by role
+        // Fetch ALL specific persons categorized by role (excluding current logged-in user)
         $uStmt = $db->prepare("
             SELECT u.id, u.name, u.role, u.designation,
                    (SELECT COUNT(*) 
@@ -115,10 +115,10 @@ try {
                     JOIN chat_room_members rm2 ON r.id = rm2.room_id AND rm2.user_id = ?
                     WHERE r.type = 'direct' AND m.sender_id = u.id AND m.is_read = 0) AS unread_count
             FROM users u 
-            WHERE u.status = 'active'
+            WHERE u.status = 'active' AND u.id != ?
             ORDER BY FIELD(u.role, 'founder', 'manager', 'hr', 'employee'), u.name ASC
         ");
-        $uStmt->execute([$currentUserId]);
+        $uStmt->execute([$currentUserId, $currentUserId]);
         $allUsers = $uStmt->fetchAll();
 
         foreach ($allUsers as &$u) {

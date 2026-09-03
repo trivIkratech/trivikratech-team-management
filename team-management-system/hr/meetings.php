@@ -146,7 +146,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
     <?php else: ?>
-        <div class="content-grid fade-in" style="grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));">
+        <div class="content-grid fade-in" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));">
             <?php foreach ($todayMeetings as $m): ?>
                 <div class="card">
                     <div class="card-header">

@@ -179,14 +179,61 @@ function priorityLabel(string $priority): string {
 }
 
 /**
+ * Retrieve all roles from the database (system + custom)
+ */
+function getAllRoles(): array {
+    static $rolesCache = null;
+    if ($rolesCache !== null) return $rolesCache;
+    try {
+        $db = getDB();
+        $rolesCache = $db->query("SELECT * FROM roles ORDER BY is_system DESC, name ASC")->fetchAll();
+    } catch (PDOException $e) {
+        $rolesCache = [
+            ['id' => 1, 'name' => 'Founder', 'slug' => 'founder', 'base_role' => 'founder', 'is_system' => 1],
+            ['id' => 2, 'name' => 'Manager', 'slug' => 'manager', 'base_role' => 'manager', 'is_system' => 1],
+            ['id' => 3, 'name' => 'HR', 'slug' => 'hr', 'base_role' => 'hr', 'is_system' => 1],
+            ['id' => 4, 'name' => 'Employee', 'slug' => 'employee', 'base_role' => 'employee', 'is_system' => 1],
+        ];
+    }
+    return $rolesCache;
+}
+
+/**
+ * Get base role for a given role slug
+ */
+function getRoleBaseType(string $slug): string {
+    $roles = getAllRoles();
+    foreach ($roles as $r) {
+        if ($r['slug'] === $slug) {
+            return $r['base_role'] ?? 'employee';
+        }
+    }
+    return $slug;
+}
+
+/**
+ * Get role display name by slug
+ */
+function getRoleDisplayName(string $slug): string {
+    $roles = getAllRoles();
+    foreach ($roles as $r) {
+        if ($r['slug'] === $slug) {
+            return $r['name'];
+        }
+    }
+    return ucfirst(str_replace('_', ' ', $slug));
+}
+
+/**
  * Get CSS class for user role badge
  */
 function roleBadge(string $role): string {
     return match($role) {
         ROLE_FOUNDER  => 'badge-purple',
-        ROLE_MANAGER  => 'badge-primary',
+        ROLE_MANAGER  => 'badge-warning',
+        ROLE_HR       => 'badge-primary',
         ROLE_EMPLOYEE => 'badge-info',
-        default       => 'badge-secondary'
+        default       => 'badge-role-' . $role
     };
 }
 

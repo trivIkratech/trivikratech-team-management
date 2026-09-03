@@ -68,7 +68,7 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
                             <?php endif; ?>
                         </summary>
 
-                        <div style="position: absolute; top: 125%; right: 0; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 12px 36px rgba(0,0,0,0.5); z-index: 9999; width: 320px; overflow: hidden;">
+                        <div class="notif-dropdown-content" style="position: absolute; top: 125%; right: 0; background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: 0 12px 36px rgba(0,0,0,0.5); z-index: 9999; width: min(320px, calc(100vw - 32px)); overflow: hidden;">
                             <div style="padding: 12px 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-bg-secondary);">
                                 <strong style="font-size: 13px;"><i class="fa-solid fa-bell" style="margin-right: 6px; color: var(--color-primary);"></i> Notifications (<?php echo $unreadNotifCount; ?>)</strong>
                                 <?php if ($unreadNotifCount > 0): ?>

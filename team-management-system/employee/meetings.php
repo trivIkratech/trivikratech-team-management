@@ -289,7 +289,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<div class="content-grid" style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-6); align-items: start;">
+<div class="meetings-layout-grid">
     
     <!-- Schedule a Meeting Form (Same as manager) -->
     <div class="card fade-in">

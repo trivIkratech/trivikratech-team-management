@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
                     $m['id'],
                     '📢 Team Announcement: ' . $title,
                     $content,
-                    BASE_URL . '/employee/team.php',
+                    BASE_URL . '/employee/announcements.php',
                     'info'
                 );
             }

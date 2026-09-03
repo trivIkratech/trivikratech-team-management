@@ -726,6 +726,8 @@ body.narrow-embed .hide-on-narrow {
 </div>
 
 <script>
+let currentUserId = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+let currentUserRole = '<?php echo e($_SESSION['user_role'] ?? ''); ?>';
 let currentRoomId = null;
 let roomsData = [];
 let usersData = [];
@@ -755,11 +757,13 @@ function loadRooms(isSilent = false) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            currentUserId = data.current_user_id || currentUserId;
+            currentUserRole = data.current_user_role || currentUserRole;
             roomsData = data.rooms;
             usersData = data.users;
             renderDirectory(roomsData, usersData);
-            populateNewDMUsers(usersData, data.current_user_id);
-            populateGroupMembers(usersData, data.current_user_id);
+            populateNewDMUsers(usersData, currentUserId);
+            populateGroupMembers(usersData, currentUserId);
             
             const totalUnread = roomsData.reduce((acc, r) => acc + (parseInt(r.unread_count || 0, 10)), 0);
             if (window.parent && window.parent !== window) {
@@ -832,6 +836,7 @@ function renderDirectory(rooms, users) {
         html += `<div style="padding: 10px; text-align: center; color: var(--color-text-muted); font-size: 12px;">No team members found.</div>`;
     } else {
         users.forEach(u => {
+            if (currentUserId && u.id == currentUserId) return;
             const existingRoom = rooms.find(r => r.type === 'direct' && r.partner_id === u.id);
             const roomId = existingRoom ? existingRoom.id : null;
             const isActive = (roomId && roomId === currentRoomId) ? 'active' : '';

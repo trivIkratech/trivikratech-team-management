@@ -127,14 +127,15 @@ function logoutUser(): void {
 }
 
 /**
- * Get dashboard URL based on user role
+ * Get dashboard URL based on user role (including custom roles)
  */
 function getDashboardUrl(string $role): string {
-    return match($role) {
+    $baseRole = function_exists('getRoleBaseType') ? getRoleBaseType($role) : $role;
+    return match($baseRole) {
         ROLE_FOUNDER  => BASE_URL . '/founder/dashboard.php',
         ROLE_MANAGER  => BASE_URL . '/manager/dashboard.php',
         ROLE_HR       => BASE_URL . '/hr/dashboard.php',
         ROLE_EMPLOYEE => BASE_URL . '/employee/dashboard.php',
-        default       => BASE_URL . '/auth/login.php'
+        default       => BASE_URL . '/employee/dashboard.php'
     };
 }

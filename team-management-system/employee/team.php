@@ -31,12 +31,12 @@ $announcements = [];
 
 if ($managerId) {
     // Get Manager details
-    $stmt = $db->prepare("SELECT name, email FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, name, email, contact_no, designation, employee_id FROM users WHERE id = ?");
     $stmt->execute([$managerId]);
     $manager = $stmt->fetch();
     
     // Get other team members under the same manager
-    $stmt = $db->prepare("SELECT id, name, email, status FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name ASC");
+    $stmt = $db->prepare("SELECT id, name, email, designation, status FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name ASC");
     $stmt->execute([$managerId]);
     $teamMembers = $stmt->fetchAll();
     
@@ -68,24 +68,24 @@ if ($managerId) {
         $stats = $dbStats;
     }
     
-    // Get announcements (from their Manager OR Founder)
+    // Get announcements (from their Manager, HR, OR Founder)
     $stmt = $db->prepare("
         SELECT a.*, u.name AS sender_name, u.role AS sender_role 
         FROM announcements a 
         JOIN users u ON a.sender_id = u.id 
-        WHERE a.sender_id = ? OR u.role = 'founder'
+        WHERE a.sender_id = ? OR u.role IN ('founder', 'hr')
         ORDER BY a.created_at DESC 
         LIMIT 10
     ");
     $stmt->execute([$managerId]);
     $announcements = $stmt->fetchAll();
 } else {
-    // If no manager, get announcements from Founder only
+    // If no manager, get announcements from Founder and HR
     $stmt = $db->prepare("
         SELECT a.*, u.name AS sender_name, u.role AS sender_role 
         FROM announcements a 
         JOIN users u ON a.sender_id = u.id 
-        WHERE u.role = 'founder'
+        WHERE u.role IN ('founder', 'hr')
         ORDER BY a.created_at DESC 
         LIMIT 10
     ");
@@ -99,10 +99,10 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">My Team</h1>
+        <h1 class="page-title"><i class="fa-solid fa-users" style="color: var(--color-primary); margin-right: 8px;"></i> My Team & Reporting Manager</h1>
         <p class="page-subtitle">
             <?php if ($manager): ?>
-                Team Manager: <strong><?php echo e($manager['name']); ?></strong> (<?php echo e($manager['email']); ?>)
+                Reporting to: <strong><?php echo e($manager['name']); ?></strong> (<?php echo e($manager['designation'] ?: 'Team Lead / Manager'); ?>)
             <?php else: ?>
                 No Manager Assigned (Company-wide Workspace)
             <?php endif; ?>
@@ -110,15 +110,49 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<?php if (!$managerId): ?>
+<?php if (!$managerId || !$manager): ?>
     <div class="card">
         <div class="empty-state">
             <div class="empty-state-icon"><i class="fa-solid fa-users"></i></div>
-            <div class="empty-state-title">No Team Assigned</div>
-            <div class="empty-state-text">You are not currently assigned to a manager's team. However, you can see global founder announcements below.</div>
+            <div class="empty-state-title">No Manager Assigned</div>
+            <div class="empty-state-text">You are not currently assigned to a reporting manager. HR or Admin can assign your manager from the Employee Directory.</div>
         </div>
     </div>
 <?php else: ?>
+    <!-- Assigned Manager Profile Card -->
+    <div class="card fade-in mb-6" style="background: linear-gradient(135deg, rgba(79, 110, 247, 0.08), rgba(139, 92, 246, 0.08)); border: 1px solid var(--color-primary-border); padding: 22px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
+                    <?php echo e(getInitials($manager['name'])); ?>
+                </div>
+                <div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--color-text-white);"><?php echo e($manager['name']); ?></h2>
+                        <span class="chat-role-badge badge-role-manager" style="font-size: 11px; padding: 2px 8px;"><i class="fa-solid fa-user-tie"></i> Assigned Reporting Manager</span>
+                    </div>
+                    <div style="font-size: 13px; color: var(--color-primary); margin-top: 4px; font-weight: 500;">
+                        <?php echo e($manager['designation'] ?: 'Team Manager'); ?>
+                        <?php if (!empty($manager['employee_id'])): ?>
+                            <span class="text-muted" style="margin-left: 6px;">(ID: <?php echo e($manager['employee_id']); ?>)</span>
+                        <?php endif; ?>
+                    </div>
+                    <div style="font-size: 12.5px; color: var(--color-text-secondary); margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
+                        <span><i class="fa-regular fa-envelope" style="color: var(--color-text-muted);"></i> <?php echo e($manager['email']); ?></span>
+                        <?php if (!empty($manager['contact_no'])): ?>
+                            <span><i class="fa-solid fa-phone" style="color: var(--color-text-muted);"></i> <?php echo e($manager['contact_no']); ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <a href="<?php echo BASE_URL; ?>/chat/index.php" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-comments"></i> Direct Message Manager
+                </a>
+            </div>
+        </div>
+    </div>
+
     <!-- overall Task Status Metrics -->
     <div class="stats-grid mb-6">
         <div class="stat-card accent-blue fade-in stagger-1">
@@ -143,7 +177,7 @@ include __DIR__ . '/../includes/header.php';
             </div>
         </div>
         <div class="stat-card accent-red fade-in stagger-4">
-            <div class="stat-icon bg-red"><i class="fa-solid fa-clipboard-user"></i></div>
+            <div class="stat-icon bg-red"><i class="fa-solid fa-list-check"></i></div>
             <div class="stat-content">
                 <div class="stat-value"><?php echo $stats['todo'] ?: 0; ?></div>
                 <div class="stat-label">To Do</div>
@@ -155,33 +189,35 @@ include __DIR__ . '/../includes/header.php';
     <div class="content-grid">
         <!-- Team Members List -->
         <div class="card fade-in">
-            <div class="card-header">
-                <h3 class="card-title">Team Members</h3>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="card-title"><i class="fa-solid fa-users" style="color: var(--color-primary); margin-right: 6px;"></i> Team Colleagues</h3>
+                <span class="badge badge-primary"><?php echo count($teamMembers); ?> Members</span>
             </div>
             <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                <!-- Include Manager in Team List -->
-                <div style="display: flex; align-items: center; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border);">
-                    <div class="table-user-avatar" style="background-color: var(--color-accent-purple); color: white;">
-                        <?php echo e(getInitials($manager['name'])); ?>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; font-size: var(--text-sm);"><?php echo e($manager['name']); ?> (Manager)</div>
-                        <div style="font-size: var(--text-xs); color: var(--color-text-muted);"><?php echo e($manager['email']); ?></div>
-                    </div>
-                </div>
-                
                 <?php if (empty($teamMembers)): ?>
-                    <div class="text-muted" style="font-size: var(--text-sm); text-align: center; padding: var(--space-3);">No other team members.</div>
+                    <div class="text-muted" style="font-size: var(--text-sm); text-align: center; padding: var(--space-3);">No other team members assigned to this manager yet.</div>
                 <?php else: ?>
                     <?php foreach ($teamMembers as $member): ?>
-                        <div style="display: flex; align-items: center; gap: var(--space-3); padding-bottom: var(--space-2);">
-                            <div class="table-user-avatar" style="<?php echo $member['id'] == $userId ? 'background-color: var(--color-accent-blue); color:white;' : ''; ?>">
-                                <?php echo e(getInitials($member['name'])); ?>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border);">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div class="table-user-avatar" style="<?php echo $member['id'] == $userId ? 'background: linear-gradient(135deg, #4f6ef7, #06b6d4); color:white;' : 'background: var(--color-bg-tertiary); color: var(--color-text-main);'; ?>">
+                                    <?php echo e(getInitials($member['name'])); ?>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 600; font-size: 13.5px; color: var(--color-text-white);">
+                                        <?php echo e($member['name']); ?> 
+                                        <?php if ($member['id'] == $userId): ?>
+                                            <span class="badge badge-primary" style="font-size: 10px; margin-left: 4px;">You</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div style="font-size: 11.5px; color: var(--color-text-muted);"><?php echo e($member['designation'] ?: 'Team Member'); ?> · <?php echo e($member['email']); ?></div>
+                                </div>
                             </div>
-                            <div>
-                                <div style="font-weight: 500; font-size: var(--text-sm);"><?php echo e($member['name']); ?> <?php echo $member['id'] == $userId ? '<strong>(You)</strong>' : ''; ?></div>
-                                <div style="font-size: var(--text-xs); color: var(--color-text-muted);"><?php echo e($member['email']); ?></div>
-                            </div>
+                            <?php if ($member['id'] != $userId): ?>
+                                <a href="<?php echo BASE_URL; ?>/chat/index.php" class="btn btn-sm btn-outline" style="padding: 4px 10px; font-size: 11px;">
+                                    <i class="fa-solid fa-comment"></i> Chat
+                                </a>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>

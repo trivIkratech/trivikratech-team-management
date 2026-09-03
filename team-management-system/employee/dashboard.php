@@ -64,6 +64,19 @@ $stmt = $db->prepare("SELECT COUNT(*) FROM tasks WHERE assigned_to = ? AND statu
 $stmt->execute([$userId, $today]);
 $overdueTasks = $stmt->fetchColumn();
 
+// Recent announcements (from Founder, HR, and Manager)
+$managerId = (int)($user['manager_id'] ?? 0);
+$annStmt = $db->prepare("
+    SELECT a.*, u.name AS sender_name, u.role AS sender_role 
+    FROM announcements a 
+    JOIN users u ON a.sender_id = u.id 
+    WHERE u.role IN ('founder', 'hr')" . ($managerId > 0 ? " OR a.sender_id = {$managerId}" : "") . "
+    ORDER BY a.created_at DESC 
+    LIMIT 3
+");
+$annStmt->execute();
+$recentAnnouncements = $annStmt->fetchAll();
+
 $pageTitle = 'Employee Dashboard';
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -269,6 +282,46 @@ include __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                     <span class="badge <?php echo taskStatusBadge($task['status']); ?>"><?php echo taskStatusLabel($task['status']); ?></span>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
+
+<!-- Recent Announcements -->
+<div class="card fade-in" style="margin-top: 24px;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="card-title" style="display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-bullhorn" style="color: var(--color-primary);"></i> Latest Announcements
+        </h3>
+        <a href="<?php echo BASE_URL; ?>/employee/announcements.php" class="btn btn-sm btn-outline">View All</a>
+    </div>
+    <?php if (empty($recentAnnouncements)): ?>
+        <div class="empty-state" style="padding: 24px 16px;">
+            <div class="empty-state-icon"><i class="fa-solid fa-bullhorn" style="font-size: 28px;"></i></div>
+            <div class="empty-state-title" style="font-size: 14px;">No announcements yet</div>
+            <div class="empty-state-text" style="font-size: 12px;">Official broadcasts from Founder, HR, or Management will appear here.</div>
+        </div>
+    <?php else: ?>
+        <div style="display: flex; flex-direction: column; gap: 12px; padding: 4px 0;">
+            <?php foreach ($recentAnnouncements as $ann): ?>
+                <?php
+                $roleClass = 'badge-role-' . $ann['sender_role'];
+                $senderIcon = ($ann['sender_role'] === 'founder') ? 'fa-crown' : (($ann['sender_role'] === 'hr') ? 'fa-building-user' : 'fa-user-tie');
+                ?>
+                <div style="padding: 12px 16px; background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="font-size: 13.5px; color: var(--color-text-white);"><?php echo e($ann['title']); ?></strong>
+                            <span class="chat-role-badge <?php echo $roleClass; ?>" style="font-size: 9px; padding: 1px 6px;">
+                                <i class="fa-solid <?php echo $senderIcon; ?>"></i> <?php echo ucfirst(e($ann['sender_role'])); ?>
+                            </span>
+                        </div>
+                        <span class="text-muted" style="font-size: 11px;"><?php echo timeAgo($ann['created_at']); ?></span>
+                    </div>
+                    <p style="margin: 0; font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.5; white-space: pre-line;">
+                        <?php echo nl2br(e(mb_strimwidth($ann['content'], 0, 180, '...'))); ?>
+                    </p>
                 </div>
             <?php endforeach; ?>
         </div>

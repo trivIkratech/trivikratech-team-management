@@ -53,6 +53,7 @@ CREATE TABLE `chat_messages` (
   `message` text COLLATE utf8mb4_unicode_ci,
   `file_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `file_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `file_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_read` tinyint DEFAULT '0',
   `is_edited` tinyint(1) DEFAULT '0',
   `edited_at` timestamp NULL DEFAULT NULL,
@@ -243,6 +244,28 @@ CREATE TABLE `tasks` (
   CONSTRAINT `fk_tasks_assigned_to` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table structure for `roles`
+DROP TABLE IF EXISTS `roles`;
+CREATE TABLE `roles` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `base_role` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'employee',
+  `is_system` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seed data for `roles`
+INSERT INTO `roles` (`id`, `name`, `slug`, `description`, `base_role`, `is_system`) VALUES 
+(1, 'Founder', 'founder', 'Top organization level account with complete system access.', 'founder', 1),
+(2, 'Manager', 'manager', 'Team lead with management and task supervision tools.', 'manager', 1),
+(3, 'HR', 'hr', 'Human Resources manager for employee records, leaves, and payroll.', 'hr', 1),
+(4, 'Employee', 'employee', 'Standard employee account for attendance, tasks, meetings, and workspace.', 'employee', 1);
+
 -- Table structure for `users`
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
@@ -256,7 +279,7 @@ CREATE TABLE `users` (
   `base_salary` decimal(10,2) NOT NULL DEFAULT '30000.00',
   `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `pin` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `role` enum('founder','manager','hr','employee') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'employee',
+  `role` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'employee',
   `manager_id` int DEFAULT NULL,
   `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,

@@ -266,7 +266,7 @@ include __DIR__ . '/../includes/header.php';
             <option value="">All Roles (Emp/Mgr/HR)</option>
             <option value="employee" <?php echo $filterRole === 'employee' ? 'selected' : ''; ?>>Employees</option>
             <option value="manager" <?php echo $filterRole === 'manager' ? 'selected' : ''; ?>>Managers</option>
-            <option value="hr" <?php echo $filterRole === 'hr' ? 'selected' : ''; ?>>HR Team</option>
+            <option value="hr" <?php echo $filterRole === 'hr' ? 'selected' : ''; ?>>HR</option>
         </select>
     </div>
 

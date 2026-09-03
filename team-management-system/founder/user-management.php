@@ -18,6 +18,10 @@ $formErrors = [];
 
 // --- Handle form submissions ---
 
+// All available roles
+$allRoles = getAllRoles();
+$validRoleSlugs = array_column($allRoles, 'slug');
+
 // ADD USER
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_user') {
     requireCsrf();
@@ -39,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_user')
     if (empty($password)) $formErrors[] = 'Password is required.';
     if (strlen($password) < 6) $formErrors[] = 'Password must be at least 6 characters.';
     if (!empty($pin) && !preg_match('/^\d{4}$/', $pin)) $formErrors[] = 'PIN must be exactly 4 digits.';
-    if (!in_array($role, ['manager', 'employee', 'hr'])) $formErrors[] = 'Invalid role.';
+    if (!in_array($role, $validRoleSlugs)) $formErrors[] = 'Invalid role.';
     
     // Check Employee ID uniqueness
     if (empty($formErrors)) {
@@ -203,13 +207,66 @@ if (!in_array($preRole, ['employee', 'manager', 'hr'])) {
     $preRole = 'employee';
 }
 
-// Fetch all users with manager name
-$users = $db->query("
+// Filter parameters for List view
+$search = trim(get('search', ''));
+$filterRole = get('role_filter', 'all');
+$filterStatus = get('status_filter', 'all');
+$filterManager = get('manager_filter', 'all');
+
+$where = [];
+$params = [];
+
+if (!empty($search)) {
+    $where[] = "(u.name LIKE ? OR u.email LIKE ? OR u.employee_id LIKE ? OR u.contact_no LIKE ? OR u.designation LIKE ?)";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+}
+
+if ($filterRole !== 'all' && in_array($filterRole, $validRoleSlugs)) {
+    $where[] = "u.role = ?";
+    $params[] = $filterRole;
+}
+
+if ($filterStatus !== 'all' && in_array($filterStatus, ['active', 'inactive'])) {
+    $where[] = "u.status = ?";
+    $params[] = $filterStatus;
+}
+
+if ($filterManager !== 'all') {
+    if ($filterManager === 'none') {
+        $where[] = "u.manager_id IS NULL";
+    } else {
+        $where[] = "u.manager_id = ?";
+        $params[] = (int)$filterManager;
+    }
+}
+
+$whereClause = !empty($where) ? "WHERE " . implode(' AND ', $where) : "";
+
+// Fetch users matching filters
+$stmt = $db->prepare("
     SELECT u.*, m.name AS manager_name 
     FROM users u 
     LEFT JOIN users m ON u.manager_id = m.id 
+    {$whereClause}
     ORDER BY u.role ASC, u.name ASC
-")->fetchAll();
+");
+$stmt->execute($params);
+$users = $stmt->fetchAll();
+
+// User breakdown counts for quick filter cards
+$counts = $db->query("
+    SELECT 
+        COUNT(*) AS total,
+        SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) AS total_employees,
+        SUM(CASE WHEN role = 'manager' THEN 1 ELSE 0 END) AS total_managers,
+        SUM(CASE WHEN role = 'hr' THEN 1 ELSE 0 END) AS total_hr,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS total_active
+    FROM users
+")->fetch() ?: ['total' => 0, 'total_employees' => 0, 'total_managers' => 0, 'total_hr' => 0, 'total_active' => 0];
 
 $pageTitle = 'User Management';
 include __DIR__ . '/../includes/header.php';
@@ -222,7 +279,8 @@ include __DIR__ . '/../includes/header.php';
     </div>
     <div>
         <?php if ($action === 'list'): ?>
-            <div style="display: flex; gap: var(--space-2);">
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                <a href="<?php echo BASE_URL; ?>/founder/roles.php" class="btn btn-outline"><i class="fa-solid fa-user-shield"></i> Roles & Permissions</a>
                 <a href="?action=add&role=employee" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add Employee</a>
                 <a href="?action=add&role=manager" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> Add Manager</a>
                 <a href="?action=add&role=hr" class="btn btn-outline"><i class="fa-solid fa-plus"></i> Add HR</a>
@@ -285,9 +343,12 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-group">
                     <label class="form-label">Role *</label>
                     <select name="role" class="form-select" required id="role-select">
-                        <option value="employee" <?php echo $preRole === 'employee' ? 'selected' : ''; ?>>Employee</option>
-                        <option value="manager" <?php echo $preRole === 'manager' ? 'selected' : ''; ?>>Manager</option>
-                        <option value="hr" <?php echo $preRole === 'hr' ? 'selected' : ''; ?>>HR</option>
+                        <?php foreach ($allRoles as $r): ?>
+                            <?php if ($r['slug'] === 'founder') continue; ?>
+                            <option value="<?php echo e($r['slug']); ?>" data-base="<?php echo e($r['base_role']); ?>" <?php echo $preRole === $r['slug'] ? 'selected' : ''; ?>>
+                                <?php echo e($r['name']); ?> (<?php echo ucfirst(e($r['base_role'])); ?> Workspace)
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
             </div>
@@ -303,7 +364,10 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             
-            <div class="form-group" id="manager-group" style="<?php echo $preRole === 'manager' || $preRole === 'hr' ? 'display:none;' : ''; ?>">
+            <div class="form-group" id="manager-group" style="<?php 
+                $currBase = getRoleBaseType($preRole);
+                echo in_array($currBase, ['manager', 'hr', 'founder']) ? 'display:none;' : ''; 
+            ?>">
                 <label class="form-label">Assign to Manager</label>
                 <select name="manager_id" class="form-select">
                     <option value="">— No Manager —</option>
@@ -321,8 +385,10 @@ include __DIR__ . '/../includes/header.php';
     </div>
     
     <script>
-    document.getElementById('role-select').addEventListener('change', function() {
-        document.getElementById('manager-group').style.display = (this.value === 'manager' || this.value === 'hr') ? 'none' : '';
+    document.getElementById('role-select')?.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        const baseRole = opt ? (opt.getAttribute('data-base') || this.value) : this.value;
+        document.getElementById('manager-group').style.display = (baseRole === 'manager' || baseRole === 'hr' || baseRole === 'founder') ? 'none' : '';
     });
     </script>
 
@@ -377,9 +443,12 @@ include __DIR__ . '/../includes/header.php';
                         <?php if ($editUser['role'] === 'founder'): ?>
                             <option value="founder" selected>Founder</option>
                         <?php else: ?>
-                            <option value="employee" <?php echo $editUser['role'] === 'employee' ? 'selected' : ''; ?>>Employee</option>
-                            <option value="manager" <?php echo $editUser['role'] === 'manager' ? 'selected' : ''; ?>>Manager</option>
-                            <option value="hr" <?php echo $editUser['role'] === 'hr' ? 'selected' : ''; ?>>HR</option>
+                            <?php foreach ($allRoles as $r): ?>
+                                <?php if ($r['slug'] === 'founder') continue; ?>
+                                <option value="<?php echo e($r['slug']); ?>" data-base="<?php echo e($r['base_role']); ?>" <?php echo $editUser['role'] === $r['slug'] ? 'selected' : ''; ?>>
+                                    <?php echo e($r['name']); ?> (<?php echo ucfirst(e($r['base_role'])); ?> Workspace)
+                                </option>
+                            <?php endforeach; ?>
                         <?php endif; ?>
                     </select>
                     <?php if ($editUser['role'] === 'founder'): ?>
@@ -398,7 +467,10 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             
-            <div class="form-group" id="edit-manager-group" style="<?php echo $editUser['role'] === 'manager' || $editUser['role'] === 'founder' || $editUser['role'] === 'hr' ? 'display:none;' : ''; ?>">
+            <div class="form-group" id="edit-manager-group" style="<?php 
+                $editBase = getRoleBaseType($editUser['role']);
+                echo in_array($editBase, ['manager', 'hr', 'founder']) ? 'display:none;' : ''; 
+            ?>">
                 <label class="form-label">Assign to Manager</label>
                 <select name="manager_id" class="form-select">
                     <option value="">— No Manager —</option>
@@ -430,63 +502,124 @@ include __DIR__ . '/../includes/header.php';
     const editRoleSelect = document.getElementById('edit-role-select');
     if (editRoleSelect) {
         editRoleSelect.addEventListener('change', function() {
-            document.getElementById('edit-manager-group').style.display = (this.value === 'manager' || this.value === 'hr') ? 'none' : '';
+            const opt = this.options[this.selectedIndex];
+            const baseRole = opt ? (opt.getAttribute('data-base') || this.value) : this.value;
+            document.getElementById('edit-manager-group').style.display = (baseRole === 'manager' || baseRole === 'hr' || baseRole === 'founder') ? 'none' : '';
         });
     }
     </script>
 
 <?php else: ?>
-    <!-- USER LIST -->
-    <div class="table-container fade-in">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Emp ID</th>
-                    <th>User</th>
-                    <th>Email / Contact</th>
-                    <th>Role</th>
-                    <th>Manager</th>
-                    <th>Status</th>
-                    <th>Joining Date</th>
-                    <th style="text-align: right;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($users as $user): ?>
-                    <tr>
-                        <td><code><?php echo e($user['employee_id'] ?: '—'); ?></code></td>
-                        <td>
-                            <div class="table-user">
-                                <div class="table-user-avatar"><?php echo e(getInitials($user['name'])); ?></div>
-                                <div>
-                                    <div class="table-user-name"><?php echo e($user['name']); ?></div>
-                                    <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($user['designation'] ?: '—'); ?></small>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <?php echo e($user['email']); ?><br>
-                            <small class="text-muted"><?php echo e($user['contact_no'] ?: '—'); ?></small>
-                        </td>
-                        <td><span class="badge <?php echo roleBadge($user['role']); ?>"><?php echo ucfirst(e($user['role'])); ?></span></td>
-                        <td><?php echo e($user['manager_name'] ?? '—'); ?></td>
-                        <td><span class="badge <?php echo userStatusBadge($user['status']); ?>"><?php echo ucfirst(e($user['status'])); ?></span></td>
-                        <td><?php echo !empty($user['joining_date']) ? formatDate($user['joining_date']) : formatDate($user['created_at']); ?></td>
-                        <td style="text-align: right;">
-                            <div class="table-actions" style="display: inline-flex; gap: var(--space-1);">
-                                <a href="?action=edit&id=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
-                                <?php if ($user['role'] !== 'founder'): ?>
-                                    <a href="?toggle=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Toggle Status">
-                                        <?php echo $user['status'] === 'active' ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>'; ?>
-                                    </a>
-                                    <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this user permanently? This will also delete their attendance and task records." title="Delete"><i class="fa-solid fa-trash-can"></i></a>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
+    <!-- FILTER BAR -->
+    <form method="GET" action="" class="filter-bar fade-in" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+        <div style="flex: 1; min-width: 220px; position: relative;">
+            <input 
+                type="text" 
+                name="search" 
+                class="form-input" 
+                placeholder="Search by Name, Email, Emp ID, Designation..." 
+                value="<?php echo e($search); ?>"
+                style="padding-left: 36px;"
+            >
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); font-size: 14px;"></i>
+        </div>
+
+        <div style="min-width: 150px;">
+            <select name="role_filter" class="form-select" onchange="this.form.submit()">
+                <option value="all" <?php echo $filterRole === 'all' ? 'selected' : ''; ?>>All Roles (<?php echo $counts['total']; ?>)</option>
+                <?php foreach ($allRoles as $r): ?>
+                    <option value="<?php echo e($r['slug']); ?>" <?php echo $filterRole === $r['slug'] ? 'selected' : ''; ?>>
+                        <?php echo e($r['name']); ?>
+                    </option>
                 <?php endforeach; ?>
-            </tbody>
-        </table>
+            </select>
+        </div>
+
+        <div style="min-width: 130px;">
+            <select name="status_filter" class="form-select" onchange="this.form.submit()">
+                <option value="all" <?php echo $filterStatus === 'all' ? 'selected' : ''; ?>>All Status</option>
+                <option value="active" <?php echo $filterStatus === 'active' ? 'selected' : ''; ?>>Active Only</option>
+                <option value="inactive" <?php echo $filterStatus === 'inactive' ? 'selected' : ''; ?>>Inactive Only</option>
+            </select>
+        </div>
+
+        <div style="min-width: 160px;">
+            <select name="manager_filter" class="form-select" onchange="this.form.submit()">
+                <option value="all" <?php echo $filterManager === 'all' ? 'selected' : ''; ?>>All Managers</option>
+                <option value="none" <?php echo $filterManager === 'none' ? 'selected' : ''; ?>>— No Manager —</option>
+                <?php foreach ($managers as $mgr): ?>
+                    <option value="<?php echo $mgr['id']; ?>" <?php echo $filterManager == $mgr['id'] ? 'selected' : ''; ?>>Mgr: <?php echo e($mgr['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <?php if (!empty($search) || $filterRole !== 'all' || $filterStatus !== 'all' || $filterManager !== 'all'): ?>
+            <a href="<?php echo BASE_URL; ?>/founder/user-management.php" class="btn btn-outline"><i class="fa-solid fa-xmark"></i> Clear</a>
+        <?php endif; ?>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-filter"></i> Filter</button>
+    </form>
+
+    <!-- USER LIST TABLE -->
+    <div class="table-container fade-in">
+        <?php if (empty($users)): ?>
+            <div class="empty-state" style="padding: 40px 20px;">
+                <div class="empty-state-icon"><i class="fa-solid fa-users" style="font-size: 36px;"></i></div>
+                <div class="empty-state-title" style="margin-top: 10px; font-size: 16px;">No users found</div>
+                <div class="empty-state-text" style="color: var(--color-text-muted); font-size: 13px;">
+                    No accounts match your current filter criteria. Try resetting the filters.
+                </div>
+            </div>
+        <?php else: ?>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Emp ID</th>
+                        <th>User</th>
+                        <th>Email / Contact</th>
+                        <th>Role</th>
+                        <th>Manager</th>
+                        <th>Status</th>
+                        <th>Joining Date</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($users as $user): ?>
+                        <tr>
+                            <td><code><?php echo e($user['employee_id'] ?: '—'); ?></code></td>
+                            <td>
+                                <div class="table-user">
+                                    <div class="table-user-avatar"><?php echo e(getInitials($user['name'])); ?></div>
+                                    <div>
+                                        <div class="table-user-name"><?php echo e($user['name']); ?></div>
+                                        <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($user['designation'] ?: '—'); ?></small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <?php echo e($user['email']); ?><br>
+                                <small class="text-muted"><?php echo e($user['contact_no'] ?: '—'); ?></small>
+                            </td>
+                            <td><span class="badge <?php echo roleBadge($user['role']); ?>"><?php echo ucfirst(e($user['role'])); ?></span></td>
+                            <td><?php echo e($user['manager_name'] ?? '—'); ?></td>
+                            <td><span class="badge <?php echo userStatusBadge($user['status']); ?>"><?php echo ucfirst(e($user['status'])); ?></span></td>
+                            <td><?php echo !empty($user['joining_date']) ? formatDate($user['joining_date']) : formatDate($user['created_at']); ?></td>
+                            <td style="text-align: right;">
+                                <div class="table-actions" style="display: inline-flex; gap: var(--space-1);">
+                                    <a href="?action=edit&id=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                                    <?php if ($user['role'] !== 'founder'): ?>
+                                        <a href="?toggle=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" title="Toggle Status">
+                                            <?php echo $user['status'] === 'active' ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>'; ?>
+                                        </a>
+                                        <a href="?delete=<?php echo $user['id']; ?>" class="btn btn-ghost btn-sm" data-confirm="Delete this user permanently? This will also delete their attendance and task records." title="Delete"><i class="fa-solid fa-trash-can"></i></a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
     </div>
 <?php endif; ?>
 

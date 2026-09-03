@@ -92,6 +92,8 @@ $stmt = $db->prepare("
     ORDER BY created_at DESC
 ");
 $stmt->execute([$userId]);
+$myLeaves = $stmt->fetchAll() ?: [];
+
 // Compute employee stats
 $myPending = 0;
 $myApproved = 0;

@@ -24,8 +24,9 @@ function requireRole(array $allowedRoles): void {
     requireLogin();
     
     $userRole = getUserRole();
+    $baseRole = function_exists('getRoleBaseType') ? getRoleBaseType($userRole) : $userRole;
     
-    if (!in_array($userRole, $allowedRoles)) {
+    if (!in_array($userRole, $allowedRoles) && !in_array($baseRole, $allowedRoles)) {
         // Redirect to their own dashboard instead of showing error
         header('Location: ' . getDashboardUrl($userRole));
         exit;

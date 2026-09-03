@@ -291,11 +291,11 @@ document.addEventListener('DOMContentLoaded', function() {
             "Reimbursement/payment issue"
         ],
         "Task & Work Support": [
-            "Task unclear hai",
+            "Task Requirements Unclear / Need Clarification",
             "Deadline extension request",
-            "Manager se guidance",
+            "Manager guidance & direction",
             "Workload issue",
-            "Resource/access required"
+            "Resource / tool access required"
         ],
         "General Request": [
             "New software/tool required",

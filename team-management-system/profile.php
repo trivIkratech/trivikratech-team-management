@@ -161,6 +161,11 @@ include __DIR__ . '/includes/header.php';
     gap: var(--space-6);
     align-items: start;
 }
+@media (max-width: 900px) {
+    .profile-layout {
+        grid-template-columns: 1fr;
+    }
+}
 .profile-menu {
     display: flex;
     flex-direction: column;

@@ -316,7 +316,7 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- TAB 2: TEAMS VIEW -->
 <?php elseif ($tab === 'teams'): ?>
-    <div class="content-grid fade-in" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+    <div class="content-grid fade-in" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));">
         <?php foreach ($teams as $managerName => $members): ?>
             <div class="card">
                 <div class="card-header">
