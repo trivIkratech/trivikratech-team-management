@@ -1,8 +1,9 @@
 <?php
 /**
- * Manager — Post Team Announcements
+ * Manager — Team & Company Announcements
  * 
- * Allows managers to post announcements to their team and manage past announcements.
+ * Allows managers to view all organization announcements (Founder, HR, Managers)
+ * and broadcast announcements to their team.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -21,8 +22,8 @@ $formErrors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announcement') {
     requireCsrf();
     
-    $title = post('title');
-    $content = post('content');
+    $title = trim(post('title'));
+    $content = trim(post('content'));
     
     if (empty($title)) $formErrors[] = 'Title cannot be empty.';
     if (empty($content)) $formErrors[] = 'Content cannot be empty.';
@@ -32,14 +33,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
             $stmt = $db->prepare("INSERT INTO announcements (sender_id, title, content) VALUES (?, ?, ?)");
             $stmt->execute([$managerId, $title, $content]);
 
-            // Notify team members assigned to this manager
-            $teamStmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND status = 'active'");
-            $teamStmt->execute([$managerId]);
+            // Notify team members assigned to this manager & employees
+            $teamStmt = $db->prepare("SELECT id, role FROM users WHERE (manager_id = ? OR role = 'employee') AND status = 'active' AND id != ?");
+            $teamStmt->execute([$managerId, $managerId]);
             $teamMembers = $teamStmt->fetchAll();
             foreach ($teamMembers as $m) {
                 createNotification(
                     $m['id'],
-                    '📢 Team Announcement: ' . $title,
+                    '📢 Manager Announcement: ' . $title,
                     $content,
                     BASE_URL . '/employee/announcements.php',
                     'info'
@@ -56,17 +57,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'post_announceme
     }
 }
 
-// Handle Deleting Announcement
+// Handle Deleting Announcement (Confirm ownership)
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $annId = (int)$_GET['delete'];
     try {
-        // Confirm ownership
         $stmt = $db->prepare("DELETE FROM announcements WHERE id = ? AND sender_id = ?");
         $stmt->execute([$annId, $managerId]);
         if ($stmt->rowCount() > 0) {
-            setFlash('success', 'Announcement deleted.');
+            setFlash('success', 'Your announcement has been deleted.');
         } else {
-            setFlash('error', 'Unauthorized or not found.');
+            setFlash('error', 'Unauthorized or announcement not found.');
         }
     } catch (PDOException $e) {
         error_log("Error deleting announcement: " . $e->getMessage());
@@ -76,10 +76,53 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     exit;
 }
 
-// Fetch manager's past announcements
-$stmt = $db->prepare("SELECT * FROM announcements WHERE sender_id = ? ORDER BY created_at DESC");
-$stmt->execute([$managerId]);
+// Filter parameters
+$filterSenderRole = get('sender_role', 'all');
+$search = trim(get('search', ''));
+
+$where = [];
+$params = [];
+
+if (!empty($search)) {
+    $where[] = "(a.title LIKE ? OR a.content LIKE ? OR u.name LIKE ?)";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+    $params[] = "%{$search}%";
+}
+
+if ($filterSenderRole !== 'all') {
+    if ($filterSenderRole === 'my') {
+        $where[] = "a.sender_id = ?";
+        $params[] = $managerId;
+    } else {
+        $where[] = "u.role = ?";
+        $params[] = $filterSenderRole;
+    }
+}
+
+$whereClause = !empty($where) ? "WHERE " . implode(' AND ', $where) : "";
+
+// Fetch all organization announcements with sender details
+$stmt = $db->prepare("
+    SELECT a.*, u.name AS sender_name, u.role AS sender_role, u.designation AS sender_designation
+    FROM announcements a
+    JOIN users u ON a.sender_id = u.id
+    {$whereClause}
+    ORDER BY a.created_at DESC
+");
+$stmt->execute($params);
 $announcements = $stmt->fetchAll();
+
+// Breakdown counts for stats
+$counts = $db->query("
+    SELECT 
+        COUNT(*) AS total,
+        SUM(CASE WHEN u.role = 'founder' THEN 1 ELSE 0 END) AS from_founder,
+        SUM(CASE WHEN u.role = 'hr' THEN 1 ELSE 0 END) AS from_hr,
+        SUM(CASE WHEN u.role = 'manager' THEN 1 ELSE 0 END) AS from_manager
+    FROM announcements a
+    JOIN users u ON a.sender_id = u.id
+")->fetch() ?: ['total' => 0, 'from_founder' => 0, 'from_hr' => 0, 'from_manager' => 0];
 
 $pageTitle = 'Announcements';
 include __DIR__ . '/../includes/header.php';
@@ -87,8 +130,8 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="page-header">
     <div>
-        <h1 class="page-title">Team Announcements</h1>
-        <p class="page-subtitle">Post announcements and updates to your team</p>
+        <h1 class="page-title"><i class="fa-solid fa-bullhorn" style="color: var(--color-primary); margin-right: 8px;"></i> Announcements Feed</h1>
+        <p class="page-subtitle">Stay updated with official broadcasts from Founder, HR, and post updates to your team</p>
     </div>
 </div>
 
@@ -99,60 +142,165 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<div class="content-grid">
-    <!-- Form -->
-    <div class="card fade-in">
-        <div class="card-header">
-            <h3 class="card-title">New Announcement</h3>
+<!-- Stats Overview -->
+<div class="stats-grid mb-6">
+    <div class="stat-card accent-blue fade-in">
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-bullhorn"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$counts['total']; ?></div>
+            <div class="stat-label">Total Announcements</div>
         </div>
-        <form method="POST" action="" data-validate>
-            <?php echo csrfField(); ?>
-            <input type="hidden" name="action" value="post_announcement">
-            
-            <div class="form-group">
-                <label class="form-label">Title *</label>
-                <input type="text" name="title" class="form-input" placeholder="e.g. Weekly Sync Meeting rescheduled" required>
+    </div>
+    <div class="stat-card accent-purple fade-in stagger-1">
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-crown"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$counts['from_founder']; ?></div>
+            <div class="stat-label">From Founder</div>
+        </div>
+    </div>
+    <div class="stat-card accent-green fade-in stagger-2">
+        <div class="stat-icon bg-green"><i class="fa-solid fa-building-user"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$counts['from_hr']; ?></div>
+            <div class="stat-label">From HR Desk</div>
+        </div>
+    </div>
+    <div class="stat-card accent-yellow fade-in stagger-3">
+        <div class="stat-icon bg-yellow"><i class="fa-solid fa-user-tie"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$counts['from_manager']; ?></div>
+            <div class="stat-label">From Managers</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left: Post Announcement Form -->
+    <div class="lg:col-span-1">
+        <div class="card fade-in" style="position: sticky; top: 80px;">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fa-solid fa-paper-plane" style="color: var(--color-primary); margin-right: 6px;"></i> Post Team Announcement</h3>
             </div>
-            
-            <div class="form-group">
-                <label class="form-label">Content *</label>
-                <textarea name="content" class="form-textarea" placeholder="Type your announcement message here..." required style="height: 150px;"></textarea>
-            </div>
-            
-            <div class="form-actions mt-4">
-                <button type="submit" class="btn btn-primary">Post Announcement</button>
-            </div>
-        </form>
+            <form method="POST" action="" data-validate>
+                <?php echo csrfField(); ?>
+                <input type="hidden" name="action" value="post_announcement">
+                
+                <div class="form-group">
+                    <label class="form-label">Announcement Title *</label>
+                    <input type="text" name="title" class="form-input" placeholder="e.g. Sprint review update / Schedule change" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Announcement Content *</label>
+                    <textarea name="content" class="form-textarea" placeholder="Write announcement details for the team..." required style="height: 150px;"></textarea>
+                </div>
+                
+                <div class="form-actions mt-4">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fa-solid fa-bullhorn"></i> Broadcast Announcement
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <!-- History -->
-    <div class="card fade-in">
-        <div class="card-header">
-            <h3 class="card-title">Announcement History</h3>
-        </div>
-        <?php if (empty($announcements)): ?>
-            <div class="empty-state">
-                <div class="empty-state-icon"><i class="fa-solid fa-bullhorn"></i></div>
-                <div class="empty-state-text">No announcements posted yet.</div>
-            </div>
-        <?php else: ?>
-            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
-                <?php foreach ($announcements as $ann): ?>
-                    <div style="padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border);">
-                        <div class="flex-between mb-1">
-                            <h4 style="margin: 0; font-size: var(--text-sm); font-weight: 600;"><?php echo e($ann['title']); ?></h4>
-                            <span class="text-muted" style="font-size: var(--text-xs);"><?php echo formatDate($ann['created_at']); ?></span>
-                        </div>
-                        <p style="font-size: var(--text-xs); color: var(--color-text-secondary); line-height: 1.5; margin: var(--space-2) 0;">
-                            <?php echo nl2br(e($ann['content'])); ?>
-                        </p>
-                        <div style="text-align: right;">
-                            <a href="?delete=<?php echo $ann['id']; ?>" class="btn btn-sm btn-outline btn-danger" onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
-                        </div>
+    <!-- Right: All Announcements Feed -->
+    <div class="lg:col-span-2">
+        <div class="card fade-in">
+            <div class="card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <h3 class="card-title">All Announcements</h3>
+                    <span class="badge badge-secondary"><?php echo count($announcements); ?> Displayed</span>
+                </div>
+
+                <!-- Filters -->
+                <form method="GET" action="" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 180px; position: relative;">
+                        <input 
+                            type="text" 
+                            name="search" 
+                            class="form-input" 
+                            placeholder="Search title, content, author..." 
+                            value="<?php echo e($search); ?>"
+                            style="padding-left: 32px;"
+                        >
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); font-size: 13px;"></i>
                     </div>
-                <?php endforeach; ?>
+
+                    <select name="sender_role" class="form-select" onchange="this.form.submit()" style="min-width: 140px;">
+                        <option value="all" <?php echo $filterSenderRole === 'all' ? 'selected' : ''; ?>>All Roles</option>
+                        <option value="founder" <?php echo $filterSenderRole === 'founder' ? 'selected' : ''; ?>>From Founder</option>
+                        <option value="hr" <?php echo $filterSenderRole === 'hr' ? 'selected' : ''; ?>>From HR Desk</option>
+                        <option value="manager" <?php echo $filterSenderRole === 'manager' ? 'selected' : ''; ?>>From Managers</option>
+                        <option value="my" <?php echo $filterSenderRole === 'my' ? 'selected' : ''; ?>>My Posts Only</option>
+                    </select>
+
+                    <?php if (!empty($search) || $filterSenderRole !== 'all'): ?>
+                        <a href="<?php echo BASE_URL; ?>/manager/announcements.php" class="btn btn-outline"><i class="fa-solid fa-xmark"></i> Clear</a>
+                    <?php endif; ?>
+                    <button type="submit" class="btn btn-secondary"><i class="fa-solid fa-filter"></i></button>
+                </form>
             </div>
-        <?php endif; ?>
+
+            <?php if (empty($announcements)): ?>
+                <div class="empty-state" style="padding: 40px 20px;">
+                    <div class="empty-state-icon"><i class="fa-solid fa-bullhorn" style="font-size: 36px;"></i></div>
+                    <div class="empty-state-title" style="margin-top: 10px;">No announcements found</div>
+                    <div class="empty-state-text" style="color: var(--color-text-muted); font-size: 13px;">
+                        No broadcasts match your current filter criteria.
+                    </div>
+                </div>
+            <?php else: ?>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <?php foreach ($announcements as $ann): ?>
+                        <div class="card" style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); padding: 16px; border-radius: var(--radius-md);">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div class="table-user-avatar" style="width: 36px; height: 36px; font-size: 13px;">
+                                        <?php echo e(getInitials($ann['sender_name'])); ?>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 14px; color: var(--color-text-white);">
+                                            <?php echo e($ann['sender_name']); ?>
+                                            <?php if ($ann['sender_id'] == $managerId): ?>
+                                                <span class="badge badge-secondary" style="font-size: 10px; margin-left: 4px;">You</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                                            <span class="badge <?php echo roleBadge($ann['sender_role']); ?>" style="font-size: 10px;">
+                                                <?php echo ucfirst(e($ann['sender_role'])); ?>
+                                            </span>
+                                            <?php if (!empty($ann['sender_designation'])): ?>
+                                                <small class="text-muted" style="font-size: 11px;">• <?php echo e($ann['sender_designation']); ?></small>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="text-muted" style="font-size: 12px;">
+                                        <i class="fa-regular fa-clock"></i> <?php echo formatDate($ann['created_at']); ?> (<?php echo timeAgo($ann['created_at']); ?>)
+                                    </span>
+                                    <?php if ($ann['sender_id'] == $managerId): ?>
+                                        <a href="?delete=<?php echo $ann['id']; ?>" class="btn btn-ghost btn-sm text-danger" data-confirm="Are you sure you want to delete this announcement?" title="Delete Announcement">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <h4 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 600; color: var(--color-primary);">
+                                <?php echo e($ann['title']); ?>
+                            </h4>
+
+                            <div style="font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; white-space: pre-line; background: var(--color-bg-primary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border);">
+                                <?php echo e($ann['content']); ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 

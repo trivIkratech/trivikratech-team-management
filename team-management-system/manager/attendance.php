@@ -1,6 +1,9 @@
 <?php
 /**
- * Manager — Employee Attendance (View & Manage/Edit Team Attendance)
+ * Manager — Employee Attendance (Company-Wide View & Team Management)
+ * 
+ * Allows managers to view all organization employees' attendance logs
+ * with filtering by team scope (My Team vs All Staff) and date.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -27,18 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'save_atten
     $breakEnd = post('break_end') ? (strlen(post('break_end')) === 5 ? post('break_end') . ':00' : post('break_end')) : null;
     $statusOverride = post('status');
     
-    // Permission Verification: Manager can only edit reporting employees
+    // Verify target user exists
     $userStmt = $db->prepare("SELECT id, name, role, manager_id FROM users WHERE id = ?");
     $userStmt->execute([$targetUserId]);
     $targetUser = $userStmt->fetch();
     
     if (!$targetUser) {
         setFlash('error', 'Selected employee not found.');
-        redirect(BASE_URL . '/manager/attendance.php');
-    }
-    
-    if ($targetUser['role'] !== ROLE_EMPLOYEE || (int)$targetUser['manager_id'] !== $managerId) {
-        setFlash('error', 'Access Denied: Managers can only manage attendance for their assigned team members.');
         redirect(BASE_URL . '/manager/attendance.php');
     }
     
@@ -109,127 +107,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'save_atten
 // Filters
 $filterDate = isset($_GET['date']) ? trim($_GET['date']) : today();
 $filterEmployee = get('employee_id');
+$filterScope = get('scope', 'all'); // 'all' or 'my_team'
 $filterStatus = get('status');
 $page = max(1, (int)get('page', '1'));
 
-// Employees under this manager
-$empStmt = $db->prepare("SELECT id, name, email, designation, employee_id FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name");
-$empStmt->execute([$managerId]);
-$myEmployees = $empStmt->fetchAll();
-$myEmpIds = array_column($myEmployees, 'id');
+// Fetch all active employees across company (with assigned manager name)
+$allEmployees = $db->query("
+    SELECT u.id, u.name, u.email, u.designation, u.employee_id, u.manager_id, m.name AS manager_name
+    FROM users u
+    LEFT JOIN users m ON u.manager_id = m.id
+    WHERE u.role = 'employee' AND u.status = 'active'
+    ORDER BY u.name ASC
+")->fetchAll();
 
-if (empty($myEmpIds)) {
-    $records = [];
-    $totalRecords = 0;
-    $pagination = paginate(0, 1);
+// Build Query
+$where = ["u.status = 'active'", "u.role = 'employee'"];
+$params = [];
+
+if ($filterScope === 'my_team') {
+    $where[] = "u.manager_id = ?";
+    $params[] = $managerId;
+}
+
+if (!empty($filterEmployee)) {
+    $where[] = "u.id = ?";
+    $params[] = (int)$filterEmployee;
+}
+
+if (!empty($filterDate)) {
+    // Apply status filter for specific date
+    if ($filterStatus === 'present') {
+        $where[] = "(a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL))";
+    } elseif ($filterStatus === 'leave') {
+        $where[] = "l.id IS NOT NULL";
+    } elseif ($filterStatus === 'paid') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type = 'paid')";
+    } elseif ($filterStatus === 'sick') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type = 'sick')";
+    } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
+    } elseif ($filterStatus === 'half-day') {
+        $where[] = "a.status = 'half-day'";
+    } elseif ($filterStatus === 'absent') {
+        $where[] = "(a.status = 'absent' OR (a.check_in IS NULL AND l.id IS NULL))";
+    }
+
+    $whereClause = implode(' AND ', $where);
+
+    // Count total
+    $countQuery = "
+        SELECT COUNT(*) 
+        FROM users u
+        LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
+        LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+        WHERE {$whereClause}
+    ";
+    $countParams = array_merge([$filterDate, $filterDate], $params);
+    $countStmt = $db->prepare($countQuery);
+    $countStmt->execute($countParams);
+    $totalRecords = (int)$countStmt->fetchColumn();
+
+    $pagination = paginate($totalRecords, $page);
+
+    // Query data
+    $dataQuery = "
+        SELECT u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, m.name AS manager_name,
+               a.id as attendance_id, COALESCE(a.date, ?) as attendance_date, 
+               a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
+               l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
+        FROM users u
+        LEFT JOIN users m ON u.manager_id = m.id
+        LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
+        LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+        WHERE {$whereClause}
+        ORDER BY (u.manager_id = {$managerId}) DESC, u.name ASC
+        LIMIT {$pagination['per_page']} OFFSET {$pagination['offset']}
+    ";
+    $dataParams = array_merge([$filterDate, $filterDate, $filterDate], $params);
+    $stmt = $db->prepare($dataQuery);
+    $stmt->execute($dataParams);
+    $records = $stmt->fetchAll();
 } else {
-    // If a specific date is selected (e.g. today or chosen date)
-    if (!empty($filterDate)) {
-        $where = ["u.manager_id = ?", "u.status = 'active'", "u.role = 'employee'"];
-        $params = [$filterDate, $filterDate, $managerId];
+    // When date is empty / all dates
+    if ($filterStatus === 'present') {
+        $where[] = "a.status = 'present'";
+    } elseif ($filterStatus === 'leave') {
+        $where[] = "l.id IS NOT NULL";
+    } elseif ($filterStatus === 'paid') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type = 'paid')";
+    } elseif ($filterStatus === 'sick') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type = 'sick')";
+    } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
+        $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
+    } elseif ($filterStatus === 'half-day') {
+        $where[] = "a.status = 'half-day'";
+    } elseif ($filterStatus === 'absent') {
+        $where[] = "a.status = 'absent'";
+    }
 
-        if ($filterEmployee) {
-            $where[] = "u.id = ?";
-            $params[] = (int)$filterEmployee;
-        }
+    $whereClause = implode(' AND ', $where);
 
-        // Apply status filter
-        if ($filterStatus === 'present') {
-            $where[] = "(a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL))";
-        } elseif ($filterStatus === 'leave') {
-            $where[] = "l.id IS NOT NULL";
-        } elseif ($filterStatus === 'paid') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type = 'paid')";
-        } elseif ($filterStatus === 'sick') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type = 'sick')";
-        } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
-        } elseif ($filterStatus === 'half-day') {
-            $where[] = "a.status = 'half-day'";
-        } elseif ($filterStatus === 'absent') {
-            $where[] = "(a.status = 'absent' OR (a.check_in IS NULL AND l.id IS NULL))";
-        }
+    $countQuery = "
+        SELECT COUNT(*) 
+        FROM attendance a 
+        JOIN users u ON a.user_id = u.id 
+        LEFT JOIN leaves l ON u.id = l.user_id AND a.date BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+        WHERE {$whereClause}
+    ";
+    $countStmt = $db->prepare($countQuery);
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
 
-        $whereClause = implode(' AND ', $where);
+    $pagination = paginate($totalRecords, $page);
 
-        // Count total matching
-        $countQuery = "
-            SELECT COUNT(*) 
-            FROM users u
-            LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
-            LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
-            WHERE {$whereClause}
-        ";
-        $countStmt = $db->prepare($countQuery);
-        $countStmt->execute($params);
-        $totalRecords = (int)$countStmt->fetchColumn();
-
-        $pagination = paginate($totalRecords, $page);
-
-        // Query records
-        $dataQuery = "
-            SELECT u.id as user_id, u.name, u.email, u.designation, u.employee_id,
-                   a.id as attendance_id, COALESCE(a.date, ?) as attendance_date, 
-                   a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
-                   l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
-            FROM users u
-            LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
-            LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
-            WHERE {$whereClause}
-            ORDER BY u.name ASC
-            LIMIT {$pagination['per_page']} OFFSET {$pagination['offset']}
-        ";
-        $dataParams = array_merge([$filterDate, $filterDate, $filterDate], array_slice($params, 2));
-        $stmt = $db->prepare($dataQuery);
-        $stmt->execute($dataParams);
-        $records = $stmt->fetchAll();
-    } else {
-        // When date is empty / all dates
-        $where = ["u.manager_id = ?", "u.role = 'employee'"];
-        $params = [$managerId];
-
-        if ($filterEmployee) {
-            $where[] = "a.user_id = ?";
-            $params[] = (int)$filterEmployee;
-        }
-
-        if ($filterStatus === 'present') {
-            $where[] = "a.status = 'present'";
-        } elseif ($filterStatus === 'leave') {
-            $where[] = "l.id IS NOT NULL";
-        } elseif ($filterStatus === 'paid') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type = 'paid')";
-        } elseif ($filterStatus === 'sick') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type = 'sick')";
-        } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
-            $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
-        } elseif ($filterStatus === 'half-day') {
-            $where[] = "a.status = 'half-day'";
-        } elseif ($filterStatus === 'absent') {
-            $where[] = "a.status = 'absent'";
-        }
-
-        $whereClause = implode(' AND ', $where);
-
-        $countQuery = "
-            SELECT COUNT(*) 
-            FROM attendance a 
-            JOIN users u ON a.user_id = u.id 
-            LEFT JOIN leaves l ON u.id = l.user_id AND a.date BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
-            WHERE {$whereClause}
-        ";
-        $countStmt = $db->prepare($countQuery);
-        $countStmt->execute($params);
-        $totalRecords = (int)$countStmt->fetchColumn();
-
-        $pagination = paginate($totalRecords, $page);
-
-        $dataQuery = "
-            SELECT a.id as attendance_id, a.date as attendance_date, a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
-               u.id as user_id, u.name, u.email, u.designation, u.employee_id,
+    $dataQuery = "
+        SELECT a.id as attendance_id, a.date as attendance_date, a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
+               u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, m.name AS manager_name,
                l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
         FROM attendance a 
         JOIN users u ON a.user_id = u.id 
+        LEFT JOIN users m ON u.manager_id = m.id
         LEFT JOIN leaves l ON u.id = l.user_id AND a.date BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
         WHERE {$whereClause}
         ORDER BY a.date DESC, a.check_in DESC 
@@ -238,17 +235,34 @@ if (empty($myEmpIds)) {
     $stmt = $db->prepare($dataQuery);
     $stmt->execute($params);
     $records = $stmt->fetchAll();
-    }
 }
 
-$pageTitle = 'Attendance';
+// Summary stats for today / selected date
+$statsDate = $filterDate ?: today();
+$statsQuery = "
+    SELECT 
+        COUNT(DISTINCT u.id) as total_staff,
+        SUM(CASE WHEN (a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL)) THEN 1 ELSE 0 END) as present_count,
+        SUM(CASE WHEN (a.status = 'half-day') THEN 1 ELSE 0 END) as half_day_count,
+        SUM(CASE WHEN (l.id IS NOT NULL) THEN 1 ELSE 0 END) as leave_count,
+        SUM(CASE WHEN (a.id IS NULL OR a.status = 'absent' OR a.check_in IS NULL) AND l.id IS NULL THEN 1 ELSE 0 END) as absent_count
+    FROM users u
+    LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
+    LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+    WHERE u.role = 'employee' AND u.status = 'active'
+";
+$statsStmt = $db->prepare($statsQuery);
+$statsStmt->execute([$statsDate, $statsDate]);
+$stats = $statsStmt->fetch() ?: ['total_staff' => 0, 'present_count' => 0, 'half_day_count' => 0, 'leave_count' => 0, 'absent_count' => 0];
+
+$pageTitle = 'Employee Attendance';
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
-        <h1 class="page-title">Employee Attendance</h1>
-        <p class="page-subtitle">Track, manage & edit your reporting team members' attendance logs</p>
+        <h1 class="page-title"><i class="fa-solid fa-clipboard-user" style="color: var(--color-primary); margin-right: 8px;"></i> All Employee Attendance</h1>
+        <p class="page-subtitle">Track, monitor, and manage attendance logs across all company employees and your team</p>
     </div>
     <div>
         <button type="button" class="btn btn-primary" onclick="openNewAttendanceModal()">
@@ -259,19 +273,62 @@ include __DIR__ . '/../includes/header.php';
 
 <?php echo renderWorkingModuleBanner(); ?>
 
+<!-- Stats Overview -->
+<div class="stats-grid mb-6">
+    <div class="stat-card accent-blue fade-in">
+        <div class="stat-icon bg-blue"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$stats['total_staff']; ?></div>
+            <div class="stat-label">Total Employees</div>
+        </div>
+    </div>
+    <div class="stat-card accent-green fade-in stagger-1">
+        <div class="stat-icon bg-green"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$stats['present_count']; ?></div>
+            <div class="stat-label">Present</div>
+        </div>
+    </div>
+    <div class="stat-card accent-yellow fade-in stagger-2">
+        <div class="stat-icon bg-yellow"><i class="fa-solid fa-hourglass-half"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$stats['half_day_count']; ?></div>
+            <div class="stat-label">Half-Day</div>
+        </div>
+    </div>
+    <div class="stat-card accent-purple fade-in stagger-3">
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-umbrella-beach"></i></div>
+        <div class="stat-content">
+            <div class="stat-value"><?php echo (int)$stats['leave_count']; ?></div>
+            <div class="stat-label">Approved Leave</div>
+        </div>
+    </div>
+</div>
+
 <!-- Filters -->
 <form method="GET" class="filter-bar" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; background: var(--color-bg-secondary); padding: 14px 18px; border-radius: var(--radius-md); border: 1px solid var(--color-border); margin-bottom: 20px;">
     <div style="display: flex; flex-direction: column; gap: 4px;">
         <label style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--color-text-secondary); letter-spacing: 0.5px;">Date</label>
         <input type="date" name="date" class="form-input" value="<?php echo e($filterDate); ?>" onchange="this.form.submit()" style="min-width: 160px; height: 38px;">
     </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--color-text-secondary); letter-spacing: 0.5px;">Team Scope</label>
+        <select name="scope" class="form-select" onchange="this.form.submit()" style="min-width: 170px; height: 38px;">
+            <option value="all" <?php echo $filterScope === 'all' ? 'selected' : ''; ?>>All Company Staff</option>
+            <option value="my_team" <?php echo $filterScope === 'my_team' ? 'selected' : ''; ?>>My Direct Team Only</option>
+        </select>
+    </div>
     
     <div style="display: flex; flex-direction: column; gap: 4px;">
         <label style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--color-text-secondary); letter-spacing: 0.5px;">Employee</label>
-        <select name="employee_id" class="form-select" onchange="this.form.submit()" style="min-width: 180px; height: 38px;">
-            <option value="">All My Employees</option>
-            <?php foreach ($myEmployees as $emp): ?>
-                <option value="<?php echo $emp['id']; ?>" <?php echo $filterEmployee == $emp['id'] ? 'selected' : ''; ?>><?php echo e($emp['name']); ?></option>
+        <select name="employee_id" class="form-select" onchange="this.form.submit()" style="min-width: 190px; height: 38px;">
+            <option value="">All Employees (<?php echo count($allEmployees); ?>)</option>
+            <?php foreach ($allEmployees as $emp): ?>
+                <?php $isMine = ((int)$emp['manager_id'] === $managerId); ?>
+                <option value="<?php echo $emp['id']; ?>" <?php echo $filterEmployee == $emp['id'] ? 'selected' : ''; ?>>
+                    <?php echo e($emp['name']); ?> <?php echo $isMine ? '(My Team)' : ''; ?>
+                </option>
             <?php endforeach; ?>
         </select>
     </div>
@@ -290,7 +347,7 @@ include __DIR__ . '/../includes/header.php';
         </select>
     </div>
 
-    <?php if ($filterEmployee || $filterStatus || ($filterDate !== today() && !empty($filterDate)) || empty($filterDate)): ?>
+    <?php if ($filterEmployee || $filterStatus || $filterScope !== 'all' || ($filterDate !== today() && !empty($filterDate)) || empty($filterDate)): ?>
         <div style="margin-top: auto; padding-bottom: 2px;">
             <a href="<?php echo BASE_URL; ?>/manager/attendance.php" class="btn btn-sm btn-outline" style="height: 38px; display: inline-flex; align-items: center; gap: 6px;">
                 <i class="fa-solid fa-arrow-rotate-left"></i> Reset
@@ -313,6 +370,7 @@ include __DIR__ . '/../includes/header.php';
             <thead>
                 <tr>
                     <th>Employee</th>
+                    <th>Manager</th>
                     <th>Date</th>
                     <th>Check In</th>
                     <th>Check Out</th>
@@ -323,12 +381,18 @@ include __DIR__ . '/../includes/header.php';
             </thead>
             <tbody>
                 <?php foreach ($records as $record): ?>
+                    <?php $isMine = ((int)($record['manager_id'] ?? 0) === $managerId); ?>
                     <tr>
                         <td>
                             <div class="table-user">
                                 <div class="table-user-avatar"><?php echo e(getInitials($record['name'])); ?></div>
                                 <div>
-                                    <div class="table-user-name"><?php echo e($record['name']); ?></div>
+                                    <div class="table-user-name">
+                                        <?php echo e($record['name']); ?>
+                                        <?php if ($isMine): ?>
+                                            <span class="badge badge-primary" style="font-size: 10px; margin-left: 4px;">My Team</span>
+                                        <?php endif; ?>
+                                    </div>
                                     <div class="table-user-email">
                                         <?php if (!empty($record['designation'])): ?>
                                             <?php echo e($record['designation']); ?> • 
@@ -337,6 +401,13 @@ include __DIR__ . '/../includes/header.php';
                                     </div>
                                 </div>
                             </div>
+                        </td>
+                        <td>
+                            <?php if ($isMine): ?>
+                                <strong style="color: var(--color-primary); font-size: 12px;">You</strong>
+                            <?php else: ?>
+                                <span class="text-muted" style="font-size: 12px;"><?php echo e($record['manager_name'] ?? '—'); ?></span>
+                            <?php endif; ?>
                         </td>
                         <td><?php echo formatDate($record['attendance_date']); ?></td>
                         <td><?php echo !empty($record['check_in']) ? formatTime($record['check_in']) : '<span class="text-muted">—</span>'; ?></td>
@@ -395,6 +466,7 @@ include __DIR__ . '/../includes/header.php';
     $qs = http_build_query(array_filter([
         'date' => $filterDate,
         'employee_id' => $filterEmployee,
+        'scope' => $filterScope,
         'status' => $filterStatus,
     ]));
     echo renderPagination($pagination, BASE_URL . '/manager/attendance.php?' . $qs);
@@ -418,7 +490,7 @@ include __DIR__ . '/../includes/header.php';
                     <label class="form-label">Employee *</label>
                     <select name="user_id" id="edit_user_id" class="form-select" required>
                         <option value="">Select Employee</option>
-                        <?php foreach ($myEmployees as $emp): ?>
+                        <?php foreach ($allEmployees as $emp): ?>
                             <option value="<?php echo $emp['id']; ?>"><?php echo e($emp['name']); ?> (<?php echo e($emp['designation'] ?: 'Employee'); ?>)</option>
                         <?php endforeach; ?>
                     </select>
