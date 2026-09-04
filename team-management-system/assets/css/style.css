@@ -341,11 +341,13 @@ h4 { font-size: var(--text-lg); }
 
 /* Desktop Collapsed Sidebar State */
 html.sidebar-collapsed .sidebar,
+body.sidebar-collapsed .sidebar,
 .app-layout.sidebar-collapsed .sidebar {
-    transform: translateX(-100%);
+    transform: translateX(-100%) !important;
 }
 
 html.sidebar-collapsed .main-wrapper,
+body.sidebar-collapsed .main-wrapper,
 .app-layout.sidebar-collapsed .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;

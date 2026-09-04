@@ -7,6 +7,10 @@ on:
       - master
   workflow_dispatch: # Allows manual 1-click execution from GitHub Actions UI
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
 jobs:
   # 1. Continuous Integration (CI): Test & Validate PHP syntax
   lint_and_validate:
@@ -36,7 +40,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Sync & Deploy to Subdomain via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

@@ -49,7 +49,7 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
             <!-- Top Header -->
             <header class="top-header">
                 <div class="header-left">
-                    <button type="button" class="sidebar-toggle-btn mobile-menu-btn" id="sidebar-toggle-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
+                    <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebarNav()" title="Toggle Sidebar" aria-label="Toggle sidebar" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-md); background: var(--color-bg-tertiary); border: 1px solid var(--color-border); color: var(--color-text-main); font-size: 15px; margin-right: 6px; flex-shrink: 0;">
                         <i class="fa-solid fa-bars-staggered"></i>
                     </button>
                     <div class="header-greeting">
@@ -133,6 +133,25 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
             </header>
 
             <script>
+            function toggleSidebarNav() {
+                const isDesktop = window.innerWidth > 1024;
+                const sidebar = document.querySelector('.sidebar');
+                const backdrop = document.querySelector('.sidebar-backdrop');
+                const appLayout = document.querySelector('.app-layout');
+
+                if (isDesktop) {
+                    const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+                    if (appLayout) appLayout.classList.toggle('sidebar-collapsed', isCollapsed);
+                    localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+                } else {
+                    if (sidebar) {
+                        const isOpen = sidebar.classList.toggle('open');
+                        if (backdrop) backdrop.classList.toggle('active', isOpen);
+                        document.body.style.overflow = isOpen ? 'hidden' : '';
+                    }
+                }
+            }
+
             function toggleAppTheme() {
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
                 const newTheme = (currentTheme === 'dark') ? 'light' : 'dark';
