@@ -35,7 +35,7 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
     </script>
     <!-- Font Awesome 6 Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css?v=<?php echo @filemtime(__DIR__ . '/../assets/css/style.css') ?: time(); ?>">
     <script>window.BASE_URL = '<?php echo BASE_URL; ?>';</script>
 </head>
 <body>

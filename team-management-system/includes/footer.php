@@ -85,6 +85,6 @@
         </script>
     <?php endif; ?>
 
-    <script src="<?php echo BASE_URL; ?>/assets/js/app.js"></script>
+    <script src="<?php echo BASE_URL; ?>/assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/app.js') ?: time(); ?>"></script>
 </body>
 </html>

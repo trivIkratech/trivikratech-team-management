@@ -33,7 +33,7 @@ if ($isEmbed): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css?v=<?php echo @filemtime(__DIR__ . '/../assets/css/style.css') ?: time(); ?>">
     <script>
         window.BASE_URL = '<?php echo BASE_URL; ?>';
         window.CURRENT_USER_ID = <?php echo (int)$_SESSION['user_id']; ?>;
@@ -1560,7 +1560,7 @@ document.addEventListener('DOMContentLoaded', checkEmbedLayout);
 </script>
 
 <?php if ($isEmbed): ?>
-    <script src="<?php echo BASE_URL; ?>/assets/js/app.js"></script>
+    <script src="<?php echo BASE_URL; ?>/assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/app.js') ?: time(); ?>"></script>
 </body>
 </html>
 <?php else: ?>
