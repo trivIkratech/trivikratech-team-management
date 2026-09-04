@@ -309,7 +309,8 @@ h4 { font-size: var(--text-lg); }
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    transition: margin-left var(--transition-base);
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    width: calc(100% - var(--sidebar-width));
 }
 
 .main-content {
@@ -334,8 +335,20 @@ h4 { font-size: var(--text-lg); }
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
-    transition: width var(--transition-base), transform var(--transition-base);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
+}
+
+/* Desktop Collapsed Sidebar State */
+html.sidebar-collapsed .sidebar,
+.app-layout.sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
+}
+
+html.sidebar-collapsed .main-wrapper,
+.app-layout.sidebar-collapsed .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
 }
 
 .sidebar-brand {
@@ -512,20 +525,29 @@ h4 { font-size: var(--text-lg); }
     gap: var(--space-4);
 }
 
+.sidebar-toggle-btn,
 .mobile-menu-btn {
-    display: none;
-    background: none;
-    border: none;
-    color: var(--color-text);
-    font-size: var(--text-xl);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-main);
+    font-size: 15px;
     cursor: pointer;
-    padding: var(--space-2);
+    padding: 0;
     border-radius: var(--radius-md);
-    transition: background var(--transition-fast);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
 }
 
+.sidebar-toggle-btn:hover,
 .mobile-menu-btn:hover {
     background: var(--color-bg-hover);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
 }
 
 .header-greeting {
@@ -1737,16 +1759,20 @@ form.filter-bar {
 }
 
 .sidebar-close-btn {
-    display: none;
-    background: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
     border: none;
     color: var(--color-text-muted);
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
-    padding: 6px 10px;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-md);
     margin-left: auto;
     transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
 }
 
 .sidebar-close-btn:hover {

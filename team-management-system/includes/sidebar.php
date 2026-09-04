@@ -29,7 +29,7 @@ function isActive(string $dir, string $page): string {
             Team Manager
             <span><?php echo ucfirst(e($userRole)); ?> Panel</span>
         </div>
-        <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" aria-label="Close sidebar">
+        <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" title="Close / Collapse Sidebar" aria-label="Close sidebar">
             <i class="fa-solid fa-xmark"></i>
         </button>
     </div>

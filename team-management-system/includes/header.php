@@ -23,11 +23,14 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
     <meta name="csrf-token" content="<?php echo csrfToken(); ?>">
     <meta name="description" content="Team Management System — Manage employees, attendance, tasks, and chat">
     <title><?php echo e($pageTitle ?? 'Dashboard'); ?> — <?php echo APP_NAME; ?></title>
-    <!-- Zero-Flicker Theme Initializer -->
+    <!-- Zero-Flicker Theme & Sidebar Initializer -->
     <script>
     (function() {
         const savedTheme = localStorage.getItem('app_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
+        if (localStorage.getItem('sidebar_collapsed') === 'true' && window.innerWidth > 1024) {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
     })();
     </script>
     <!-- Font Awesome 6 Icons CDN -->
@@ -46,7 +49,9 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
             <!-- Top Header -->
             <header class="top-header">
                 <div class="header-left">
-                    <button class="mobile-menu-btn" aria-label="Toggle menu"><i class="fa-solid fa-bars"></i></button>
+                    <button type="button" class="sidebar-toggle-btn mobile-menu-btn" id="sidebar-toggle-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
+                        <i class="fa-solid fa-bars-staggered"></i>
+                    </button>
                     <div class="header-greeting">
                         <?php echo $greeting; ?>, <strong><?php echo e($currentUser['name'] ?? 'User'); ?></strong>
                     </div>
