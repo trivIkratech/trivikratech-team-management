@@ -103,7 +103,7 @@ $query = "
     SELECT st.*, u.name as user_name, u.email as user_email, u.employee_id, u.role as user_role
     FROM support_tickets st
     JOIN users u ON st.user_id = u.id
-    WHERE FIND_IN_SET('hr', st.send_to) > 0 OR st.send_to IS NULL
+    WHERE (FIND_IN_SET('hr', st.send_to) > 0 OR st.send_to IS NULL)
 ";
 if ($tab === 'open') {
     $query .= " AND st.status = 'pending'";
@@ -117,7 +117,7 @@ $stmt->execute();
 $receivedTickets = $stmt->fetchAll();
 
 // Counts for Received Tabs
-$totalCount = $db->query("SELECT COUNT(*) FROM support_tickets WHERE FIND_IN_SET('hr', send_to) > 0 OR send_to IS NULL")->fetchColumn();
+$totalCount = $db->query("SELECT COUNT(*) FROM support_tickets WHERE (FIND_IN_SET('hr', send_to) > 0 OR send_to IS NULL)")->fetchColumn();
 $openCount = $db->query("SELECT COUNT(*) FROM support_tickets WHERE status = 'pending' AND (FIND_IN_SET('hr', send_to) > 0 OR send_to IS NULL)")->fetchColumn();
 $resolvedCount = $db->query("SELECT COUNT(*) FROM support_tickets WHERE status = 'resolved' AND (FIND_IN_SET('hr', send_to) > 0 OR send_to IS NULL)")->fetchColumn();
 
@@ -310,7 +310,31 @@ include __DIR__ . '/../includes/header.php';
             </thead>
             <tbody>
                 <?php if (empty($receivedTickets)): ?>
-                    <tr><td colspan="8" class="text-center text-muted" style="padding: 24px;">No support tickets found in this section.</td></tr>
+                    <tr>
+                        <td colspan="8" class="text-center" style="padding: 36px 20px;">
+                            <div style="font-size: 28px; margin-bottom: 8px;">
+                                <?php if ($tab === 'resolved'): ?>
+                                    <i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i>
+                                <?php else: ?>
+                                    <i class="fa-solid fa-inbox" style="color: var(--color-text-muted);"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div style="font-weight: 600; font-size: 14px; color: var(--color-text-main);">
+                                <?php 
+                                if ($tab === 'resolved') echo 'No Resolved Tickets';
+                                elseif ($tab === 'open') echo 'No Open Requests';
+                                else echo 'No Support Tickets Found';
+                                ?>
+                            </div>
+                            <div style="font-size: 12.5px; color: var(--color-text-secondary); margin-top: 4px;">
+                                <?php 
+                                if ($tab === 'resolved') echo 'When an open ticket is marked as resolved, it will appear here.';
+                                elseif ($tab === 'open') echo 'All received support requests have been addressed.';
+                                else echo 'New support tickets from employees will appear here.';
+                                ?>
+                            </div>
+                        </td>
+                    </tr>
                 <?php else: ?>
                     <?php foreach ($receivedTickets as $t): ?>
                         <tr>
