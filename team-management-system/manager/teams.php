@@ -75,14 +75,18 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 $teams = getManagerTeams($managerId);
 
 // Fetch employees accessible to manager (direct team + other employees)
-$myEmployees = $db->prepare("
-    SELECT id, employee_id, name, email, role, designation, manager_id
-    FROM users 
-    WHERE status = 'active' AND role = 'employee'
-    ORDER BY (manager_id = ?) DESC, name ASC
-");
-$myEmployees->execute([$managerId]);
-$availableStaff = $myEmployees->fetchAll();
+try {
+    $myEmployees = $db->prepare("
+        SELECT id, employee_id, name, email, role, designation, manager_id
+        FROM users 
+        WHERE status = 'active' AND role = 'employee'
+        ORDER BY (manager_id = ?) DESC, name ASC
+    ");
+    $myEmployees->execute([$managerId]);
+    $availableStaff = $myEmployees->fetchAll();
+} catch (Throwable $e) {
+    $availableStaff = [];
+}
 
 // Edit team data if requested
 $editTeam = null;
@@ -226,33 +230,46 @@ include __DIR__ . '/../includes/header.php';
 
                     <!-- Team Members Roster -->
                     <div style="margin-bottom: 14px;">
-                        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); margin-bottom: 8px; letter-spacing: 0.5px;">
-                            Members (<?php echo count($members); ?>)
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); letter-spacing: 0.5px;">
+                                Members (<?php echo count($members); ?>)
+                            </div>
+                            <span style="font-size: 10.5px; color: var(--color-text-muted); font-style: italic;">
+                                Click member to assign individual task
+                            </span>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 110px; overflow-y: auto; padding-right: 4px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; padding-right: 4px;">
                             <?php foreach ($members as $m): ?>
-                                <span class="badge badge-secondary" style="font-size: 11.5px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-bg-secondary);">
+                                <a href="<?php echo BASE_URL; ?>/manager/tasks.php?assign_to=<?php echo $m['id']; ?>" 
+                                   class="badge badge-secondary" 
+                                   title="Click to assign individual task to <?php echo e($m['name']); ?>"
+                                   style="font-size: 11.5px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-bg-secondary); text-decoration: none; cursor: pointer; transition: all 0.15s; border: 1px solid transparent;"
+                                   onmouseover="this.style.borderColor='var(--color-primary)'; this.style.color='var(--color-primary)';"
+                                   onmouseout="this.style.borderColor='transparent'; this.style.color='';">
                                     <span style="width: 6px; height: 6px; border-radius: 50%; background: <?php echo $m['id'] == $managerId ? '#a855f7' : 'var(--color-primary)'; ?>;"></span>
-                                    <?php echo e($m['name']); ?>
+                                    <span><?php echo e($m['name']); ?></span>
                                     <?php if ($m['id'] == $managerId): ?>
                                         <small style="color: #a855f7; font-weight: 700;">(Lead)</small>
                                     <?php elseif (!empty($m['designation'])): ?>
                                         <small style="opacity: 0.7; font-size: 10px;">(<?php echo e($m['designation']); ?>)</small>
                                     <?php endif; ?>
-                                </span>
+                                    <i class="fa-solid fa-plus" style="font-size: 9px; opacity: 0.6; margin-left: 2px;"></i>
+                                </a>
                             <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
 
                 <!-- Footer Actions -->
-                <div style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <div style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
                     <span style="font-size: 12px; color: var(--color-text-muted);">
                         <i class="fa-solid fa-list-check" style="margin-right: 4px;"></i> <?php echo (int)$team['task_count']; ?> Task(s)
                     </span>
-                    <a href="<?php echo BASE_URL; ?>/manager/tasks.php?create_for_team=team_<?php echo $team['id']; ?>" class="btn btn-outline btn-sm" style="font-size: 12px;">
-                        <i class="fa-solid fa-plus"></i> Assign Team Task
-                    </a>
+                    <div style="display: flex; gap: 6px;">
+                        <a href="<?php echo BASE_URL; ?>/manager/tasks.php?create_for_team=team_<?php echo $team['id']; ?>" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 6px 12px;" title="Assign task to all team members at once">
+                            <i class="fa-solid fa-people-group"></i> Assign Entire Team
+                        </a>
+                    </div>
                 </div>
             </div>
         <?php endforeach; ?>

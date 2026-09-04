@@ -460,13 +460,17 @@ function renderPagination(array $pagination, string $baseUrl): string {
 /**
  * Get user initials from name (for avatar)
  */
-function getInitials(string $name): string {
-    $parts = explode(' ', trim($name));
+function getInitials(?string $name = ''): string {
+    $cleanName = trim($name ?? '');
+    if ($cleanName === '') {
+        return 'U';
+    }
+    $parts = explode(' ', $cleanName);
     $initials = '';
     foreach (array_slice($parts, 0, 2) as $part) {
         $initials .= strtoupper(mb_substr($part, 0, 1));
     }
-    return $initials ?: '?';
+    return $initials ?: 'U';
 }
 
 /**
@@ -618,8 +622,8 @@ function ensureTeamsTablesExist(): void {
         $db->exec("
             CREATE TABLE IF NOT EXISTS `teams` (
               `id` int NOT NULL AUTO_INCREMENT,
-              `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-              `description` text COLLATE utf8mb4_unicode_ci,
+              `name` varchar(100) NOT NULL,
+              `description` text,
               `leader_id` int NOT NULL,
               `created_by` int NOT NULL,
               `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -627,7 +631,7 @@ function ensureTeamsTablesExist(): void {
               PRIMARY KEY (`id`),
               KEY `idx_leader_id` (`leader_id`),
               KEY `idx_created_by` (`created_by`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
 
         $db->exec("
@@ -635,23 +639,27 @@ function ensureTeamsTablesExist(): void {
               `id` int NOT NULL AUTO_INCREMENT,
               `team_id` int NOT NULL,
               `user_id` int NOT NULL,
-              `role_in_team` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'member',
+              `role_in_team` varchar(50) DEFAULT 'member',
               `joined_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY (`id`),
               UNIQUE KEY `uk_team_member` (`team_id`,`user_id`),
               KEY `idx_team_id` (`team_id`),
               KEY `idx_user_id` (`user_id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
 
         // Check if team_id column exists in tasks table
-        $stmt = $db->query("SHOW COLUMNS FROM `tasks` LIKE 'team_id'");
-        if (!$stmt->fetch()) {
-            $db->exec("ALTER TABLE `tasks` ADD COLUMN `team_id` INT NULL DEFAULT NULL AFTER `assigned_by`, ADD KEY `idx_team_id` (`team_id`)");
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM `tasks` LIKE 'team_id'");
+            if ($stmt && !$stmt->fetch()) {
+                $db->exec("ALTER TABLE `tasks` ADD COLUMN `team_id` INT NULL DEFAULT NULL AFTER `assigned_by`");
+            }
+        } catch (Throwable $e) {
+            // Ignore if column already exists
         }
 
         $provisioned = true;
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         error_log("Teams table provisioning error: " . $e->getMessage());
     }
 }
@@ -675,8 +683,8 @@ function getAllTeams(): array {
             LEFT JOIN users cb ON t.created_by = cb.id
             ORDER BY t.name ASC
         ");
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
+        return $stmt ? $stmt->fetchAll() : [];
+    } catch (Throwable $e) {
         return [];
     }
 }
@@ -702,8 +710,8 @@ function getManagerTeams(int $managerId): array {
             ORDER BY t.name ASC
         ");
         $stmt->execute([$managerId, $managerId]);
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
+        return $stmt ? $stmt->fetchAll() : [];
+    } catch (Throwable $e) {
         return [];
     }
 }
@@ -724,7 +732,7 @@ function getTeamById(int $teamId): ?array {
         $stmt->execute([$teamId]);
         $team = $stmt->fetch();
         return $team ?: null;
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         return null;
     }
 }
@@ -744,8 +752,8 @@ function getTeamMembers(int $teamId): array {
             ORDER BY u.name ASC
         ");
         $stmt->execute([$teamId]);
-        return $stmt->fetchAll();
-    } catch (PDOException $e) {
+        return $stmt ? $stmt->fetchAll() : [];
+    } catch (Throwable $e) {
         return [];
     }
 }

@@ -244,8 +244,9 @@ $myEmployees = $empStmt->fetchAll();
 // My custom teams / squads
 $mySquads = getManagerTeams($managerId);
 
-// Preselected team for task modal shortcut
+// Preselected team or user for task modal shortcut
 $preselectedTeam = get('create_for_team', '');
+$assignToUser = get('assign_to', '');
 
 // Edit task
 $editTask = null;
@@ -530,11 +531,22 @@ include __DIR__ . '/../includes/header.php';
                         <select name="assigned_to" class="form-select" required id="create_assigned_to">
                             <option value="">Select Assignee / Squad</option>
                             <?php if (!empty($mySquads)): ?>
-                                <optgroup label="🌟 My Squads & Teams (Batch Assign)">
+                                <optgroup label="🌟 My Squads & Teams (Batch Assign Entire Squad)">
                                     <?php foreach ($mySquads as $sq): ?>
                                         <option value="team_<?php echo $sq['id']; ?>" <?php echo $preselectedTeam === ('team_' . $sq['id']) ? 'selected' : ''; ?>>
-                                            👥 Squad: <?php echo e($sq['name']); ?> (<?php echo $sq['member_count']; ?> members)
+                                            👥 Entire Squad: <?php echo e($sq['name']); ?> (<?php echo $sq['member_count']; ?> members)
                                         </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                                
+                                <optgroup label="👥 Squad Members (By Squad)">
+                                    <?php foreach ($mySquads as $sq): ?>
+                                        <?php $sqMembers = getTeamMembers((int)$sq['id']); ?>
+                                        <?php foreach ($sqMembers as $sm): ?>
+                                            <option value="<?php echo $sm['id']; ?>" <?php echo ($assignToUser == $sm['id'] && empty($preselectedTeam)) ? 'selected' : ''; ?>>
+                                                &nbsp;&nbsp;↳ [<?php echo e($sq['name']); ?>] <?php echo e($sm['name']); ?> (<?php echo e($sm['designation'] ?: ucfirst($sm['role'])); ?>)
+                                            </option>
+                                        <?php endforeach; ?>
                                     <?php endforeach; ?>
                                 </optgroup>
                             <?php endif; ?>
@@ -543,7 +555,7 @@ include __DIR__ . '/../includes/header.php';
                             </optgroup>
                             <optgroup label="👤 Individual Direct Employees">
                                 <?php foreach ($myEmployees as $emp): ?>
-                                    <option value="<?php echo $emp['id']; ?>" <?php echo $preselectedTeam == $emp['id'] ? 'selected' : ''; ?>><?php echo e($emp['name']); ?></option>
+                                    <option value="<?php echo $emp['id']; ?>" <?php echo ($assignToUser == $emp['id'] && empty($preselectedTeam)) ? 'selected' : ''; ?>><?php echo e($emp['name']); ?></option>
                                 <?php endforeach; ?>
                             </optgroup>
                         </select>
@@ -576,7 +588,7 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<?php if (!empty($preselectedTeam)): ?>
+<?php if (!empty($preselectedTeam) || !empty($assignToUser)): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof openModal === 'function') {

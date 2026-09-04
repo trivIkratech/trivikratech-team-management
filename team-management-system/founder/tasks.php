@@ -177,6 +177,10 @@ $allUsers = $db->query("SELECT id, name, role FROM users WHERE role IN ('employe
 // Get all teams for assignment
 $allTeams = getAllTeams();
 
+// Preselection parameters
+$createForTeam = get('create_for_team', '');
+$assignToUser = get('assign_to', '');
+
 // Edit task data
 $editTask = null;
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
@@ -345,28 +349,44 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Assign To (Team or Individual) *</label>
-                        <select name="assigned_to" class="form-select" required>
+                        <select name="assigned_to" class="form-select" required id="founder_create_assigned_to">
                             <option value="">Select Team or Employee</option>
+                            
                             <?php if (!empty($allTeams)): ?>
-                                <optgroup label="👥 Squads & Teams">
+                                <optgroup label="🌟 Squads & Teams (Assign to Entire Team)">
                                     <?php foreach ($allTeams as $t): ?>
                                         <option value="team_<?php echo $t['id']; ?>" <?php echo $createForTeam === 'team_' . $t['id'] ? 'selected' : ''; ?>>
-                                            👥 <?php echo e($t['name']); ?> (<?php echo $t['member_count']; ?> members · Lead: <?php echo e($t['leader_name']); ?>)
+                                            👥 Entire Squad: <?php echo e($t['name']); ?> (<?php echo $t['member_count']; ?> members)
                                         </option>
                                     <?php endforeach; ?>
                                 </optgroup>
+                                
+                                <optgroup label="👥 Team Members (By Squad)">
+                                    <?php foreach ($allTeams as $t): ?>
+                                        <?php $tMembers = getTeamMembers((int)$t['id']); ?>
+                                        <?php foreach ($tMembers as $tm): ?>
+                                            <option value="<?php echo $tm['id']; ?>" <?php echo ($assignToUser == $tm['id'] && empty($createForTeam)) ? 'selected' : ''; ?>>
+                                                &nbsp;&nbsp;↳ [<?php echo e($t['name']); ?>] <?php echo e($tm['name']); ?> (<?php echo e($tm['designation'] ?: ucfirst($tm['role'])); ?>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                </optgroup>
                             <?php endif; ?>
+                            
                             <optgroup label="👔 Manager Department Teams">
                                 <?php 
-                                $managers = array_filter($allUsers, fn($u) => $u['role'] === 'manager');
+                                $managers = array_filter($allUsers, function($u) { return $u['role'] === 'manager'; });
                                 foreach ($managers as $m): 
                                 ?>
                                     <option value="mgr_team_<?php echo $m['id']; ?>">All Employees under <?php echo e($m['name']); ?></option>
                                 <?php endforeach; ?>
                             </optgroup>
-                            <optgroup label="👤 Individual Staff">
+                            
+                            <optgroup label="👤 All Staff / Individual Employees">
                                 <?php foreach ($allUsers as $u): ?>
-                                    <option value="<?php echo $u['id']; ?>"><?php echo e($u['name']); ?> (<?php echo ucfirst($u['role']); ?>)</option>
+                                    <option value="<?php echo $u['id']; ?>" <?php echo ($assignToUser == $u['id'] && empty($createForTeam)) ? 'selected' : ''; ?>>
+                                        <?php echo e($u['name']); ?> (<?php echo ucfirst($u['role']); ?>)
+                                    </option>
                                 <?php endforeach; ?>
                             </optgroup>
                         </select>
@@ -398,24 +418,16 @@ include __DIR__ . '/../includes/header.php';
         </form>
     </div>
 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label"><i class="fa-regular fa-calendar-plus" style="color: var(--color-primary);"></i> Starting Date</label>
-                        <input type="date" name="start_date" class="form-input" value="<?php echo today(); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label"><i class="fa-regular fa-calendar-check" style="color: var(--color-warning);"></i> End Date / Deadline *</label>
-                        <input type="date" name="deadline" class="form-input" required>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="closeModal('create-task-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Create Task</button>
-            </div>
-        </form>
-    </div>
-</div>
+
+<?php if (!empty($createForTeam) || !empty($assignToUser)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof openModal === 'function') {
+        openModal('create-task-modal');
+    }
+});
+</script>
+<?php endif; ?>
 
 <!-- Edit Task Modal -->
 <?php if ($editTask): ?>
