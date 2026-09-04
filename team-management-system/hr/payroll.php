@@ -216,40 +216,44 @@ $totalNetPayable = array_sum(array_column($payrollData, 'net_salary'));
 $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
 $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
 ?>
-<div class="stats-grid" style="margin-bottom: 24px;">
+<div class="stats-grid" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
     <!-- Card 1: Total Monthly Base Salary Commitment -->
-    <div class="stat-card accent-blue fade-in stagger-1">
-        <div class="stat-icon bg-blue"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-        <div class="stat-content">
-            <div class="stat-value">₹<?php echo number_format($totalBaseSalary, 2); ?></div>
-            <div class="stat-label">Total Monthly Base Salary (<?php echo date('F Y', strtotime($startDateStr)); ?>)</div>
+    <div class="stat-card accent-blue fade-in stagger-1" style="display: flex; align-items: center; gap: 16px; padding: 18px 20px;">
+        <div class="stat-icon bg-blue" style="margin-bottom: 0; flex-shrink: 0;"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        <div class="stat-content" style="min-width: 0;">
+            <div class="stat-value" style="font-size: 22px; white-space: nowrap; margin-bottom: 2px;">₹<?php echo number_format($totalBaseSalary, 2); ?></div>
+            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Total Base Salary</div>
+            <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap;">Gross (<?php echo date('M Y', strtotime($startDateStr)); ?>)</div>
         </div>
     </div>
 
     <!-- Card 2: Total Net Calculated Payable -->
-    <div class="stat-card accent-green fade-in stagger-2">
-        <div class="stat-icon bg-green"><i class="fa-solid fa-sack-dollar"></i></div>
-        <div class="stat-content">
-            <div class="stat-value" style="color: var(--color-success);">₹<?php echo number_format($totalNetPayable, 2); ?></div>
-            <div class="stat-label">Net Payable Salary (Till Date)</div>
+    <div class="stat-card accent-green fade-in stagger-2" style="display: flex; align-items: center; gap: 16px; padding: 18px 20px;">
+        <div class="stat-icon bg-green" style="margin-bottom: 0; flex-shrink: 0;"><i class="fa-solid fa-sack-dollar"></i></div>
+        <div class="stat-content" style="min-width: 0;">
+            <div class="stat-value" style="font-size: 22px; white-space: nowrap; color: var(--color-success); margin-bottom: 2px;">₹<?php echo number_format($totalNetPayable, 2); ?></div>
+            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Net Payable Salary</div>
+            <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap;">Earned Till Date</div>
         </div>
     </div>
 
     <!-- Card 3: Average Base Salary per Employee -->
-    <div class="stat-card accent-orange fade-in stagger-3">
-        <div class="stat-icon bg-warning"><i class="fa-solid fa-chart-pie"></i></div>
-        <div class="stat-content">
-            <div class="stat-value">₹<?php echo number_format($avgBaseSalary, 2); ?></div>
-            <div class="stat-label">Average Base Salary per Employee</div>
+    <div class="stat-card accent-orange fade-in stagger-3" style="display: flex; align-items: center; gap: 16px; padding: 18px 20px;">
+        <div class="stat-icon bg-warning" style="margin-bottom: 0; flex-shrink: 0;"><i class="fa-solid fa-chart-pie"></i></div>
+        <div class="stat-content" style="min-width: 0;">
+            <div class="stat-value" style="font-size: 22px; white-space: nowrap; margin-bottom: 2px;">₹<?php echo number_format($avgBaseSalary, 2); ?></div>
+            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Avg Base Salary</div>
+            <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap;">Per Employee</div>
         </div>
     </div>
 
     <!-- Card 4: Total Employees & Month Days -->
-    <div class="stat-card accent-purple fade-in stagger-4">
-        <div class="stat-icon bg-purple"><i class="fa-solid fa-users"></i></div>
-        <div class="stat-content">
-            <div class="stat-value"><?php echo $empCount; ?> Employees</div>
-            <div class="stat-label"><?php echo $daysInMonth; ?> Days in <?php echo date('F Y', strtotime($startDateStr)); ?></div>
+    <div class="stat-card accent-purple fade-in stagger-4" style="display: flex; align-items: center; gap: 16px; padding: 18px 20px;">
+        <div class="stat-icon bg-purple" style="margin-bottom: 0; flex-shrink: 0;"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-content" style="min-width: 0;">
+            <div class="stat-value" style="font-size: 22px; white-space: nowrap; margin-bottom: 2px;"><?php echo $empCount; ?> <span style="font-size: 14px; font-weight: 500; color: var(--color-text-secondary);">Emp<?php echo $empCount !== 1 ? 's' : ''; ?></span></div>
+            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Total on Payroll</div>
+            <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap;"><?php echo $daysInMonth; ?> Days in Month</div>
         </div>
     </div>
 </div>
