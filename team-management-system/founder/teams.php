@@ -23,10 +23,11 @@ $formErrors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_team') {
     requireCsrf();
     
-    $name = trim(post('name', ''));
-    $description = trim(post('description', ''));
+    $name = trim((string)post('name', ''));
+    $description = trim((string)post('description', ''));
     $leaderId = (int)post('leader_id');
-    $memberIds = post('members') ?: [];
+    $rawMembers = post('members');
+    $memberIds = is_array($rawMembers) ? $rawMembers : [];
     
     if (empty($name)) {
         $formErrors[] = 'Team name is required.';
@@ -36,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_tea
     }
     
     if (empty($formErrors)) {
-        createTeam($name, $description, $leaderId, $userId, is_array($memberIds) ? $memberIds : []);
+        createTeam($name, $description, $leaderId, $userId, $memberIds);
         setFlash('success', 'Team "' . e($name) . '" created successfully with designated members.');
         redirect(BASE_URL . '/founder/teams.php');
     }
@@ -47,10 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_team'
     requireCsrf();
     
     $teamId = (int)post('team_id');
-    $name = trim(post('name', ''));
-    $description = trim(post('description', ''));
+    $name = trim((string)post('name', ''));
+    $description = trim((string)post('description', ''));
     $leaderId = (int)post('leader_id');
-    $memberIds = post('members') ?: [];
+    $rawMembers = post('members');
+    $memberIds = is_array($rawMembers) ? $rawMembers : [];
     
     if (empty($name)) {
         $formErrors[] = 'Team name is required.';
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_team'
     }
     
     if (empty($formErrors)) {
-        updateTeam($teamId, $name, $description, $leaderId, is_array($memberIds) ? $memberIds : []);
+        updateTeam($teamId, $name, $description, $leaderId, $memberIds);
         setFlash('success', 'Team "' . e($name) . '" updated successfully.');
         redirect(BASE_URL . '/founder/teams.php');
     }

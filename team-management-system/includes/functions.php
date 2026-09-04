@@ -59,24 +59,30 @@ function e(mixed $value): string {
 }
 
 /**
- * Sanitize input string (trim + strip tags)
+ * Sanitize input string or array (trim + strip tags recursively)
  */
-function sanitize(string $input): string {
-    return trim(strip_tags($input));
+function sanitize(mixed $input): mixed {
+    if (is_array($input)) {
+        return array_map('sanitize', $input);
+    }
+    if ($input === null) {
+        return '';
+    }
+    return trim(strip_tags((string)$input));
 }
 
 /**
- * Get POST value with sanitization
+ * Get POST value with sanitization (supports strings and arrays)
  */
-function post(string $key, mixed $default = ''): string {
-    return isset($_POST[$key]) ? sanitize($_POST[$key]) : (string)$default;
+function post(string $key, mixed $default = ''): mixed {
+    return isset($_POST[$key]) ? sanitize($_POST[$key]) : $default;
 }
 
 /**
- * Get GET value with sanitization
+ * Get GET value with sanitization (supports strings and arrays)
  */
-function get(string $key, mixed $default = ''): string {
-    return isset($_GET[$key]) ? sanitize($_GET[$key]) : (string)$default;
+function get(string $key, mixed $default = ''): mixed {
+    return isset($_GET[$key]) ? sanitize($_GET[$key]) : $default;
 }
 
 // =============================================

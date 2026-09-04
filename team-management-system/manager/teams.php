@@ -23,16 +23,17 @@ $formErrors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_team') {
     requireCsrf();
     
-    $name = trim(post('name', ''));
-    $description = trim(post('description', ''));
-    $memberIds = post('members') ?: [];
+    $name = trim((string)post('name', ''));
+    $description = trim((string)post('description', ''));
+    $rawMembers = post('members');
+    $memberIds = is_array($rawMembers) ? $rawMembers : [];
     
     if (empty($name)) {
         $formErrors[] = 'Team name is required.';
     }
     
     if (empty($formErrors)) {
-        createTeam($name, $description, $managerId, $managerId, is_array($memberIds) ? $memberIds : []);
+        createTeam($name, $description, $managerId, $managerId, $memberIds);
         setFlash('success', 'Team "' . e($name) . '" created successfully with designated members.');
         redirect(BASE_URL . '/manager/teams.php');
     }
@@ -43,9 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_team'
     requireCsrf();
     
     $teamId = (int)post('team_id');
-    $name = trim(post('name', ''));
-    $description = trim(post('description', ''));
-    $memberIds = post('members') ?: [];
+    $name = trim((string)post('name', ''));
+    $description = trim((string)post('description', ''));
+    $rawMembers = post('members');
+    $memberIds = is_array($rawMembers) ? $rawMembers : [];
     
     // Verify team belongs to this manager
     $team = getTeamById($teamId);
@@ -56,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_team'
     }
     
     if (empty($formErrors)) {
-        updateTeam($teamId, $name, $description, $managerId, is_array($memberIds) ? $memberIds : []);
+        updateTeam($teamId, $name, $description, $managerId, $memberIds);
         setFlash('success', 'Team "' . e($name) . '" updated successfully.');
         redirect(BASE_URL . '/manager/teams.php');
     }
