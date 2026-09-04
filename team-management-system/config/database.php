@@ -38,6 +38,8 @@ function getDB(): PDO {
         
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+            // Synchronize MySQL session time_zone with APP_TIMEZONE (Asia/Kolkata: UTC+05:30)
+            $pdo->exec("SET time_zone = '+05:30'");
         } catch (PDOException $e) {
             // In production, log the error and show a generic message
             error_log("Database Connection Error: " . $e->getMessage());

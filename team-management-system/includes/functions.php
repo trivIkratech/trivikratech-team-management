@@ -473,13 +473,19 @@ function getInitials(string $name): string {
  * Time ago helper
  */
 function timeAgo(string $datetime): string {
+    if (empty($datetime)) {
+        return '';
+    }
     $time = strtotime($datetime);
+    if (!$time) {
+        return '';
+    }
     $diff = time() - $time;
     
     if ($diff < 60) return 'Just now';
-    if ($diff < 3600) return floor($diff / 60) . 'm ago';
-    if ($diff < 86400) return floor($diff / 3600) . 'h ago';
-    if ($diff < 604800) return floor($diff / 86400) . 'd ago';
+    if ($diff < 3600) return max(1, (int)floor($diff / 60)) . 'm ago';
+    if ($diff < 86400) return (int)floor($diff / 3600) . 'h ago';
+    if ($diff < 604800) return (int)floor($diff / 86400) . 'd ago';
     
     return formatDate($datetime);
 }
@@ -494,11 +500,12 @@ function timeAgo(string $datetime): string {
 function createNotification(int $userId, string $title, string $message, ?string $link = null, string $type = 'info'): bool {
     try {
         $db = getDB();
+        $now = date('Y-m-d H:i:s');
         $stmt = $db->prepare("
             INSERT INTO notifications (user_id, title, message, link, type, is_read, created_at) 
-            VALUES (?, ?, ?, ?, ?, 0, NOW())
+            VALUES (?, ?, ?, ?, ?, 0, ?)
         ");
-        return $stmt->execute([$userId, $title, $message, $link, $type]);
+        return $stmt->execute([$userId, $title, $message, $link, $type, $now]);
     } catch (PDOException $e) {
         error_log("Error creating notification: " . $e->getMessage());
         return false;
