@@ -120,8 +120,8 @@ $roleInSql = "'" . implode("','", $roleIn) . "'";
 
 // If a specific date is selected
 if (!empty($filterDate)) {
-    $where = ["u.role IN ({$roleInSql})", "u.status = 'active'"];
-    $params = [$filterDate, $filterDate];
+    $where = ["u.role IN ({$roleInSql})", "u.status = 'active'", "COALESCE(u.joining_date, DATE(u.created_at)) <= ?"];
+    $params = [$filterDate, $filterDate, $filterDate];
 
     if ($filterEmployee) {
         $where[] = "u.id = ?";
@@ -129,7 +129,7 @@ if (!empty($filterDate)) {
     }
 
     if ($filterStatus === 'present') {
-        $where[] = "(a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL))";
+        $where[] = "(l.id IS NULL AND (a.status = 'present' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 21600)))";
     } elseif ($filterStatus === 'leave') {
         $where[] = "l.id IS NOT NULL";
     } elseif ($filterStatus === 'paid') {
@@ -139,9 +139,9 @@ if (!empty($filterDate)) {
     } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
         $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
     } elseif ($filterStatus === 'half-day') {
-        $where[] = "a.status = 'half-day'";
+        $where[] = "(l.id IS NULL AND (a.status = 'half-day' OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 10800 AND TIME_TO_SEC(a.total_working_time) < 21600)))";
     } elseif ($filterStatus === 'absent') {
-        $where[] = "(a.status = 'absent' OR (a.check_in IS NULL AND l.id IS NULL))";
+        $where[] = "(l.id IS NULL AND ((a.id IS NULL OR a.check_in IS NULL) OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) < 10800 AND a.status != 'present' AND a.status != 'half-day')))";
     }
 
     $whereClause = implode(' AND ', $where);
@@ -160,7 +160,7 @@ if (!empty($filterDate)) {
     $pagination = paginate($totalRecords, $page);
 
     $dataQuery = "
-        SELECT u.id as user_id, u.name, u.email, u.role, u.designation, u.employee_id,
+        SELECT u.id as user_id, u.name, u.email, u.role, u.designation, u.employee_id, u.joining_date, u.created_at,
                a.id as attendance_id, COALESCE(a.date, ?) as attendance_date, 
                a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
                l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
@@ -364,28 +364,14 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo !empty($record['total_working_time']) ? e($record['total_working_time']) : '<span class="text-muted">—</span>'; ?></td>
                         <td>
                             <?php
-                            if (!empty($record['leave_id'])) {
-                                $lt = strtolower($record['leave_type']);
-                                if ($lt === 'sick') {
-                                    echo '<span class="badge badge-purple" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-notes-medical"></i> Sick Leave</span>';
-                                } elseif ($lt === 'paid') {
-                                    echo '<span class="badge badge-info" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-award"></i> Paid Leave</span>';
-                                } elseif ($lt === 'casual' || $lt === 'planned') {
-                                    echo '<span class="badge badge-primary" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-calendar-check"></i> Planned Leave</span>';
-                                } else {
-                                    echo '<span class="badge badge-info" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-umbrella-beach"></i> ' . ucfirst(e($lt)) . ' Leave</span>';
-                                }
-                            } elseif (!empty($record['check_in'])) {
-                                if ($record['att_status'] === 'half-day') {
-                                    echo '<span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Half-Day</span>';
-                                } elseif ($record['att_status'] === 'absent') {
-                                    echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
-                                } else {
-                                    echo '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Present</span>';
-                                }
-                            } else {
-                                echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
-                            }
+                            $resolvedStatus = resolveAttendanceStatus(
+                                $record['check_in'],
+                                $record['check_out'],
+                                $record['total_working_time'],
+                                $record['att_status'],
+                                !empty($record['leave_id']) ? (int)$record['leave_id'] : null
+                            );
+                            echo renderAttendanceBadge($resolvedStatus, $record['leave_type'] ?? null, $record['leave_reason'] ?? null);
                             ?>
                         </td>
                         <td style="text-align: right;">

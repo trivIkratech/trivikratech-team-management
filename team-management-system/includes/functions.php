@@ -250,6 +250,93 @@ function attendanceStatusBadge(string $status): string {
 }
 
 /**
+ * Accurately resolve attendance status for a record
+ * 
+ * Shift Rule: >= 6h (21600s) = present, >= 3h (10800s) = half-day, < 3h = absent.
+ * If currently checked in (no checkout yet) = present.
+ * If on approved leave = leave.
+ * If not checked in and no leave = absent.
+ */
+function resolveAttendanceStatus(?string $checkIn, ?string $checkOut, ?string $totalWorkingTime, ?string $attStatus, ?int $leaveId = null): string {
+    if (!empty($leaveId)) {
+        return 'leave';
+    }
+
+    if (!empty($checkIn)) {
+        // If checked out and has working time calculated
+        if (!empty($totalWorkingTime)) {
+            $parts = explode(':', $totalWorkingTime);
+            $secs = ((int)($parts[0] ?? 0) * 3600) + ((int)($parts[1] ?? 0) * 60) + ((int)($parts[2] ?? 0));
+            if ($secs >= 21600) {
+                return 'present';
+            } elseif ($secs >= 10800) {
+                return 'half-day';
+            } else {
+                if ($attStatus === 'present' || $attStatus === 'half-day') {
+                    return $attStatus;
+                }
+                return 'absent';
+            }
+        }
+        
+        // If checked in and checked out without totalWorkingTime, calculate from timestamps
+        if (!empty($checkOut)) {
+            $in = strtotime($checkIn);
+            $out = strtotime($checkOut);
+            if ($out > $in) {
+                $secs = $out - $in;
+                if ($secs >= 21600) return 'present';
+                if ($secs >= 10800) return 'half-day';
+                return ($attStatus === 'present' || $attStatus === 'half-day') ? $attStatus : 'absent';
+            }
+        }
+
+        // If checked in with no checkout yet, they are currently on shift (present)
+        if ($attStatus === 'half-day') return 'half-day';
+        return 'present';
+    }
+
+    // If no check-in and status was manually set to present or half-day
+    if ($attStatus === 'present' || $attStatus === 'half-day') {
+        return $attStatus;
+    }
+
+    return 'absent';
+}
+
+/**
+ * Render visual attendance status badge with icons
+ */
+function renderAttendanceBadge(string $resolvedStatus, ?string $leaveType = null, ?string $leaveReason = null): string {
+    if ($resolvedStatus === 'leave' || !empty($leaveType)) {
+        $lt = strtolower($leaveType ?: 'casual');
+        if ($lt === 'sick') {
+            return '<span class="badge badge-purple" title="' . e($leaveReason ?? '') . '"><i class="fa-solid fa-notes-medical"></i> Sick Leave</span>';
+        } elseif ($lt === 'paid') {
+            return '<span class="badge badge-info" title="' . e($leaveReason ?? '') . '"><i class="fa-solid fa-award"></i> Paid Leave</span>';
+        } elseif ($lt === 'casual' || $lt === 'planned') {
+            return '<span class="badge badge-primary" title="' . e($leaveReason ?? '') . '"><i class="fa-solid fa-calendar-check"></i> Planned Leave</span>';
+        } else {
+            return '<span class="badge badge-info" title="' . e($leaveReason ?? '') . '"><i class="fa-solid fa-umbrella-beach"></i> ' . ucfirst(e($lt)) . ' Leave</span>';
+        }
+    } elseif ($resolvedStatus === 'present') {
+        return '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Present</span>';
+    } elseif ($resolvedStatus === 'half-day') {
+        return '<span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Half-Day</span>';
+    } else {
+        return '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
+    }
+}
+
+/**
+ * Check if employee has already joined by a given date
+ */
+function isEmployeeJoinedOnDate(string $targetDate, ?string $joiningDate, ?string $createdAt = null): bool {
+    $effectiveJoining = $joiningDate ?: (!empty($createdAt) ? date('Y-m-d', strtotime($createdAt)) : '2000-01-01');
+    return strtotime($targetDate) >= strtotime($effectiveJoining);
+}
+
+/**
  * Get CSS class for user status badge
  */
 function userStatusBadge(string $status): string {

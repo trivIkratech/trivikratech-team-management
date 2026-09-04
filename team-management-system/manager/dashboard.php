@@ -36,22 +36,40 @@ if (!empty($myAttendance['total_break_time'])) {
     }
 }
 
-// My employees count
-$stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE manager_id = ? AND status = 'active'");
-$stmt->execute([$managerId]);
-$totalEmployees = $stmt->fetchColumn();
-
-// Present today (my employees)
-$stmt = $db->prepare("
-    SELECT COUNT(DISTINCT a.user_id) 
-    FROM attendance a 
-    JOIN users u ON a.user_id = u.id 
-    WHERE u.manager_id = ? AND a.date = ? AND a.check_in IS NOT NULL
-");
+// My employees count (active, joined on or before today)
+$stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE manager_id = ? AND status = 'active' AND COALESCE(joining_date, DATE(created_at)) <= ?");
 $stmt->execute([$managerId, $today]);
-$presentToday = $stmt->fetchColumn();
+$totalEmployees = (int)$stmt->fetchColumn();
 
-$absentToday = max(0, $totalEmployees - $presentToday);
+// Present today (my employees - accurate shift resolution)
+$stmt = $db->prepare("
+    SELECT COUNT(DISTINCT u.id) 
+    FROM users u
+    JOIN attendance a ON a.user_id = u.id AND a.date = ?
+    LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+    WHERE u.manager_id = ? AND u.status = 'active'
+      AND COALESCE(u.joining_date, DATE(u.created_at)) <= ?
+      AND l.id IS NULL
+      AND (
+          a.status = 'present' 
+          OR (a.check_in IS NOT NULL AND a.check_out IS NULL)
+          OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 21600)
+      )
+");
+$stmt->execute([$today, $today, $managerId, $today]);
+$presentToday = (int)$stmt->fetchColumn();
+
+// Approved Leave today
+$stmt = $db->prepare("
+    SELECT COUNT(DISTINCT u.id)
+    FROM users u
+    JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+    WHERE u.manager_id = ? AND u.status = 'active' AND COALESCE(u.joining_date, DATE(u.created_at)) <= ?
+");
+$stmt->execute([$today, $managerId, $today]);
+$leaveToday = (int)$stmt->fetchColumn();
+
+$absentToday = max(0, $totalEmployees - $presentToday - $leaveToday);
 
 // Task stats (tasks assigned to me OR assigned by me OR assigned to my team members)
 $stmt = $db->prepare("SELECT 

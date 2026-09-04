@@ -135,9 +135,13 @@ if (!empty($filterEmployee)) {
 }
 
 if (!empty($filterDate)) {
+    // Only include employees who joined on or before this date
+    $where[] = "COALESCE(u.joining_date, DATE(u.created_at)) <= ?";
+    $dateParams = [$filterDate];
+
     // Apply status filter for specific date
     if ($filterStatus === 'present') {
-        $where[] = "(a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL))";
+        $where[] = "(l.id IS NULL AND (a.status = 'present' OR (a.check_in IS NOT NULL AND a.check_out IS NULL) OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 21600)))";
     } elseif ($filterStatus === 'leave') {
         $where[] = "l.id IS NOT NULL";
     } elseif ($filterStatus === 'paid') {
@@ -147,9 +151,9 @@ if (!empty($filterDate)) {
     } elseif ($filterStatus === 'planned' || $filterStatus === 'casual') {
         $where[] = "(l.id IS NOT NULL AND l.leave_type IN ('casual', 'unpaid'))";
     } elseif ($filterStatus === 'half-day') {
-        $where[] = "a.status = 'half-day'";
+        $where[] = "(l.id IS NULL AND (a.status = 'half-day' OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 10800 AND TIME_TO_SEC(a.total_working_time) < 21600)))";
     } elseif ($filterStatus === 'absent') {
-        $where[] = "(a.status = 'absent' OR (a.check_in IS NULL AND l.id IS NULL))";
+        $where[] = "(l.id IS NULL AND ((a.id IS NULL OR a.check_in IS NULL) OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) < 10800 AND a.status != 'present' AND a.status != 'half-day')))";
     }
 
     $whereClause = implode(' AND ', $where);
@@ -162,7 +166,7 @@ if (!empty($filterDate)) {
         LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
         WHERE {$whereClause}
     ";
-    $countParams = array_merge([$filterDate, $filterDate], $params);
+    $countParams = array_merge([$filterDate, $filterDate], $params, $dateParams);
     $countStmt = $db->prepare($countQuery);
     $countStmt->execute($countParams);
     $totalRecords = (int)$countStmt->fetchColumn();
@@ -171,7 +175,7 @@ if (!empty($filterDate)) {
 
     // Query data
     $dataQuery = "
-        SELECT u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, m.name AS manager_name,
+        SELECT u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, u.joining_date, u.created_at, m.name AS manager_name,
                a.id as attendance_id, COALESCE(a.date, ?) as attendance_date, 
                a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
                l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
@@ -183,7 +187,7 @@ if (!empty($filterDate)) {
         ORDER BY (u.manager_id = {$managerId}) DESC, u.name ASC
         LIMIT {$pagination['per_page']} OFFSET {$pagination['offset']}
     ";
-    $dataParams = array_merge([$filterDate, $filterDate, $filterDate], $params);
+    $dataParams = array_merge([$filterDate, $filterDate, $filterDate], $params, $dateParams);
     $stmt = $db->prepare($dataQuery);
     $stmt->execute($dataParams);
     $records = $stmt->fetchAll();
@@ -222,7 +226,7 @@ if (!empty($filterDate)) {
 
     $dataQuery = "
         SELECT a.id as attendance_id, a.date as attendance_date, a.check_in, a.check_out, a.break_start, a.break_end, a.total_break_time, a.total_working_time, a.status as att_status,
-               u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, m.name AS manager_name,
+               u.id as user_id, u.name, u.email, u.designation, u.employee_id, u.manager_id, u.joining_date, u.created_at, m.name AS manager_name,
                l.id as leave_id, l.leave_type, l.reason as leave_reason, l.status as leave_status
         FROM attendance a 
         JOIN users u ON a.user_id = u.id 
@@ -239,20 +243,39 @@ if (!empty($filterDate)) {
 
 // Summary stats for today / selected date
 $statsDate = $filterDate ?: today();
+$statsScopeCondition = ($filterScope === 'my_team') ? "AND u.manager_id = " . (int)$managerId : "";
 $statsQuery = "
     SELECT 
         COUNT(DISTINCT u.id) as total_staff,
-        SUM(CASE WHEN (a.status = 'present' OR (a.check_in IS NOT NULL AND a.status != 'half-day' AND l.id IS NULL)) THEN 1 ELSE 0 END) as present_count,
-        SUM(CASE WHEN (a.status = 'half-day') THEN 1 ELSE 0 END) as half_day_count,
+        SUM(CASE WHEN (
+            l.id IS NULL AND (
+                a.status = 'present' 
+                OR (a.check_in IS NOT NULL AND a.check_out IS NULL)
+                OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 21600)
+            )
+        ) THEN 1 ELSE 0 END) as present_count,
+        SUM(CASE WHEN (
+            l.id IS NULL AND (
+                a.status = 'half-day' 
+                OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 10800 AND TIME_TO_SEC(a.total_working_time) < 21600)
+            )
+        ) THEN 1 ELSE 0 END) as half_day_count,
         SUM(CASE WHEN (l.id IS NOT NULL) THEN 1 ELSE 0 END) as leave_count,
-        SUM(CASE WHEN (a.id IS NULL OR a.status = 'absent' OR a.check_in IS NULL) AND l.id IS NULL THEN 1 ELSE 0 END) as absent_count
+        SUM(CASE WHEN (
+            l.id IS NULL AND (
+                (a.id IS NULL OR a.check_in IS NULL)
+                OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) < 10800 AND a.status != 'present' AND a.status != 'half-day')
+            )
+        ) THEN 1 ELSE 0 END) as absent_count
     FROM users u
     LEFT JOIN attendance a ON u.id = a.user_id AND a.date = ?
     LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
     WHERE u.role = 'employee' AND u.status = 'active'
+      AND COALESCE(u.joining_date, DATE(u.created_at)) <= ?
+      {$statsScopeCondition}
 ";
 $statsStmt = $db->prepare($statsQuery);
-$statsStmt->execute([$statsDate, $statsDate]);
+$statsStmt->execute([$statsDate, $statsDate, $statsDate]);
 $stats = $statsStmt->fetch() ?: ['total_staff' => 0, 'present_count' => 0, 'half_day_count' => 0, 'leave_count' => 0, 'absent_count' => 0];
 
 $pageTitle = 'Employee Attendance';
@@ -415,28 +438,14 @@ include __DIR__ . '/../includes/header.php';
                         <td><?php echo !empty($record['total_working_time']) ? e($record['total_working_time']) : '<span class="text-muted">—</span>'; ?></td>
                         <td>
                             <?php
-                            if (!empty($record['leave_id'])) {
-                                $lt = strtolower($record['leave_type']);
-                                if ($lt === 'sick') {
-                                    echo '<span class="badge badge-purple" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-notes-medical"></i> Sick Leave</span>';
-                                } elseif ($lt === 'paid') {
-                                    echo '<span class="badge badge-info" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-award"></i> Paid Leave</span>';
-                                } elseif ($lt === 'casual' || $lt === 'planned') {
-                                    echo '<span class="badge badge-primary" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-calendar-check"></i> Planned Leave</span>';
-                                } else {
-                                    echo '<span class="badge badge-info" title="' . e($record['leave_reason'] ?? '') . '"><i class="fa-solid fa-umbrella-beach"></i> ' . ucfirst(e($lt)) . ' Leave</span>';
-                                }
-                            } elseif (!empty($record['check_in'])) {
-                                if ($record['att_status'] === 'half-day') {
-                                    echo '<span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Half-Day</span>';
-                                } elseif ($record['att_status'] === 'absent') {
-                                    echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
-                                } else {
-                                    echo '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Present</span>';
-                                }
-                            } else {
-                                echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
-                            }
+                            $resolvedStatus = resolveAttendanceStatus(
+                                $record['check_in'],
+                                $record['check_out'],
+                                $record['total_working_time'],
+                                $record['att_status'],
+                                !empty($record['leave_id']) ? (int)$record['leave_id'] : null
+                            );
+                            echo renderAttendanceBadge($resolvedStatus, $record['leave_type'] ?? null, $record['leave_reason'] ?? null);
                             ?>
                         </td>
                         <td style="text-align: right;">

@@ -227,21 +227,21 @@ $employees = $stmt->fetchAll();
 
 // Filter by today's attendance status in PHP if applied
 if ($filterStatus !== 'all') {
-    $employees = array_filter($employees, function($emp) use ($filterStatus) {
-        $hasLeave = !empty($emp['today_leave_id']);
-        $hasCheckIn = !empty($emp['today_check_in']);
-        $attStatus = $emp['today_att_status'];
-
-        if ($filterStatus === 'present') {
-            return ($hasCheckIn && $attStatus !== 'half-day' && $attStatus !== 'absent') || ($attStatus === 'present' && !$hasLeave);
-        } elseif ($filterStatus === 'half-day') {
-            return $attStatus === 'half-day';
-        } elseif ($filterStatus === 'leave') {
-            return $hasLeave;
-        } elseif ($filterStatus === 'absent') {
-            return !$hasCheckIn && !$hasLeave && $attStatus !== 'present';
+    $employees = array_filter($employees, function($emp) use ($filterStatus, $today) {
+        $hasJoined = isEmployeeJoinedOnDate($today, $emp['joining_date'] ?? null, $emp['created_at'] ?? null);
+        if (!$hasJoined) {
+            return ($filterStatus === 'absent') ? false : false;
         }
-        return true;
+
+        $resolved = resolveAttendanceStatus(
+            $emp['today_check_in'],
+            $emp['today_check_out'],
+            $emp['today_working_time'],
+            $emp['today_att_status'],
+            !empty($emp['today_leave_id']) ? (int)$emp['today_leave_id'] : null
+        );
+
+        return $resolved === $filterStatus;
     });
 }
 
@@ -500,7 +500,10 @@ include __DIR__ . '/../includes/header.php';
                             </td>
                             <td>
                                 <?php
-                                if (!empty($emp['today_leave_id'])) {
+                                $hasJoined = isEmployeeJoinedOnDate($today, $emp['joining_date'] ?? null, $emp['created_at'] ?? null);
+                                if (!$hasJoined) {
+                                    echo '<span class="badge badge-secondary" title="Joining Date: ' . e($emp['joining_date'] ?? '') . '"><i class="fa-solid fa-user-clock"></i> Joins on ' . formatDate($emp['joining_date'] ?? '') . '</span>';
+                                } elseif (!empty($emp['today_leave_id'])) {
                                     $lt = strtolower($emp['today_leave_type']);
                                     if ($lt === 'sick') {
                                         echo '<span class="badge badge-purple"><i class="fa-solid fa-notes-medical"></i> Sick Leave</span>';
@@ -511,20 +514,25 @@ include __DIR__ . '/../includes/header.php';
                                     } else {
                                         echo '<span class="badge badge-info"><i class="fa-solid fa-umbrella-beach"></i> ' . ucfirst(e($lt)) . ' Leave</span>';
                                     }
-                                } elseif (!empty($emp['today_check_in'])) {
-                                    if ($emp['today_att_status'] === 'half-day') {
-                                        echo '<span class="badge badge-warning" title="Working: ' . e($emp['today_working_time'] ?? '') . '"><i class="fa-solid fa-hourglass-half"></i> Half-Day (' . formatTime($emp['today_check_in']) . ')</span>';
-                                    } elseif ($emp['today_att_status'] === 'absent') {
-                                        echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
-                                    } else {
-                                        echo '<span class="badge badge-success" title="Working: ' . e($emp['today_working_time'] ?? '') . '"><i class="fa-solid fa-circle-check"></i> Present (' . formatTime($emp['today_check_in']) . ')</span>';
-                                    }
-                                } elseif ($emp['today_att_status'] === 'present') {
-                                    echo '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Present (Manual)</span>';
-                                } elseif ($isSunday) {
-                                    echo '<span class="badge badge-secondary"><i class="fa-solid fa-bed"></i> Sunday Off</span>';
                                 } else {
-                                    echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
+                                    $resolved = resolveAttendanceStatus(
+                                        $emp['today_check_in'],
+                                        $emp['today_check_out'],
+                                        $emp['today_working_time'],
+                                        $emp['today_att_status']
+                                    );
+
+                                    if ($resolved === 'present') {
+                                        $checkInText = !empty($emp['today_check_in']) ? ' (' . formatTime($emp['today_check_in']) . ')' : '';
+                                        echo '<span class="badge badge-success" title="Working: ' . e($emp['today_working_time'] ?? '') . '"><i class="fa-solid fa-circle-check"></i> Present' . $checkInText . '</span>';
+                                    } elseif ($resolved === 'half-day') {
+                                        $checkInText = !empty($emp['today_check_in']) ? ' (' . formatTime($emp['today_check_in']) . ')' : '';
+                                        echo '<span class="badge badge-warning" title="Working: ' . e($emp['today_working_time'] ?? '') . '"><i class="fa-solid fa-hourglass-half"></i> Half-Day' . $checkInText . '</span>';
+                                    } elseif ($isSunday) {
+                                        echo '<span class="badge badge-secondary"><i class="fa-solid fa-bed"></i> Sunday Off</span>';
+                                    } else {
+                                        echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
+                                    }
                                 }
                                 ?>
                             </td>

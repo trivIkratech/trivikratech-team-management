@@ -17,23 +17,50 @@ $db = getDB();
 $today = today();
 
 // --- Stats Queries ---
-// Total Employees (active, role=employee)
-$stmt = $db->query("SELECT COUNT(*) FROM users WHERE role = 'employee' AND status = 'active'");
-$totalEmployees = $stmt->fetchColumn();
+// Total Employees (active, role=employee, joined on or before today)
+$stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'employee' AND status = 'active' AND COALESCE(joining_date, DATE(created_at)) <= ?");
+$stmt->execute([$today]);
+$totalEmployees = (int)$stmt->fetchColumn();
 
 // Total Managers (active)
-$stmt = $db->query("SELECT COUNT(*) FROM users WHERE role = 'manager' AND status = 'active'");
-$totalManagers = $stmt->fetchColumn();
-
-// Present Today
-$stmt = $db->prepare("SELECT COUNT(*) FROM attendance WHERE date = ? AND check_in IS NOT NULL");
+$stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role = 'manager' AND status = 'active' AND COALESCE(joining_date, DATE(created_at)) <= ?");
 $stmt->execute([$today]);
-$presentToday = $stmt->fetchColumn();
+$totalManagers = (int)$stmt->fetchColumn();
 
-// Total active staff (employees + managers) for absent calculation
-$stmt = $db->query("SELECT COUNT(*) FROM users WHERE role IN ('employee','manager') AND status = 'active'");
-$totalStaff = $stmt->fetchColumn();
-$absentToday = max(0, $totalStaff - $presentToday);
+// Present Today (accurate shift rule resolution)
+$stmt = $db->prepare("
+    SELECT COUNT(DISTINCT u.id) 
+    FROM users u
+    JOIN attendance a ON a.user_id = u.id AND a.date = ?
+    LEFT JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+    WHERE u.role IN ('employee','manager','hr') AND u.status = 'active'
+      AND COALESCE(u.joining_date, DATE(u.created_at)) <= ?
+      AND l.id IS NULL
+      AND (
+          a.status = 'present' 
+          OR (a.check_in IS NOT NULL AND a.check_out IS NULL)
+          OR (a.total_working_time IS NOT NULL AND TIME_TO_SEC(a.total_working_time) >= 21600)
+      )
+");
+$stmt->execute([$today, $today, $today]);
+$presentToday = (int)$stmt->fetchColumn();
+
+// Total active staff (employees + managers + hr) for absent calculation
+$stmt = $db->prepare("SELECT COUNT(*) FROM users WHERE role IN ('employee','manager','hr') AND status = 'active' AND COALESCE(joining_date, DATE(created_at)) <= ?");
+$stmt->execute([$today]);
+$totalStaff = (int)$stmt->fetchColumn();
+
+// Approved Leave today
+$stmt = $db->prepare("
+    SELECT COUNT(DISTINCT u.id)
+    FROM users u
+    JOIN leaves l ON u.id = l.user_id AND ? BETWEEN l.start_date AND l.end_date AND l.status = 'approved'
+    WHERE u.role IN ('employee','manager','hr') AND u.status = 'active' AND COALESCE(u.joining_date, DATE(u.created_at)) <= ?
+");
+$stmt->execute([$today, $today]);
+$leaveToday = (int)$stmt->fetchColumn();
+
+$absentToday = max(0, $totalStaff - $presentToday - $leaveToday);
 
 // Total Tasks
 $stmt = $db->query("SELECT COUNT(*) FROM tasks");
