@@ -954,32 +954,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =============================================
-    // Background Poller for All Notifications (Daily Reset Enforced)
+    // Background Poller for All Notifications & Real-Time Sync
     // =============================================
     function initRealtimeNotificationPoller() {
         if (!window.BASE_URL) return;
 
+        const uid = window.CURRENT_USER_ID || '0';
+        const userPrefix = 'u_' + uid + '_';
+
         // Daily Reset Check: If the date changes, clear previous session polling state
         const todayStr = new Date().toISOString().slice(0, 10);
-        const storedPollDate = sessionStorage.getItem('notif_poll_date');
+        const storedPollDate = sessionStorage.getItem(userPrefix + 'notif_poll_date');
         if (storedPollDate !== todayStr) {
-            sessionStorage.setItem('notif_poll_date', todayStr);
-            sessionStorage.removeItem('last_polled_notif_id');
-            sessionStorage.removeItem('notif_poller_initialized');
+            sessionStorage.setItem(userPrefix + 'notif_poll_date', todayStr);
+            sessionStorage.removeItem(userPrefix + 'last_polled_notif_id');
+            sessionStorage.removeItem(userPrefix + 'notif_poller_initialized');
         }
 
-        let lastNotifId = parseInt(sessionStorage.getItem('last_polled_notif_id') || '0', 10);
-        let isInitialized = sessionStorage.getItem('notif_poller_initialized') === 'true';
+        let lastNotifId = parseInt(sessionStorage.getItem(userPrefix + 'last_polled_notif_id') || '0', 10);
+        let isInitialized = sessionStorage.getItem(userPrefix + 'notif_poller_initialized') === 'true';
+        let pollerTimer = null;
 
         function pollNotifications() {
             // Check midnight transition
             const currentDay = new Date().toISOString().slice(0, 10);
-            if (sessionStorage.getItem('notif_poll_date') !== currentDay) {
-                sessionStorage.setItem('notif_poll_date', currentDay);
+            if (sessionStorage.getItem(userPrefix + 'notif_poll_date') !== currentDay) {
+                sessionStorage.setItem(userPrefix + 'notif_poll_date', currentDay);
                 lastNotifId = 0;
                 isInitialized = false;
-                sessionStorage.removeItem('last_polled_notif_id');
-                sessionStorage.removeItem('notif_poller_initialized');
+                sessionStorage.removeItem(userPrefix + 'last_polled_notif_id');
+                sessionStorage.removeItem(userPrefix + 'notif_poller_initialized');
             }
 
             const url = window.BASE_URL + '/api/notifications.php?action=poll&last_id=' + lastNotifId + (!isInitialized ? '&init=1' : '');
@@ -991,8 +995,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (!isInitialized) {
                     lastNotifId = data.max_id || 0;
-                    sessionStorage.setItem('last_polled_notif_id', lastNotifId);
-                    sessionStorage.setItem('notif_poller_initialized', 'true');
+                    sessionStorage.setItem(userPrefix + 'last_polled_notif_id', lastNotifId);
+                    sessionStorage.setItem(userPrefix + 'notif_poller_initialized', 'true');
                     isInitialized = true;
                 } else if (data.new_notifications && data.new_notifications.length > 0) {
                     // Play notification chime sound
@@ -1003,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
 
                     lastNotifId = data.max_id;
-                    sessionStorage.setItem('last_polled_notif_id', lastNotifId);
+                    sessionStorage.setItem(userPrefix + 'last_polled_notif_id', lastNotifId);
                 }
 
                 updateHeaderBellCount(data.unread_count);
@@ -1014,9 +1018,34 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => {});
         }
 
-        // Run initial sync and poll every 4 seconds
+        // Run initial sync and poll every 2 seconds for real-time responsiveness
         pollNotifications();
-        setInterval(pollNotifications, 4000);
+        
+        function restartPoller() {
+            if (pollerTimer) clearInterval(pollerTimer);
+            const interval = document.visibilityState === 'visible' ? 2000 : 4000;
+            pollerTimer = setInterval(pollNotifications, interval);
+        }
+        
+        restartPoller();
+        document.addEventListener('visibilitychange', restartPoller);
+
+        // Cross-tab broadcast listener to trigger instant sync across all pages
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                const globalChatBus = new BroadcastChannel('tms_realtime_chat_bus');
+                globalChatBus.onmessage = function(event) {
+                    if (event.data) {
+                        pollNotifications();
+                    }
+                };
+            } catch(e) {}
+        }
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'tms_realtime_chat_event') {
+                pollNotifications();
+            }
+        });
     }
 
     // Start Realtime Notification Poller

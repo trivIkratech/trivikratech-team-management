@@ -61,14 +61,19 @@ function formatChatMessage(?string $text, array $activeUserNames = []): string {
 
 try {
     if ($action === 'get_rooms') {
-        // Ensure user is in #General Team Chat (room 1)
-        $db->prepare("INSERT IGNORE INTO chat_room_members (room_id, user_id) VALUES (1, ?)")->execute([$currentUserId]);
+        // Ensure all active users are enrolled in #General Team Chat (room 1)
+        try {
+            $db->exec("ALTER TABLE chat_room_members ADD COLUMN last_read_message_id INT NOT NULL DEFAULT 0");
+        } catch (Exception $e) {}
+        try {
+            $db->exec("INSERT IGNORE INTO chat_room_members (room_id, user_id) SELECT 1, id FROM users WHERE status = 'active'");
+        } catch (Exception $e) {}
         
-        // Fetch all rooms for current user
+        // Fetch all rooms for current user with accurate per-user unread counters
         $stmt = $db->prepare("
             SELECT r.id, r.name, r.type, r.created_by, r.created_at,
                    (SELECT COUNT(*) FROM chat_room_members crm WHERE crm.room_id = r.id) AS member_count,
-                   (SELECT COUNT(*) FROM chat_messages m WHERE m.room_id = r.id AND m.sender_id != ? AND m.is_read = 0) AS unread_count,
+                   (SELECT COUNT(*) FROM chat_messages m WHERE m.room_id = r.id AND m.sender_id != ? AND m.id > COALESCE(rm.last_read_message_id, 0)) AS unread_count,
                    (SELECT message FROM chat_messages m WHERE m.room_id = r.id ORDER BY m.id DESC LIMIT 1) AS last_message,
                    (SELECT created_at FROM chat_messages m WHERE m.room_id = r.id ORDER BY m.id DESC LIMIT 1) AS last_time
             FROM chat_rooms r
@@ -105,7 +110,7 @@ try {
             $room['can_clear_history'] = ($room['type'] === 'direct' || $room['created_by'] == $currentUserId || $userRole === ROLE_FOUNDER);
         }
         
-        // Fetch ALL specific persons categorized by role (excluding current logged-in user)
+        // Fetch ALL specific persons categorized by role with accurate per-user unread counts
         $uStmt = $db->prepare("
             SELECT u.id, u.name, u.role, u.designation,
                    (SELECT COUNT(*) 
@@ -113,7 +118,7 @@ try {
                     JOIN chat_rooms r ON m.room_id = r.id 
                     JOIN chat_room_members rm1 ON r.id = rm1.room_id AND rm1.user_id = u.id
                     JOIN chat_room_members rm2 ON r.id = rm2.room_id AND rm2.user_id = ?
-                    WHERE r.type = 'direct' AND m.sender_id = u.id AND m.is_read = 0) AS unread_count
+                    WHERE r.type = 'direct' AND m.sender_id = u.id AND m.id > COALESCE(rm2.last_read_message_id, 0)) AS unread_count
             FROM users u 
             WHERE u.status = 'active' AND u.id != ?
             ORDER BY FIELD(u.role, 'founder', 'manager', 'hr', 'employee'), u.name ASC
@@ -243,6 +248,13 @@ try {
         }
         
         // Mark room messages as read for current user
+        try {
+            $db->prepare("
+                UPDATE chat_room_members 
+                SET last_read_message_id = (SELECT COALESCE(MAX(id), 0) FROM chat_messages WHERE room_id = ?) 
+                WHERE room_id = ? AND user_id = ?
+            ")->execute([$roomId, $roomId, $currentUserId]);
+        } catch (Exception $e) {}
         $db->prepare("UPDATE chat_messages SET is_read = 1 WHERE room_id = ? AND sender_id != ?")->execute([$roomId, $currentUserId]);
         
         // Get active users for mention formatting
@@ -382,6 +394,11 @@ try {
         }
         
         // 2. Notify other room members (who were not already notified as mentioned)
+        if ($roomId === 1) {
+            try {
+                $db->exec("INSERT IGNORE INTO chat_room_members (room_id, user_id) SELECT 1, id FROM users WHERE status = 'active'");
+            } catch(Exception $e) {}
+        }
         $memStmt = $db->prepare("SELECT user_id FROM chat_room_members WHERE room_id = ? AND user_id != ?");
         $memStmt->execute([$roomId, $currentUserId]);
         $members = $memStmt->fetchAll(PDO::FETCH_COLUMN);

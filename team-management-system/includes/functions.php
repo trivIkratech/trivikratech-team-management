@@ -578,12 +578,27 @@ function countUnreadNotifications(int $userId): int {
  */
 function countUnreadChatMessages(int $userId): int {
     try {
+        if ($userId <= 0) return 0;
         $db = getDB();
+        
+        static $checkedColumn = false;
+        if (!$checkedColumn) {
+            try {
+                $db->exec("ALTER TABLE chat_room_members ADD COLUMN last_read_message_id INT NOT NULL DEFAULT 0");
+            } catch (Exception $e) {}
+            try {
+                $db->exec("INSERT IGNORE INTO chat_room_members (room_id, user_id) SELECT 1, id FROM users WHERE status = 'active'");
+            } catch (Exception $e) {}
+            $checkedColumn = true;
+        }
+
         $stmt = $db->prepare("
             SELECT COUNT(*) 
             FROM chat_messages m
             JOIN chat_room_members rm ON m.room_id = rm.room_id
-            WHERE rm.user_id = ? AND m.sender_id != ? AND m.is_read = 0
+            WHERE rm.user_id = ? 
+              AND m.sender_id != ? 
+              AND m.id > COALESCE(rm.last_read_message_id, 0)
         ");
         $stmt->execute([$userId, $userId]);
         return (int)$stmt->fetchColumn();
