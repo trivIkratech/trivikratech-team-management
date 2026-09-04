@@ -227,6 +227,7 @@ try {
         
     } elseif ($action === 'get_messages') {
         $roomId = (int)get('room_id');
+        $sinceId = (int)get('since_id');
         if ($roomId <= 0) {
             echo json_encode(['success' => false, 'message' => 'Invalid room ID.']);
             exit;
@@ -248,16 +249,29 @@ try {
         $allUsersStmt = $db->query("SELECT id, name FROM users WHERE status = 'active'");
         $activeUsers = $allUsersStmt->fetchAll();
         
-        $stmt = $db->prepare("
-            SELECT m.*, u.name AS sender_name, u.role AS sender_role 
-            FROM chat_messages m
-            JOIN users u ON m.sender_id = u.id
-            WHERE m.room_id = ?
-            ORDER BY m.id ASC
-            LIMIT 150
-        ");
-        $stmt->execute([$roomId]);
+        if ($sinceId > 0) {
+            $stmt = $db->prepare("
+                SELECT m.*, u.name AS sender_name, u.role AS sender_role 
+                FROM chat_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.room_id = ? AND m.id > ?
+                ORDER BY m.id ASC
+                LIMIT 100
+            ");
+            $stmt->execute([$roomId, $sinceId]);
+        } else {
+            $stmt = $db->prepare("
+                SELECT m.*, u.name AS sender_name, u.role AS sender_role 
+                FROM chat_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.room_id = ?
+                ORDER BY m.id ASC
+                LIMIT 150
+            ");
+            $stmt->execute([$roomId]);
+        }
         $messages = $stmt->fetchAll();
+        $maxId = $sinceId;
         
         foreach ($messages as &$msg) {
             $msg['formatted_html'] = formatChatMessage($msg['message'], $activeUsers);
@@ -270,11 +284,16 @@ try {
                 $msg['file_url'] = BASE_URL . '/' . $msg['file_path'];
                 $msg['is_image'] = str_starts_with($msg['file_type'] ?? '', 'image/');
             }
+            if ((int)$msg['id'] > $maxId) {
+                $maxId = (int)$msg['id'];
+            }
         }
         
         echo json_encode([
             'success' => true,
-            'messages' => $messages
+            'messages' => $messages,
+            'max_id' => $maxId,
+            'is_incremental' => ($sinceId > 0)
         ]);
         
     } elseif ($action === 'send_message') {
@@ -338,13 +357,14 @@ try {
             VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
         ");
         $stmt->execute([$roomId, $currentUserId, $messageText ?: null, $filePath, $fileName, $fileType]);
-        $msgId = $db->lastInsertId();
+        $msgId = (int)$db->lastInsertId();
         
         // 1. Detect and notify @mentioned users
         $mentionedUserIds = [];
+        $allUsersStmt = $db->query("SELECT id, name FROM users WHERE status = 'active'");
+        $activeUsers = $allUsersStmt->fetchAll();
+
         if (!empty($messageText)) {
-            $allUsersStmt = $db->query("SELECT id, name FROM users WHERE status = 'active'");
-            $activeUsers = $allUsersStmt->fetchAll();
             foreach ($activeUsers as $u) {
                 if ($u['id'] == $currentUserId) continue;
                 $uName = $u['name'];
@@ -378,10 +398,36 @@ try {
                 );
             }
         }
+
+        // Construct fully formatted message payload for instant frontend sync
+        $newMsgObj = [
+            'id' => $msgId,
+            'room_id' => $roomId,
+            'sender_id' => $currentUserId,
+            'sender_name' => $currentUser['name'],
+            'sender_role' => $userRole,
+            'message' => $messageText ?: '',
+            'file_path' => $filePath,
+            'file_name' => $fileName,
+            'file_type' => $fileType,
+            'created_at' => date('Y-m-d H:i:s'),
+            'formatted_html' => formatChatMessage($messageText ?: '', $activeUsers),
+            'time' => date('h:i A'),
+            'initials' => getInitials($currentUser['name']),
+            'is_self' => true,
+            'can_edit' => empty($filePath),
+            'can_delete' => true,
+            'is_edited' => 0
+        ];
+        if ($filePath) {
+            $newMsgObj['file_url'] = BASE_URL . '/' . $filePath;
+            $newMsgObj['is_image'] = str_starts_with($fileType ?? '', 'image/');
+        }
         
         echo json_encode([
             'success' => true,
-            'message_id' => $msgId
+            'message_id' => $msgId,
+            'message' => $newMsgObj
         ]);
         
     } elseif ($action === 'edit_message') {

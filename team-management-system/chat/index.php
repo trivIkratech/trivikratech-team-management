@@ -736,13 +736,93 @@ let selectedFile = null;
 let editingMessageId = null;
 let mentionMatchQuery = null;
 let mentionSelectedIndex = 0;
+let roomLastMessageId = {};
+let isFirstLoadOfRoom = true;
+
+// Real-time Cross-Tab / Cross-Window Broadcast Bus
+const chatBroadcastBus = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('tms_realtime_chat_bus') : null;
+if (chatBroadcastBus) {
+    chatBroadcastBus.onmessage = function(event) {
+        if (!event.data) return;
+        handleBroadcastEvent(event.data);
+    };
+}
+
+// LocalStorage Fallback for older browsers
+window.addEventListener('storage', function(e) {
+    if (e.key === 'tms_realtime_chat_event' && e.newValue) {
+        try {
+            const data = JSON.parse(e.newValue);
+            handleBroadcastEvent(data);
+        } catch(err) {}
+    }
+});
+
+function broadcastChatEvent(payload) {
+    if (chatBroadcastBus) {
+        try { chatBroadcastBus.postMessage(payload); } catch(e) {}
+    }
+    try {
+        localStorage.setItem('tms_realtime_chat_event', JSON.stringify({ ...payload, _ts: Date.now() }));
+    } catch(e) {}
+}
+
+function handleBroadcastEvent(data) {
+    if (!data || !data.type) return;
+    
+    if (data.type === 'new_message') {
+        const msg = data.message;
+        if (!msg || !msg.room_id) return;
+        
+        // If message is for currently open room
+        if (currentRoomId && msg.room_id == currentRoomId) {
+            const existingBubble = document.getElementById('msg-bubble-' + msg.id);
+            if (!existingBubble) {
+                appendSingleMessageBubble(msg);
+                roomLastMessageId[currentRoomId] = Math.max(roomLastMessageId[currentRoomId] || 0, msg.id);
+                
+                if (!msg.is_self && msg.sender_id != currentUserId) {
+                    const preview = msg.message || (msg.file_name ? 'Shared a file: ' + msg.file_name : 'New message');
+                    triggerChatNotification('New Message from ' + (msg.sender_name || 'Team Member'), preview, true);
+                }
+            }
+        } else {
+            // Update sidebar unread counters
+            loadRooms(true);
+        }
+    } else if (data.type === 'edit_message') {
+        if (currentRoomId && data.room_id == currentRoomId) {
+            updateMessageBubbleText(data.message_id, data.new_text);
+        }
+    } else if (data.type === 'delete_message') {
+        if (currentRoomId && data.room_id == currentRoomId) {
+            removeMessageBubble(data.message_id);
+        }
+    } else if (data.type === 'wipe_history') {
+        if (currentRoomId && data.room_id == currentRoomId) {
+            loadMessages(currentRoomId);
+        }
+        loadRooms(true);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     loadRooms();
-    pollingTimer = setInterval(function() {
-        if (currentRoomId && !editingMessageId) loadMessages(currentRoomId, true);
-        loadRooms(true);
-    }, 3000);
+    
+    // Fast Polling: 1200ms when tab active, 3000ms when hidden
+    function startRealtimePolling() {
+        if (pollingTimer) clearInterval(pollingTimer);
+        const interval = document.visibilityState === 'visible' ? 1200 : 3000;
+        pollingTimer = setInterval(function() {
+            if (currentRoomId && !editingMessageId) {
+                loadMessages(currentRoomId, true);
+            }
+            loadRooms(true);
+        }, interval);
+    }
+    
+    startRealtimePolling();
+    document.addEventListener('visibilitychange', startRealtimePolling);
     
     // Close popovers on outside click
     document.addEventListener('click', function(e) {
@@ -871,6 +951,7 @@ function filterDirectory() {
 
 function switchRoom(roomId) {
     currentRoomId = roomId;
+    isFirstLoadOfRoom = true;
     cancelEditMessage();
     renderDirectory(roomsData, usersData);
     
@@ -904,7 +985,7 @@ function switchRoom(roomId) {
         }
     }
     
-    loadMessages(roomId);
+    loadMessages(roomId, false);
 }
 
 function backToDirectoryOnMobile() {
@@ -943,30 +1024,151 @@ function triggerChatNotification(title, message, isIncoming = false) {
     }
 }
 
-let loadedMessageIds = new Set();
-let isFirstLoadOfRoom = true;
+function buildMessageBubbleHtml(m) {
+    const isSelf = m.is_self || (m.sender_id == currentUserId);
+    const selfClass = isSelf ? 'is-self' : '';
+    let attachmentHtml = '';
+    
+    if (m.file_path) {
+        if (m.is_image && m.file_url) {
+            attachmentHtml = `<br><a href="${m.file_url}" target="_blank"><img src="${m.file_url}" class="chat-attachment-img" alt="Uploaded Image"></a>`;
+        } else if (m.file_url) {
+            attachmentHtml = `
+                <a href="${m.file_url}" target="_blank" class="chat-attachment-file">
+                    <i class="fa-solid fa-file-arrow-down" style="font-size: 16px; color: var(--color-primary);"></i>
+                    <div>
+                        <strong>${escapeHtml(m.file_name || 'Attachment')}</strong>
+                        <div style="font-size: 10px; opacity: 0.8;">Click to Download</div>
+                    </div>
+                </a>
+            `;
+        } else if (m.is_temp) {
+            attachmentHtml = `
+                <div class="chat-attachment-file" style="opacity: 0.8;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 14px; color: var(--color-primary);"></i>
+                    <div>
+                        <strong>${escapeHtml(m.file_name || 'Uploading file...')}</strong>
+                        <div style="font-size: 10px; opacity: 0.8;">Uploading...</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Action Toolbar (Edit / Delete)
+    let actionsHtml = '';
+    if (!m.is_temp && (m.can_edit || m.can_delete || isSelf)) {
+        actionsHtml += `<div class="chat-msg-actions">`;
+        if (m.can_edit || (isSelf && !m.file_path)) {
+            const rawMsgEscaped = escapeAttr(m.message || '');
+            actionsHtml += `<button type="button" class="chat-action-btn" onclick="startEditMessage(${m.id}, '${rawMsgEscaped}')" title="Edit Message"><i class="fa-solid fa-pen"></i></button>`;
+        }
+        if (m.can_delete || isSelf || currentUserRole === 'founder') {
+            actionsHtml += `<button type="button" class="chat-action-btn btn-delete" onclick="deleteSingleMessage(${m.id})" title="Delete Message"><i class="fa-solid fa-trash-can"></i></button>`;
+        }
+        actionsHtml += `</div>`;
+    }
+
+    const editedHtml = (m.is_edited == 1) ? `<span class="chat-edited-tag">(edited)</span>` : '';
+    const tempPulse = m.is_temp ? 'opacity: 0.7;' : '';
+
+    return `
+        <div class="chat-bubble-row ${selfClass}" id="msg-bubble-${m.id}" data-msg-id="${m.id}" style="${tempPulse}">
+            <div class="chat-bubble-avatar">${m.initials || 'U'}</div>
+            <div style="position: relative;">
+                ${actionsHtml}
+                <div class="chat-bubble-content">
+                    ${!isSelf ? `<div style="font-weight: 600; font-size: 11px; margin-bottom: 2px; color: var(--color-primary);">${escapeHtml(m.sender_name || 'Team Member')}</div>` : ''}
+                    <div class="chat-msg-text">${m.formatted_html || escapeHtml(m.message || '')}</div>
+                    ${attachmentHtml}
+                    <div class="chat-bubble-meta">
+                        <span>${m.time || 'Just now'}</span>
+                        ${editedHtml}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function appendSingleMessageBubble(m) {
+    const area = document.getElementById('chat-messages-area');
+    if (!area) return;
+    
+    // Check if empty placeholder exists
+    if (area.innerHTML.includes('No messages here yet')) {
+        area.innerHTML = '';
+    }
+    
+    const existing = document.getElementById('msg-bubble-' + m.id);
+    if (existing) {
+        existing.outerHTML = buildMessageBubbleHtml(m);
+        return;
+    }
+    
+    const isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 250;
+    area.insertAdjacentHTML('beforeend', buildMessageBubbleHtml(m));
+    
+    if (isAtBottom || m.is_self) {
+        area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+    }
+}
+
+function updateMessageBubbleText(messageId, newText) {
+    const bubble = document.getElementById('msg-bubble-' + messageId);
+    if (bubble) {
+        const textEl = bubble.querySelector('.chat-msg-text');
+        if (textEl) textEl.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+        const metaEl = bubble.querySelector('.chat-bubble-meta');
+        if (metaEl && !metaEl.querySelector('.chat-edited-tag')) {
+            metaEl.insertAdjacentHTML('beforeend', '<span class="chat-edited-tag">(edited)</span>');
+        }
+    }
+}
+
+function removeMessageBubble(messageId) {
+    const bubble = document.getElementById('msg-bubble-' + messageId);
+    if (bubble) {
+        bubble.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        bubble.style.opacity = '0';
+        bubble.style.transform = 'scale(0.95)';
+        setTimeout(() => bubble.remove(), 200);
+    }
+}
 
 function loadMessages(roomId, isSilent = false) {
-    fetch(window.BASE_URL + '/api/chat.php?action=get_messages&room_id=' + roomId)
+    if (!roomId) return;
+    const sinceId = (isSilent && roomLastMessageId[roomId]) ? roomLastMessageId[roomId] : 0;
+    
+    fetch(window.BASE_URL + '/api/chat.php?action=get_messages&room_id=' + roomId + (sinceId > 0 ? '&since_id=' + sinceId : ''))
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            if (isSilent && data.messages && data.messages.length > 0) {
-                // Find new incoming messages from others
-                const newIncoming = data.messages.filter(m => !m.is_self && !loadedMessageIds.has(m.id));
-                if (newIncoming.length > 0 && !isFirstLoadOfRoom) {
-                    newIncoming.forEach(m => {
-                        const preview = m.message || (m.file_name ? 'Shared a file: ' + m.file_name : 'New attachment');
-                        triggerChatNotification('New Message from ' + (m.sender_name || 'Team Member'), preview, true);
+            if (sinceId > 0) {
+                // Incremental fetch
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(m => {
+                        appendSingleMessageBubble(m);
+                        roomLastMessageId[roomId] = Math.max(roomLastMessageId[roomId] || 0, m.id);
+                        
+                        if (!m.is_self) {
+                            const preview = m.message || (m.file_name ? 'Shared a file: ' + m.file_name : 'New message');
+                            triggerChatNotification('New Message from ' + (m.sender_name || 'Team Member'), preview, true);
+                        }
                     });
                 }
+            } else {
+                // Initial / full load for this room
+                renderMessages(data.messages || []);
+                if (data.max_id) {
+                    roomLastMessageId[roomId] = data.max_id;
+                } else if (data.messages && data.messages.length > 0) {
+                    roomLastMessageId[roomId] = Math.max(...data.messages.map(m => m.id));
+                }
             }
-
-            data.messages.forEach(m => loadedMessageIds.add(m.id));
-            isFirstLoadOfRoom = false;
-            renderMessages(data.messages);
         }
-    });
+    })
+    .catch(() => {});
 }
 
 function renderMessages(messages) {
@@ -978,65 +1180,11 @@ function renderMessages(messages) {
 
     let html = '';
     messages.forEach(m => {
-        const selfClass = m.is_self ? 'is-self' : '';
-        let attachmentHtml = '';
-        
-        if (m.file_path) {
-            if (m.is_image) {
-                attachmentHtml = `<br><a href="${m.file_url}" target="_blank"><img src="${m.file_url}" class="chat-attachment-img" alt="Uploaded Image"></a>`;
-            } else {
-                attachmentHtml = `
-                    <a href="${m.file_url}" target="_blank" class="chat-attachment-file">
-                        <i class="fa-solid fa-file-arrow-down" style="font-size: 16px; color: var(--color-primary);"></i>
-                        <div>
-                            <strong>${escapeHtml(m.file_name || 'Attachment')}</strong>
-                            <div style="font-size: 10px; opacity: 0.8;">Click to Download</div>
-                        </div>
-                    </a>
-                `;
-            }
-        }
-
-        // Action Toolbar (Edit / Delete)
-        let actionsHtml = '';
-        if (m.can_edit || m.can_delete) {
-            actionsHtml += `<div class="chat-msg-actions">`;
-            if (m.can_edit) {
-                const rawMsgEscaped = escapeAttr(m.message || '');
-                actionsHtml += `<button type="button" class="chat-action-btn" onclick="startEditMessage(${m.id}, '${rawMsgEscaped}')" title="Edit Message"><i class="fa-solid fa-pen"></i></button>`;
-            }
-            if (m.can_delete) {
-                actionsHtml += `<button type="button" class="chat-action-btn btn-delete" onclick="deleteSingleMessage(${m.id})" title="Delete Message"><i class="fa-solid fa-trash-can"></i></button>`;
-            }
-            actionsHtml += `</div>`;
-        }
-
-        const editedHtml = (m.is_edited == 1) ? `<span class="chat-edited-tag">(edited)</span>` : '';
-
-        html += `
-            <div class="chat-bubble-row ${selfClass}" id="msg-bubble-${m.id}">
-                <div class="chat-bubble-avatar">${m.initials}</div>
-                <div style="position: relative;">
-                    ${actionsHtml}
-                    <div class="chat-bubble-content">
-                        ${!m.is_self ? `<div style="font-weight: 600; font-size: 11px; margin-bottom: 2px; color: var(--color-primary);">${escapeHtml(m.sender_name)}</div>` : ''}
-                        <div class="chat-msg-text">${m.formatted_html || ''}</div>
-                        ${attachmentHtml}
-                        <div class="chat-bubble-meta">
-                            <span>${m.time}</span>
-                            ${editedHtml}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        html += buildMessageBubbleHtml(m);
     });
     
-    const isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 140;
     area.innerHTML = html;
-    if (isAtBottom || area.scrollTop === 0) {
-        area.scrollTop = area.scrollHeight;
-    }
+    area.scrollTop = area.scrollHeight;
 }
 
 // ---------------- MESSAGE SUBMIT / EDIT / DELETE ----------------
@@ -1055,39 +1203,97 @@ function handleChatSubmit(e) {
 function sendMessage() {
     const input = document.getElementById('chat-text-input');
     const messageText = input.value.trim();
+    const fileToUpload = selectedFile;
 
-    if (!messageText && !selectedFile) return;
+    if (!messageText && !fileToUpload) return;
 
-    const previewMsg = messageText ? (messageText.length > 60 ? messageText.substring(0, 60) + '...' : messageText) : (selectedFile ? 'Attachment: ' + selectedFile.name : 'Message sent');
+    // 1. Optimistic Instant UI rendering
+    const tempId = 'temp_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    const optimisticMsg = {
+        id: tempId,
+        is_temp: true,
+        room_id: currentRoomId,
+        sender_id: currentUserId,
+        sender_name: 'You',
+        sender_role: currentUserRole,
+        message: messageText,
+        formatted_html: escapeHtml(messageText).replace(/\n/g, '<br>'),
+        time: nowTime,
+        initials: 'YOU',
+        is_self: true,
+        can_edit: false,
+        can_delete: false,
+        is_edited: 0,
+        file_path: fileToUpload ? 'temp' : null,
+        file_name: fileToUpload ? fileToUpload.name : null,
+        is_image: fileToUpload ? fileToUpload.type.startsWith('image/') : false,
+        file_url: (fileToUpload && fileToUpload.type.startsWith('image/')) ? URL.createObjectURL(fileToUpload) : null
+    };
 
+    // Instant append to DOM & auto scroll
+    appendSingleMessageBubble(optimisticMsg);
+
+    // Instant chime sound and top-right toast notification
+    const previewMsg = messageText ? (messageText.length > 60 ? messageText.substring(0, 60) + '...' : messageText) : (fileToUpload ? 'Attachment: ' + fileToUpload.name : 'Message sent');
+    triggerChatNotification('Message Sent', previewMsg, false);
+
+    // Clear input & selection immediately so user can keep typing
+    input.value = '';
+    clearFileAttachment();
+    hideMentionPopover();
+    input.focus();
+
+    // Prepare FormData
     const formData = new FormData();
     formData.append('action', 'send_message');
     formData.append('room_id', currentRoomId);
     formData.append('message', messageText);
-    if (selectedFile) {
-        formData.append('attachment', selectedFile);
+    if (fileToUpload) {
+        formData.append('attachment', fileToUpload);
     }
-
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     formData.append('csrf_token', csrfToken);
 
+    // Send HTTP POST in background
     fetch(window.BASE_URL + '/api/chat.php', {
         method: 'POST',
         body: formData
     })
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
-            // Trigger sound and top-right popup toast notification immediately!
-            triggerChatNotification('Message Sent', previewMsg, false);
+        if (data.success && data.message) {
+            const confirmedMsg = data.message;
+            const tempBubble = document.getElementById('msg-bubble-' + tempId);
+            if (tempBubble) {
+                tempBubble.id = 'msg-bubble-' + confirmedMsg.id;
+                tempBubble.setAttribute('data-msg-id', confirmedMsg.id);
+                tempBubble.outerHTML = buildMessageBubbleHtml(confirmedMsg);
+            }
+            roomLastMessageId[currentRoomId] = Math.max(roomLastMessageId[currentRoomId] || 0, confirmedMsg.id);
+            
+            // Broadcast to other open tabs/windows in real-time
+            broadcastChatEvent({
+                type: 'new_message',
+                room_id: currentRoomId,
+                message: confirmedMsg
+            });
 
-            input.value = '';
-            clearFileAttachment();
-            hideMentionPopover();
-            loadMessages(currentRoomId);
             loadRooms(true);
         } else {
+            const tempBubble = document.getElementById('msg-bubble-' + tempId);
+            if (tempBubble) {
+                tempBubble.style.borderColor = 'var(--color-danger)';
+                tempBubble.insertAdjacentHTML('beforeend', '<div style="color: var(--color-danger); font-size: 10px; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> Failed to send</div>');
+            }
             alert(data.message || 'Failed to send message.');
+        }
+    })
+    .catch(err => {
+        const tempBubble = document.getElementById('msg-bubble-' + tempId);
+        if (tempBubble) {
+            tempBubble.style.borderColor = 'var(--color-danger)';
         }
     });
 }
@@ -1118,25 +1324,39 @@ function saveEditedMessage() {
     const newText = input.value.trim();
     if (!newText || !editingMessageId) return;
 
+    const savedId = editingMessageId;
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    
+    // Instant UI update
+    updateMessageBubbleText(savedId, newText);
+    cancelEditMessage();
+
     fetch(window.BASE_URL + '/api/chat.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `action=edit_message&message_id=${editingMessageId}&message=${encodeURIComponent(newText)}&csrf_token=${csrfToken}`
+        body: `action=edit_message&message_id=${savedId}&message=${encodeURIComponent(newText)}&csrf_token=${csrfToken}`
     })
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            cancelEditMessage();
-            loadMessages(currentRoomId);
+            broadcastChatEvent({
+                type: 'edit_message',
+                room_id: currentRoomId,
+                message_id: savedId,
+                new_text: newText
+            });
         } else {
             alert(data.message || 'Failed to edit message.');
+            loadMessages(currentRoomId);
         }
     });
 }
 
 function deleteSingleMessage(messageId) {
     if (!confirm('Are you sure you want to permanently delete this message?')) return;
+
+    // Instant UI removal
+    removeMessageBubble(messageId);
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     fetch(window.BASE_URL + '/api/chat.php', {
@@ -1147,10 +1367,15 @@ function deleteSingleMessage(messageId) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            loadMessages(currentRoomId);
+            broadcastChatEvent({
+                type: 'delete_message',
+                room_id: currentRoomId,
+                message_id: messageId
+            });
             loadRooms(true);
         } else {
             alert(data.message || 'Failed to delete message.');
+            loadMessages(currentRoomId);
         }
     });
 }
@@ -1160,16 +1385,22 @@ function confirmDeleteHistory() {
     const confirmed = confirm('WARNING: This will permanently wipe and delete ALL chat messages and attachments in this conversation from the database.\n\nAre you sure you want to proceed?');
     if (!confirmed) return;
 
+    const targetRoom = currentRoomId;
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     fetch(window.BASE_URL + '/api/chat.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `action=delete_room_history&room_id=${currentRoomId}&csrf_token=${csrfToken}`
+        body: `action=delete_room_history&room_id=${targetRoom}&csrf_token=${csrfToken}`
     })
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            loadMessages(currentRoomId);
+            document.getElementById('chat-messages-area').innerHTML = '<div style="margin: auto; text-align: center; color: var(--color-text-muted); font-size: 13px;"><i class="fa-solid fa-comments" style="font-size: 32px; opacity: 0.3; display: block; margin-bottom: 8px;"></i>No messages here yet. Say hello or type @ to tag someone!</div>';
+            roomLastMessageId[targetRoom] = 0;
+            broadcastChatEvent({
+                type: 'wipe_history',
+                room_id: targetRoom
+            });
             loadRooms(true);
             alert('Chat history completely cleared from database.');
         } else {
