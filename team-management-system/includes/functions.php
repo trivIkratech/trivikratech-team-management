@@ -505,6 +505,20 @@ function timeAgo(string $datetime): string {
 // =============================================
 
 /**
+ * Automatically reset / mark as read notifications older than today.
+ * Ensures notifications are reset every day.
+ */
+function resetDailyNotifications(): void {
+    try {
+        $db = getDB();
+        // Mark all notifications from previous days as read so every day starts fresh with 0 unread
+        $db->exec("UPDATE notifications SET is_read = 1 WHERE DATE(created_at) < CURDATE() AND is_read = 0");
+    } catch (Exception $e) {
+        // Silently fail if table not available
+    }
+}
+
+/**
  * Add an in-app notification for a specific user
  */
 function createNotification(int $userId, string $title, string $message, ?string $link = null, string $type = 'info'): bool {
@@ -523,14 +537,15 @@ function createNotification(int $userId, string $title, string $message, ?string
 }
 
 /**
- * Get unread notifications for a user
+ * Get unread/today's notifications for a user
  */
-function getUnreadNotifications(int $userId, int $limit = 5): array {
+function getUnreadNotifications(int $userId, int $limit = 6): array {
     try {
+        resetDailyNotifications();
         $db = getDB();
         $stmt = $db->prepare("
             SELECT * FROM notifications 
-            WHERE user_id = ? 
+            WHERE user_id = ? AND DATE(created_at) = CURDATE()
             ORDER BY is_read ASC, created_at DESC 
             LIMIT ?
         ");
@@ -544,12 +559,13 @@ function getUnreadNotifications(int $userId, int $limit = 5): array {
 }
 
 /**
- * Count unread notifications
+ * Count unread notifications for today (resets every day)
  */
 function countUnreadNotifications(int $userId): int {
     try {
+        resetDailyNotifications();
         $db = getDB();
-        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND DATE(created_at) = CURDATE()");
         $stmt->execute([$userId]);
         return (int)$stmt->fetchColumn();
     } catch (PDOException $e) {

@@ -22,6 +22,9 @@ $db = getDB();
 $userId = getUserId();
 $action = post('action') ?: get('action');
 
+// Automatically reset / clean notifications older than today
+resetDailyNotifications();
+
 try {
     if ($action === 'mark_read') {
         $notifId = (int)post('id');
@@ -41,8 +44,8 @@ try {
         $unreadCount = countUnreadNotifications($userId);
         $chatUnreadCount = countUnreadChatMessages($userId);
         
-        // Get max notification id
-        $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ?");
+        // Get max notification id for today
+        $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ? AND DATE(created_at) = CURDATE()");
         $stmtMax->execute([$userId]);
         $maxId = (int)$stmtMax->fetchColumn();
         
@@ -57,10 +60,10 @@ try {
             exit;
         }
         
-        // Fetch newly arrived notifications since last_id
+        // Fetch newly arrived notifications since last_id (strictly today's)
         $stmt = $db->prepare("
             SELECT * FROM notifications 
-            WHERE user_id = ? AND id > ? 
+            WHERE user_id = ? AND id > ? AND DATE(created_at) = CURDATE()
             ORDER BY id ASC
             LIMIT 15
         ");

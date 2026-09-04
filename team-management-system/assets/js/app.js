@@ -694,45 +694,68 @@ document.addEventListener('DOMContentLoaded', function() {
     // =============================================
     // Real-Time Notification Sound Synthesizer (Web Audio API)
     // =============================================
+    let appAudioCtx = null;
+
+    function getAppAudioContext() {
+        if (!appAudioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                appAudioCtx = new AudioContext();
+            }
+        }
+        if (appAudioCtx && appAudioCtx.state === 'suspended') {
+            appAudioCtx.resume().catch(() => {});
+        }
+        return appAudioCtx;
+    }
+
+    // Unlock Audio Context on first user interaction to bypass browser autoplay restrictions
+    function unlockAppAudio() {
+        const ctx = getAppAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+        }
+        document.removeEventListener('click', unlockAppAudio);
+        document.removeEventListener('keydown', unlockAppAudio);
+        document.removeEventListener('touchstart', unlockAppAudio);
+    }
+    document.addEventListener('click', unlockAppAudio);
+    document.addEventListener('keydown', unlockAppAudio);
+    document.addEventListener('touchstart', unlockAppAudio);
+
     window.playNotificationSound = function() {
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            if (ctx.state === 'suspended') {
-                ctx.resume();
-            }
+            const ctx = getAppAudioContext();
+            if (!ctx) return;
 
             const now = ctx.currentTime;
             
-            // Pleasant Dual-Tone Crystal Bell: Note 1 (E5: 659.25Hz) + Note 2 (B5: 987.77Hz)
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const gain1 = ctx.createGain();
-            const gain2 = ctx.createGain();
+            // Resonant Glass Pop / Bell Chime: 3 harmonic chord notes (880Hz -> 1174Hz -> 1760Hz)
+            const notes = [
+                { freq: 880.00, start: 0, dur: 0.14, vol: 0.22 },   // A5
+                { freq: 1174.66, start: 0.08, dur: 0.18, vol: 0.28 }, // D6
+                { freq: 1760.00, start: 0.16, dur: 0.50, vol: 0.32 }  // A6
+            ];
 
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(659.25, now);
-            gain1.gain.setValueAtTime(0.12, now);
-            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            notes.forEach(note => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
 
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(987.77, now + 0.08);
-            gain2.gain.setValueAtTime(0.001, now);
-            gain2.gain.setValueAtTime(0.16, now + 0.08);
-            gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(note.freq, now + note.start);
 
-            osc1.connect(gain1);
-            gain1.connect(ctx.destination);
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
+                gain.gain.setValueAtTime(0.0001, now + note.start);
+                gain.gain.linearRampToValueAtTime(note.vol, now + note.start + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.dur);
 
-            osc1.start(now);
-            osc1.stop(now + 0.35);
-            osc2.start(now + 0.08);
-            osc2.stop(now + 0.6);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now + note.start);
+                osc.stop(now + note.start + note.dur);
+            });
         } catch(e) {
-            console.warn('Audio chime note could not be played:', e);
+            console.warn('Audio chime could not be played:', e);
         }
     };
 
@@ -920,15 +943,34 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =============================================
-    // Background Poller for All Notifications
+    // Background Poller for All Notifications (Daily Reset Enforced)
     // =============================================
     function initRealtimeNotificationPoller() {
         if (!window.BASE_URL) return;
+
+        // Daily Reset Check: If the date changes, clear previous session polling state
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const storedPollDate = sessionStorage.getItem('notif_poll_date');
+        if (storedPollDate !== todayStr) {
+            sessionStorage.setItem('notif_poll_date', todayStr);
+            sessionStorage.removeItem('last_polled_notif_id');
+            sessionStorage.removeItem('notif_poller_initialized');
+        }
 
         let lastNotifId = parseInt(sessionStorage.getItem('last_polled_notif_id') || '0', 10);
         let isInitialized = sessionStorage.getItem('notif_poller_initialized') === 'true';
 
         function pollNotifications() {
+            // Check midnight transition
+            const currentDay = new Date().toISOString().slice(0, 10);
+            if (sessionStorage.getItem('notif_poll_date') !== currentDay) {
+                sessionStorage.setItem('notif_poll_date', currentDay);
+                lastNotifId = 0;
+                isInitialized = false;
+                sessionStorage.removeItem('last_polled_notif_id');
+                sessionStorage.removeItem('notif_poller_initialized');
+            }
+
             const url = window.BASE_URL + '/api/notifications.php?action=poll&last_id=' + lastNotifId + (!isInitialized ? '&init=1' : '');
 
             fetch(url)
@@ -961,9 +1003,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => {});
         }
 
-        // Run initial sync and poll every 4.5 seconds
+        // Run initial sync and poll every 4 seconds
         pollNotifications();
-        setInterval(pollNotifications, 4500);
+        setInterval(pollNotifications, 4000);
     }
 
     // Start Realtime Notification Poller
