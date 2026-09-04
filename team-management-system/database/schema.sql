@@ -129,7 +129,7 @@ CREATE TABLE `leaves` (
   `end_date` date NOT NULL,
   `reason` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `prescription_doc` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('pending','approved','denied') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `status` enum('pending','approved','denied','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `actioned_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

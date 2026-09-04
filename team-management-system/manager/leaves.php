@@ -81,40 +81,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'apply_leave') {
     }
 }
 
-// Handle Approve / Deny action for team members
+// Handle Approve / Deny / Cancel action for team members
 if (isset($_GET['action']) && isset($_GET['id'])) {
     $action = $_GET['action'];
     $leaveId = (int)$_GET['id'];
     
-    if (in_array($action, ['approve', 'deny'])) {
-        $status = ($action === 'approve') ? 'approved' : 'denied';
+    if (in_array($action, ['approve', 'deny', 'cancel'])) {
+        $status = ($action === 'approve') ? 'approved' : (($action === 'cancel') ? 'cancelled' : 'denied');
         
         try {
             // Verify that the leaves' owner has this manager assigned to them
             $stmt = $db->prepare("
-                SELECT l.id 
+                SELECT l.id, l.user_id, l.leave_type 
                 FROM leaves l 
                 JOIN users u ON l.user_id = u.id 
                 WHERE l.id = ? AND u.manager_id = ?
             ");
             $stmt->execute([$leaveId, $managerId]);
+            $leaveRow = $stmt->fetch();
             
-            if ($stmt->fetch()) {
+            if ($leaveRow) {
                 $updateStmt = $db->prepare("UPDATE leaves SET status = ?, actioned_by = ?, updated_at = NOW() WHERE id = ?");
                 $updateStmt->execute([$status, $managerId, $leaveId]);
 
-                $lStmt = $db->prepare("SELECT user_id, leave_type FROM leaves WHERE id = ?");
-                $lStmt->execute([$leaveId]);
-                $leaveRow = $lStmt->fetch();
-                if ($leaveRow) {
-                    createNotification(
-                        (int)$leaveRow['user_id'],
-                        ($status === 'approved' ? '✅ Leave Approved' : '❌ Leave Rejected'),
-                        'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by Manager.',
-                        BASE_URL . '/employee/leaves.php',
-                        ($status === 'approved' ? 'success' : 'danger')
-                    );
-                }
+                $notifTitle = ($status === 'approved') ? '✅ Leave Approved' : (($status === 'cancelled') ? '🚫 Leave Cancelled' : '❌ Leave Rejected');
+                $notifMsg = 'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by Manager.';
+                $notifType = ($status === 'approved') ? 'success' : 'danger';
+
+                createNotification(
+                    (int)$leaveRow['user_id'],
+                    $notifTitle,
+                    $notifMsg,
+                    BASE_URL . '/employee/leaves.php',
+                    $notifType
+                );
 
                 setFlash('success', 'Leave request status updated to ' . $status);
             } else {
@@ -128,6 +128,27 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         header('Location: ' . BASE_URL . '/manager/leaves.php');
         exit;
     }
+}
+
+// Handle Manager's own leave cancellation
+if (isset($_GET['action']) && $_GET['action'] === 'cancel_own' && isset($_GET['id'])) {
+    $leaveId = (int)$_GET['id'];
+    try {
+        $stmt = $db->prepare("SELECT id, status, leave_type FROM leaves WHERE id = ? AND user_id = ?");
+        $stmt->execute([$leaveId, $managerId]);
+        $ownLeave = $stmt->fetch();
+        if ($ownLeave && in_array($ownLeave['status'], ['pending', 'approved'])) {
+            $stmt = $db->prepare("UPDATE leaves SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$leaveId]);
+            setFlash('success', 'Your leave request was cancelled successfully.');
+        } else {
+            setFlash('error', 'Unable to cancel this leave.');
+        }
+    } catch (PDOException $e) {
+        setFlash('error', 'Database error.');
+    }
+    header('Location: ' . BASE_URL . '/manager/leaves.php');
+    exit;
 }
 
 // Fetch manager's own leave requests
@@ -283,6 +304,8 @@ include __DIR__ . '/../includes/header.php';
                                     <span class="badge badge-warning" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                                 <?php elseif ($leave['status'] === 'approved'): ?>
                                     <span class="badge badge-success" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-check"></i> Approved</span>
+                                <?php elseif ($leave['status'] === 'cancelled'): ?>
+                                    <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px; background: rgba(239, 68, 68, 0.15); color: var(--color-danger); border: 1px solid var(--color-danger);"><i class="fa-solid fa-ban"></i> Cancelled</span>
                                 <?php else: ?>
                                     <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
                                 <?php endif; ?>
@@ -297,8 +320,18 @@ include __DIR__ . '/../includes/header.php';
                                             <i class="fa-solid fa-xmark"></i> Deny
                                         </a>
                                     </div>
+                                <?php elseif ($leave['status'] === 'approved'): ?>
+                                    <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                        <a href="?action=cancel&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Cancel this approved leave?')">
+                                            <i class="fa-solid fa-ban"></i> Cancel Leave
+                                        </a>
+                                    </div>
                                 <?php else: ?>
-                                    <span class="text-muted" style="font-size: 11px; font-style: italic;">Completed</span>
+                                    <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                        <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-ghost btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; border: 1px solid var(--color-border);" onclick="return confirm('Re-approve this leave application?')">
+                                            <i class="fa-solid fa-rotate-left"></i> Re-Approve
+                                        </a>
+                                    </div>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -375,13 +408,23 @@ include __DIR__ . '/../includes/header.php';
                         <div style="border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3);">
                             <div class="flex-between mb-2">
                                 <span class="badge badge-info"><?php echo ucfirst($own['leave_type']); ?></span>
-                                <?php if ($own['status'] === 'pending'): ?>
-                                    <span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
-                                <?php elseif ($own['status'] === 'approved'): ?>
-                                    <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span>
-                                <?php else: ?>
-                                    <span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
-                                <?php endif; ?>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <?php if ($own['status'] === 'pending'): ?>
+                                        <span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
+                                    <?php elseif ($own['status'] === 'approved'): ?>
+                                        <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Approved</span>
+                                    <?php elseif ($own['status'] === 'cancelled'): ?>
+                                        <span class="badge badge-danger" style="background: rgba(239, 68, 68, 0.15); color: var(--color-danger); border: 1px solid var(--color-danger);"><i class="fa-solid fa-ban"></i> Cancelled</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
+                                    <?php endif; ?>
+                                    
+                                    <?php if (in_array($own['status'], ['pending', 'approved'])): ?>
+                                        <a href="?action=cancel_own&id=<?php echo $own['id']; ?>" class="btn btn-danger btn-sm" style="padding: 2px 7px; font-size: 10px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Cancel your <?php echo $own['status']; ?> leave?')">
+                                            <i class="fa-solid fa-ban"></i> Cancel
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                             <div style="font-size: var(--text-sm); font-weight: 500;">
                                 <?php echo formatDate($own['start_date']); ?> to <?php echo formatDate($own['end_date']); ?>

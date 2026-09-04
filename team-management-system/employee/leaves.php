@@ -85,6 +85,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'apply_leave') {
     }
 }
 
+// Handle Leave Cancellation by Employee (Pending or Approved)
+if (isset($_GET['action']) && $_GET['action'] === 'cancel' && isset($_GET['id'])) {
+    $leaveId = (int)$_GET['id'];
+    try {
+        $stmt = $db->prepare("SELECT id, status, leave_type FROM leaves WHERE id = ? AND user_id = ?");
+        $stmt->execute([$leaveId, $userId]);
+        $leave = $stmt->fetch();
+        
+        if ($leave && in_array($leave['status'], ['pending', 'approved'])) {
+            $stmt = $db->prepare("UPDATE leaves SET status = 'cancelled', updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$leaveId]);
+            setFlash('success', 'Your ' . ucfirst($leave['leave_type']) . ' leave was cancelled successfully.');
+        } else {
+            setFlash('error', 'Unable to cancel this leave or request not found.');
+        }
+    } catch (PDOException $e) {
+        error_log("Error cancelling leave: " . $e->getMessage());
+        setFlash('error', 'A database error occurred.');
+    }
+    header('Location: ' . BASE_URL . '/employee/leaves.php');
+    exit;
+}
+
 // Fetch past leaves for this employee
 $stmt = $db->prepare("
     SELECT * FROM leaves 
@@ -216,6 +239,7 @@ include __DIR__ . '/../includes/header.php';
                         <th style="min-width: 220px;">Reason</th>
                         <th style="min-width: 100px; text-align: center;">Document</th>
                         <th style="min-width: 110px; text-align: center;">Status</th>
+                        <th style="min-width: 100px; text-align: right;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -261,8 +285,19 @@ include __DIR__ . '/../includes/header.php';
                                     <span class="badge badge-warning" style="white-space: nowrap;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                                 <?php elseif ($leave['status'] === 'approved'): ?>
                                     <span class="badge badge-success" style="white-space: nowrap;"><i class="fa-solid fa-circle-check"></i> Approved</span>
+                                <?php elseif ($leave['status'] === 'cancelled'): ?>
+                                    <span class="badge badge-danger" style="white-space: nowrap; background: rgba(239, 68, 68, 0.15); color: var(--color-danger); border: 1px solid var(--color-danger);"><i class="fa-solid fa-ban"></i> Cancelled</span>
                                 <?php else: ?>
                                     <span class="badge badge-danger" style="white-space: nowrap;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
+                                <?php endif; ?>
+                            </td>
+                            <td style="text-align: right;">
+                                <?php if (in_array($leave['status'], ['pending', 'approved'])): ?>
+                                    <a href="?action=cancel&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm" style="white-space: nowrap; padding: 4px 10px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;" onclick="return confirm('Are you sure you want to cancel this <?php echo $leave['status']; ?> leave?')">
+                                        <i class="fa-solid fa-ban"></i> Cancel
+                                    </a>
+                                <?php else: ?>
+                                    <span class="text-muted" style="font-size: 11px; font-style: italic;">—</span>
                                 <?php endif; ?>
                             </td>
                         </tr>

@@ -17,13 +17,13 @@ requireRole([ROLE_FOUNDER]);
 $db = getDB();
 $founderId = getUserId();
 
-// Handle Approve / Deny Action
+// Handle Approve / Deny / Cancel Action
 if (isset($_GET['action']) && isset($_GET['id'])) {
     $action = $_GET['action'];
     $leaveId = (int)$_GET['id'];
     
-    if (in_array($action, ['approve', 'deny'])) {
-        $status = ($action === 'approve') ? 'approved' : 'denied';
+    if (in_array($action, ['approve', 'deny', 'cancel'])) {
+        $status = ($action === 'approve') ? 'approved' : (($action === 'cancel') ? 'cancelled' : 'denied');
         
         try {
             $stmt = $db->prepare("UPDATE leaves SET status = ?, actioned_by = ?, updated_at = NOW() WHERE id = ?");
@@ -33,12 +33,16 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             $lStmt->execute([$leaveId]);
             $leaveRow = $lStmt->fetch();
             if ($leaveRow) {
+                $notifTitle = ($status === 'approved') ? '✅ Leave Approved' : (($status === 'cancelled') ? '🚫 Leave Cancelled' : '❌ Leave Rejected');
+                $notifMsg = 'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by Founder.';
+                $notifType = ($status === 'approved') ? 'success' : 'danger';
+
                 createNotification(
                     (int)$leaveRow['user_id'],
-                    ($status === 'approved' ? '✅ Leave Approved' : '❌ Leave Rejected'),
-                    'Your ' . ucfirst($leaveRow['leave_type']) . ' leave request was ' . $status . ' by Founder.',
+                    $notifTitle,
+                    $notifMsg,
                     BASE_URL . '/employee/leaves.php',
-                    ($status === 'approved' ? 'success' : 'danger')
+                    $notifType
                 );
             }
 
@@ -148,6 +152,7 @@ include __DIR__ . '/../includes/header.php';
                 <option value="">All Statuses</option>
                 <option value="pending" <?php echo $filterStatus === 'pending' ? 'selected' : ''; ?>>⏳ Pending</option>
                 <option value="approved" <?php echo $filterStatus === 'approved' ? 'selected' : ''; ?>>✓ Approved</option>
+                <option value="cancelled" <?php echo $filterStatus === 'cancelled' ? 'selected' : ''; ?>>🚫 Cancelled</option>
                 <option value="denied" <?php echo $filterStatus === 'denied' ? 'selected' : ''; ?>>✗ Denied</option>
             </select>
             <select name="leave_type" class="form-select" onchange="this.form.submit()" style="width: auto; min-width: 140px; height: 34px; padding: 4px 10px; font-size: 12px;">
@@ -253,6 +258,8 @@ include __DIR__ . '/../includes/header.php';
                                 <span class="badge badge-warning" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-hourglass-half"></i> Pending</span>
                             <?php elseif ($leave['status'] === 'approved'): ?>
                                 <span class="badge badge-success" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-check"></i> Approved</span>
+                            <?php elseif ($leave['status'] === 'cancelled'): ?>
+                                <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px; background: rgba(239, 68, 68, 0.15); color: var(--color-danger); border: 1px solid var(--color-danger);"><i class="fa-solid fa-ban"></i> Cancelled</span>
                             <?php else: ?>
                                 <span class="badge badge-danger" style="white-space: nowrap; font-size: 11px;"><i class="fa-solid fa-circle-xmark"></i> Denied</span>
                             <?php endif; ?>
@@ -272,8 +279,18 @@ include __DIR__ . '/../includes/header.php';
                                         <i class="fa-solid fa-xmark"></i> Deny
                                     </a>
                                 </div>
+                            <?php elseif ($leave['status'] === 'approved'): ?>
+                                <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                    <a href="?action=cancel&id=<?php echo $leave['id']; ?>" class="btn btn-danger btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" onclick="return confirm('Cancel this approved leave?')">
+                                        <i class="fa-solid fa-ban"></i> Cancel Leave
+                                    </a>
+                                </div>
                             <?php else: ?>
-                                <span class="text-muted" style="font-size: 11px; font-style: italic;">Completed</span>
+                                <div class="table-actions" style="display: flex; gap: 4px; justify-content: flex-end; align-items: center;">
+                                    <a href="?action=approve&id=<?php echo $leave['id']; ?>" class="btn btn-ghost btn-sm" style="white-space: nowrap; padding: 3px 8px; font-size: 11px; border: 1px solid var(--color-border);" onclick="return confirm('Re-approve this leave application?')">
+                                        <i class="fa-solid fa-rotate-left"></i> Re-Approve
+                                    </a>
+                                </div>
                             <?php endif; ?>
                         </td>
                     </tr>

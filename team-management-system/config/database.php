@@ -40,6 +40,13 @@ function getDB(): PDO {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
             // Synchronize MySQL session time_zone with APP_TIMEZONE (Asia/Kolkata: UTC+05:30)
             $pdo->exec("SET time_zone = '+05:30'");
+            
+            // Ensure leaves status enum supports cancelled
+            try {
+                $pdo->exec("ALTER TABLE leaves MODIFY COLUMN status ENUM('pending','approved','denied','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'pending'");
+            } catch (Exception $ex) {
+                // Table might not exist or already updated
+            }
         } catch (PDOException $e) {
             // In production, log the error and show a generic message
             error_log("Database Connection Error: " . $e->getMessage());
