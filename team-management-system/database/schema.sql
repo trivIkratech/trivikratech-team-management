@@ -218,6 +218,39 @@ CREATE TABLE `support_tickets` (
   CONSTRAINT `fk_support_tickets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table structure for `teams`
+DROP TABLE IF EXISTS `teams`;
+CREATE TABLE `teams` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `leader_id` int NOT NULL,
+  `created_by` int NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_leader_id` (`leader_id`),
+  KEY `idx_created_by` (`created_by`),
+  CONSTRAINT `fk_teams_leader` FOREIGN KEY (`leader_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_teams_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `team_members`
+DROP TABLE IF EXISTS `team_members`;
+CREATE TABLE `team_members` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `team_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `role_in_team` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'member',
+  `joined_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_team_member` (`team_id`,`user_id`),
+  KEY `idx_team_id` (`team_id`),
+  KEY `idx_user_id` (`user_id`),
+  CONSTRAINT `fk_tm_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_tm_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Table structure for `tasks`
 DROP TABLE IF EXISTS `tasks`;
 CREATE TABLE `tasks` (
@@ -226,6 +259,7 @@ CREATE TABLE `tasks` (
   `description` text COLLATE utf8mb4_unicode_ci,
   `assigned_to` int NOT NULL,
   `assigned_by` int NOT NULL,
+  `team_id` int DEFAULT NULL,
   `priority` enum('low','medium','high') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medium',
   `status` enum('todo','in_progress','completed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
   `start_date` date DEFAULT NULL,
@@ -237,6 +271,7 @@ CREATE TABLE `tasks` (
   PRIMARY KEY (`id`),
   KEY `idx_assigned_to` (`assigned_to`),
   KEY `idx_assigned_by` (`assigned_by`),
+  KEY `idx_team_id` (`team_id`),
   KEY `idx_status` (`status`),
   KEY `idx_priority` (`priority`),
   KEY `idx_deadline` (`deadline`),

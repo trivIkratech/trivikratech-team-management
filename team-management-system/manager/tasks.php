@@ -21,45 +21,93 @@ $today = today();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_task') {
     requireCsrf();
     
-    $title = post('title');
-    $description = post('description');
+    $title = trim(post('title', ''));
+    $description = trim(post('description', ''));
     $assignedToInput = post('assigned_to');
-    $priority = post('priority');
+    $priority = post('priority') ?: 'medium';
     $startDate = post('start_date') ?: null;
     $deadline = post('deadline') ?: null;
     
-    if (empty($title)) {
-        setFlash('error', 'Task title cannot be empty.');
-    } elseif ($assignedToInput === 'team') {
-        // Fetch all active team members
-        $stmt = $db->prepare("SELECT id FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active'");
-        $stmt->execute([$managerId]);
-        $teamMemberIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($title) || empty($assignedToInput)) {
+        setFlash('error', 'Task title and assignee are required.');
+    } elseif (strpos($assignedToInput, 'team_') === 0) {
+        // Custom Squad / Team created by Manager
+        $teamId = (int)str_replace('team_', '', $assignedToInput);
+        $team = getTeamById($teamId);
+        $teamMembers = getTeamMembers($teamId);
         
-        if (empty($teamMemberIds)) {
-            setFlash('error', 'Your team is empty. Please assign employees first.');
+        if (!$team || empty($teamMembers)) {
+            setFlash('error', 'Selected squad has no active members.');
+        } else {
+            $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, team_id, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            foreach ($teamMembers as $m) {
+                $stmt->execute([$title, $description, $m['id'], $managerId, $teamId, $priority, $startDate, $deadline]);
+                
+                // Notify each squad member
+                if ($m['id'] != $managerId) {
+                    createNotification(
+                        $m['id'],
+                        '📋 New Squad Task: ' . $title,
+                        'Task assigned to squad "' . $team['name'] . '": ' . ($description ? substr($description, 0, 80) : $title),
+                        BASE_URL . '/employee/tasks.php',
+                        'info'
+                    );
+                }
+            }
+            setFlash('success', 'Squad task created and assigned to all ' . count($teamMembers) . ' members of "' . e($team['name']) . '".');
+            header('Location: ' . BASE_URL . '/manager/tasks.php?tab=assigned_by');
+            exit;
+        }
+    } elseif ($assignedToInput === 'team' || $assignedToInput === 'entire_team') {
+        // Fetch all active team members
+        $stmt = $db->prepare("SELECT id, name FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active'");
+        $stmt->execute([$managerId]);
+        $teamMembers = $stmt->fetchAll();
+        
+        if (empty($teamMembers)) {
+            setFlash('error', 'Your direct team is empty. Please assign employees first.');
         } else {
             $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            foreach ($teamMemberIds as $empId) {
-                $stmt->execute([$title, $description, $empId, $managerId, $priority ?: 'medium', $startDate, $deadline]);
+            foreach ($teamMembers as $m) {
+                $stmt->execute([$title, $description, $m['id'], $managerId, $priority, $startDate, $deadline]);
+                if ($m['id'] != $managerId) {
+                    createNotification(
+                        $m['id'],
+                        '📋 New Team Task: ' . $title,
+                        ($description ? substr($description, 0, 80) : $title),
+                        BASE_URL . '/employee/tasks.php',
+                        'info'
+                    );
+                }
             }
-            setFlash('success', 'Team task created and assigned to all team members.');
-            header('Location: ' . BASE_URL . '/manager/tasks.php');
+            setFlash('success', 'Team task created and assigned to all direct team members.');
+            header('Location: ' . BASE_URL . '/manager/tasks.php?tab=assigned_by');
             exit;
         }
     } else {
         $assignedTo = (int)$assignedToInput;
-        // Verify the assigned employee belongs to this manager
-        $stmt = $db->prepare("SELECT id FROM users WHERE id = ? AND manager_id = ?");
-        $stmt->execute([$assignedTo, $managerId]);
+        // Verify the assigned employee belongs to this manager or is in manager's squad
+        $stmt = $db->prepare("SELECT id FROM users WHERE id = ? AND (manager_id = ? OR id IN (SELECT tm.user_id FROM team_members tm JOIN teams t ON tm.team_id = t.id WHERE t.created_by = ?))");
+        $stmt->execute([$assignedTo, $managerId, $managerId]);
         
         if (!$stmt->fetch()) {
             setFlash('error', 'Invalid task data. Employee must be in your team.');
         } else {
             $stmt = $db->prepare("INSERT INTO tasks (title, description, assigned_to, assigned_by, priority, start_date, deadline) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$title, $description, $assignedTo, $managerId, $priority ?: 'medium', $startDate, $deadline]);
+            $stmt->execute([$title, $description, $assignedTo, $managerId, $priority, $startDate, $deadline]);
+            
+            if ($assignedTo != $managerId) {
+                createNotification(
+                    $assignedTo,
+                    '📋 New Task: ' . $title,
+                    ($description ? substr($description, 0, 80) : $title),
+                    BASE_URL . '/employee/tasks.php',
+                    'info'
+                );
+            }
+            
             setFlash('success', 'Task created successfully.');
-            header('Location: ' . BASE_URL . '/manager/tasks.php');
+            header('Location: ' . BASE_URL . '/manager/tasks.php?tab=assigned_by');
             exit;
         }
     }
@@ -138,9 +186,10 @@ if ($activeTab === 'assigned_to') {
     $pagination = paginate($totalRecords, $page);
 
     $stmt = $db->prepare("
-        SELECT t.*, u.name AS assigned_by_name, u.role AS assigned_by_role
+        SELECT t.*, tm.name AS team_name, u.name AS assigned_by_name, u.role AS assigned_by_role
         FROM tasks t 
         JOIN users u ON t.assigned_by = u.id 
+        LEFT JOIN teams tm ON t.team_id = tm.id
         WHERE {$whereClause}
         ORDER BY 
             CASE t.status WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'completed' THEN 3 END,
@@ -169,11 +218,13 @@ if ($activeTab === 'assigned_to') {
     $pagination = paginate($totalRecords, $page);
 
     $stmt = $db->prepare("
-        SELECT t.*, u1.name AS assigned_to_name, u1.designation AS assigned_to_designation,
+        SELECT t.*, tm.name AS team_name,
+               u1.name AS assigned_to_name, u1.designation AS assigned_to_designation,
                u2.name AS assigned_by_name, u2.role AS assigned_by_role
         FROM tasks t 
         JOIN users u1 ON t.assigned_to = u1.id 
         JOIN users u2 ON t.assigned_by = u2.id 
+        LEFT JOIN teams tm ON t.team_id = tm.id
         WHERE {$whereClause}
         ORDER BY 
             CASE t.status WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'completed' THEN 3 END,
@@ -189,6 +240,12 @@ if ($activeTab === 'assigned_to') {
 $empStmt = $db->prepare("SELECT id, name FROM users WHERE manager_id = ? AND status = 'active' ORDER BY name");
 $empStmt->execute([$managerId]);
 $myEmployees = $empStmt->fetchAll();
+
+// My custom teams / squads
+$mySquads = getManagerTeams($managerId);
+
+// Preselected team for task modal shortcut
+$preselectedTeam = get('create_for_team', '');
 
 // Edit task
 $editTask = null;
@@ -267,10 +324,15 @@ include __DIR__ . '/../includes/header.php';
                 <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
                 <div class="task-item priority-<?php echo e($task['priority']); ?> fade-in card" data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>" style="margin-bottom: 14px; padding: 16px;">
                     <div class="task-info" style="flex: 1;">
-                        <div class="task-title" style="font-size: 16px; font-weight: 600; color: var(--color-text-main);">
-                            <?php echo e($task['title']); ?>
+                        <div class="task-title" style="font-size: 16px; font-weight: 600; color: var(--color-text-main); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span><?php echo e($task['title']); ?></span>
+                            <?php if (!empty($task['team_name'])): ?>
+                                <span class="badge badge-info" style="font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="fa-solid fa-people-group" style="font-size: 10px;"></i> Squad: <?php echo e($task['team_name']); ?>
+                                </span>
+                            <?php endif; ?>
                             <?php if ($overdue): ?>
-                                <span class="badge badge-overdue" style="margin-left: 8px;">Overdue</span>
+                                <span class="badge badge-overdue">Overdue</span>
                             <?php endif; ?>
                         </div>
                         
@@ -360,7 +422,14 @@ include __DIR__ . '/../includes/header.php';
                         <?php $overdue = isOverdue($task['deadline'], $task['status']); ?>
                         <tr data-task-id="<?php echo $task['id']; ?>" data-status="<?php echo e($task['status']); ?>">
                             <td>
-                                <div class="table-user-name" style="font-weight: 600;"><?php echo e($task['title']); ?></div>
+                                <div class="table-user-name" style="font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <span><?php echo e($task['title']); ?></span>
+                                    <?php if (!empty($task['team_name'])): ?>
+                                        <span class="badge badge-info" style="font-size: 10px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                            <i class="fa-solid fa-people-group" style="font-size: 9px;"></i> <?php echo e($task['team_name']); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
                                 <div class="table-user-email" style="margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                     <span><?php echo formatDate($task['created_at']); ?></span>
                                     <span>•</span>
@@ -458,12 +527,25 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Assign To *</label>
-                        <select name="assigned_to" class="form-select" required>
-                            <option value="">Select Employee</option>
-                            <option value="team">— Assign to Entire Team —</option>
-                            <?php foreach ($myEmployees as $emp): ?>
-                                <option value="<?php echo $emp['id']; ?>"><?php echo e($emp['name']); ?></option>
-                            <?php endforeach; ?>
+                        <select name="assigned_to" class="form-select" required id="create_assigned_to">
+                            <option value="">Select Assignee / Squad</option>
+                            <?php if (!empty($mySquads)): ?>
+                                <optgroup label="🌟 My Squads & Teams (Batch Assign)">
+                                    <?php foreach ($mySquads as $sq): ?>
+                                        <option value="team_<?php echo $sq['id']; ?>" <?php echo $preselectedTeam === ('team_' . $sq['id']) ? 'selected' : ''; ?>>
+                                            👥 Squad: <?php echo e($sq['name']); ?> (<?php echo $sq['member_count']; ?> members)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endif; ?>
+                            <optgroup label="🏢 Direct Team">
+                                <option value="team" <?php echo $preselectedTeam === 'team' ? 'selected' : ''; ?>>— Assign to Entire Direct Team (<?php echo count($myEmployees); ?>) —</option>
+                            </optgroup>
+                            <optgroup label="👤 Individual Direct Employees">
+                                <?php foreach ($myEmployees as $emp): ?>
+                                    <option value="<?php echo $emp['id']; ?>" <?php echo $preselectedTeam == $emp['id'] ? 'selected' : ''; ?>><?php echo e($emp['name']); ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="form-group">
@@ -493,6 +575,16 @@ include __DIR__ . '/../includes/header.php';
         </form>
     </div>
 </div>
+
+<?php if (!empty($preselectedTeam)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof openModal === 'function') {
+        openModal('create-task-modal');
+    }
+});
+</script>
+<?php endif; ?>
 
 <!-- Edit Task Modal -->
 <?php if ($editTask): ?>

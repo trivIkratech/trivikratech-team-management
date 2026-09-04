@@ -601,4 +601,251 @@ function redirect(string $url): void {
     exit;
 }
 
+// =============================================
+// Teams & Squads Management System
+// =============================================
+
+/**
+ * Ensure teams and team_members tables exist and tasks has team_id column
+ */
+function ensureTeamsTablesExist(): void {
+    static $provisioned = false;
+    if ($provisioned) return;
+    
+    try {
+        $db = getDB();
+        
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `teams` (
+              `id` int NOT NULL AUTO_INCREMENT,
+              `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+              `description` text COLLATE utf8mb4_unicode_ci,
+              `leader_id` int NOT NULL,
+              `created_by` int NOT NULL,
+              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              KEY `idx_leader_id` (`leader_id`),
+              KEY `idx_created_by` (`created_by`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `team_members` (
+              `id` int NOT NULL AUTO_INCREMENT,
+              `team_id` int NOT NULL,
+              `user_id` int NOT NULL,
+              `role_in_team` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'member',
+              `joined_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              UNIQUE KEY `uk_team_member` (`team_id`,`user_id`),
+              KEY `idx_team_id` (`team_id`),
+              KEY `idx_user_id` (`user_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+
+        // Check if team_id column exists in tasks table
+        $stmt = $db->query("SHOW COLUMNS FROM `tasks` LIKE 'team_id'");
+        if (!$stmt->fetch()) {
+            $db->exec("ALTER TABLE `tasks` ADD COLUMN `team_id` INT NULL DEFAULT NULL AFTER `assigned_by`, ADD KEY `idx_team_id` (`team_id`)");
+        }
+
+        $provisioned = true;
+    } catch (PDOException $e) {
+        error_log("Teams table provisioning error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Get all teams with leader info and member count
+ */
+function getAllTeams(): array {
+    ensureTeamsTablesExist();
+    try {
+        $db = getDB();
+        $stmt = $db->query("
+            SELECT t.*, 
+                   u.name as leader_name, u.role as leader_role, u.email as leader_email,
+                   cb.name as creator_name,
+                   (SELECT COUNT(*) FROM team_members tm JOIN users mu ON tm.user_id = mu.id WHERE tm.team_id = t.id AND mu.status = 'active') as member_count,
+                   (SELECT COUNT(*) FROM tasks k WHERE k.team_id = t.id) as task_count,
+                   (SELECT COUNT(*) FROM tasks kc WHERE kc.team_id = t.id AND kc.status = 'completed') as completed_task_count
+            FROM teams t
+            JOIN users u ON t.leader_id = u.id
+            LEFT JOIN users cb ON t.created_by = cb.id
+            ORDER BY t.name ASC
+        ");
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Get teams accessible/managed by a specific manager
+ */
+function getManagerTeams(int $managerId): array {
+    ensureTeamsTablesExist();
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT t.*, 
+                   u.name as leader_name, u.role as leader_role, u.email as leader_email,
+                   cb.name as creator_name,
+                   (SELECT COUNT(*) FROM team_members tm JOIN users mu ON tm.user_id = mu.id WHERE tm.team_id = t.id AND mu.status = 'active') as member_count,
+                   (SELECT COUNT(*) FROM tasks k WHERE k.team_id = t.id) as task_count,
+                   (SELECT COUNT(*) FROM tasks kc WHERE kc.team_id = t.id AND kc.status = 'completed') as completed_task_count
+            FROM teams t
+            JOIN users u ON t.leader_id = u.id
+            LEFT JOIN users cb ON t.created_by = cb.id
+            WHERE t.leader_id = ? OR t.created_by = ?
+            ORDER BY t.name ASC
+        ");
+        $stmt->execute([$managerId, $managerId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Get single team by ID
+ */
+function getTeamById(int $teamId): ?array {
+    ensureTeamsTablesExist();
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT t.*, u.name as leader_name, u.role as leader_role, u.email as leader_email
+            FROM teams t
+            JOIN users u ON t.leader_id = u.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$teamId]);
+        $team = $stmt->fetch();
+        return $team ?: null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
+ * Get all members of a specific team
+ */
+function getTeamMembers(int $teamId): array {
+    ensureTeamsTablesExist();
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT u.id, u.employee_id, u.name, u.email, u.role, u.designation, u.status, tm.role_in_team, tm.joined_at
+            FROM team_members tm
+            JOIN users u ON tm.user_id = u.id
+            WHERE tm.team_id = ?
+            ORDER BY u.name ASC
+        ");
+        $stmt->execute([$teamId]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Create a new team with designated leader and member array
+ */
+function createTeam(string $name, ?string $description, int $leaderId, int $createdBy, array $memberIds = []): int {
+    ensureTeamsTablesExist();
+    $db = getDB();
+    
+    $stmt = $db->prepare("INSERT INTO teams (name, description, leader_id, created_by, created_at) VALUES (?, ?, ?, ?, NOW())");
+    $stmt->execute([trim($name), $description ? trim($description) : null, $leaderId, $createdBy]);
+    $teamId = (int)$db->lastInsertId();
+    
+    // Always include leader as a member if not already in array
+    $allMembers = array_unique(array_filter(array_map('intval', array_merge([$leaderId], $memberIds))));
+    
+    if (!empty($allMembers)) {
+        $mStmt = $db->prepare("INSERT IGNORE INTO team_members (team_id, user_id, role_in_team, joined_at) VALUES (?, ?, ?, NOW())");
+        foreach ($allMembers as $mId) {
+            $roleInTeam = ($mId === $leaderId) ? 'leader' : 'member';
+            $mStmt->execute([$teamId, $mId, $roleInTeam]);
+            
+            // Send in-app notification to member
+            if ($mId !== $createdBy) {
+                createNotification(
+                    $mId,
+                    '👥 Added to Team: ' . $name,
+                    'You have been added to the team "' . $name . '".',
+                    BASE_URL . '/employee/tasks.php',
+                    'info'
+                );
+            }
+        }
+    }
+    
+    return $teamId;
+}
+
+/**
+ * Update an existing team and sync member roster
+ */
+function updateTeam(int $teamId, string $name, ?string $description, int $leaderId, array $memberIds = []): bool {
+    ensureTeamsTablesExist();
+    $db = getDB();
+    
+    $stmt = $db->prepare("UPDATE teams SET name = ?, description = ?, leader_id = ?, updated_at = NOW() WHERE id = ?");
+    $stmt->execute([trim($name), $description ? trim($description) : null, $leaderId, $teamId]);
+    
+    // Sync members
+    $allMembers = array_unique(array_filter(array_map('intval', array_merge([$leaderId], $memberIds))));
+    
+    // Fetch existing member IDs
+    $curStmt = $db->prepare("SELECT user_id FROM team_members WHERE team_id = ?");
+    $curStmt->execute([$teamId]);
+    $existingMembers = $curStmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Remove members no longer in list
+    $toRemove = array_diff($existingMembers, $allMembers);
+    if (!empty($toRemove)) {
+        $inClause = implode(',', array_fill(0, count($toRemove), '?'));
+        $delStmt = $db->prepare("DELETE FROM team_members WHERE team_id = ? AND user_id IN ($inClause)");
+        $delStmt->execute(array_merge([$teamId], array_values($toRemove)));
+    }
+    
+    // Add new members
+    $toAdd = array_diff($allMembers, $existingMembers);
+    if (!empty($toAdd)) {
+        $insStmt = $db->prepare("INSERT IGNORE INTO team_members (team_id, user_id, role_in_team, joined_at) VALUES (?, ?, ?, NOW())");
+        foreach ($toAdd as $mId) {
+            $roleInTeam = ($mId === $leaderId) ? 'leader' : 'member';
+            $insStmt->execute([$teamId, $mId, $roleInTeam]);
+            
+            createNotification(
+                $mId,
+                '👥 Added to Team: ' . $name,
+                'You have been added to the team "' . $name . '".',
+                BASE_URL . '/employee/tasks.php',
+                'info'
+            );
+        }
+    }
+    
+    // Update leader role tag
+    $db->prepare("UPDATE team_members SET role_in_team = 'member' WHERE team_id = ?")->execute([$teamId]);
+    $db->prepare("UPDATE team_members SET role_in_team = 'leader' WHERE team_id = ? AND user_id = ?")->execute([$teamId, $leaderId]);
+    
+    return true;
+}
+
+/**
+ * Delete team
+ */
+function deleteTeam(int $teamId): bool {
+    ensureTeamsTablesExist();
+    $db = getDB();
+    $stmt = $db->prepare("DELETE FROM teams WHERE id = ?");
+    return $stmt->execute([$teamId]);
+}
+
+
 
