@@ -454,15 +454,15 @@ include __DIR__ . '/../includes/header.php';
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Emp ID</th>
-                        <th>Employee</th>
-                        <th>Manager</th>
-                        <th>Email / Contact</th>
-                        <th>Today Attendance</th>
-                        <th>Tasks (Pending)</th>
-                        <th>Tasks (Done)</th>
-                        <th>Account Status</th>
-                        <th style="text-align: right;">Actions</th>
+                        <th style="width: 100px;">Emp ID</th>
+                        <th style="min-width: 220px;">Employee</th>
+                        <th style="min-width: 110px;">Manager</th>
+                        <th style="min-width: 220px;">Email / Contact</th>
+                        <th style="text-align: center; min-width: 160px;">Today Attendance</th>
+                        <th style="text-align: center; width: 130px;">Tasks (Pending)</th>
+                        <th style="text-align: center; width: 120px;">Tasks (Done)</th>
+                        <th style="text-align: center; width: 130px;">Account Status</th>
+                        <th style="text-align: right; width: 90px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -472,33 +472,42 @@ include __DIR__ . '/../includes/header.php';
                         $isMine = ((int)($emp['manager_id'] ?? 0) === $managerId);
                     ?>
                         <tr>
-                            <td><code><?php echo e($emp['employee_id'] ?: '—'); ?></code></td>
+                            <td><span class="badge badge-secondary" style="font-family: var(--font-mono, monospace); font-size: 11.5px;"><?php echo e($emp['employee_id'] ?: '—'); ?></span></td>
                             <td>
                                 <div class="table-user">
                                     <div class="table-user-avatar"><?php echo e(getInitials($emp['name'])); ?></div>
-                                    <div>
+                                    <div class="table-user-info">
                                         <div class="table-user-name">
-                                            <?php echo e($emp['name']); ?>
+                                            <span><?php echo e($emp['name']); ?></span>
                                             <?php if ($isMine): ?>
-                                                <span class="badge badge-primary" style="font-size: 10px; margin-left: 4px;">My Team</span>
+                                                <span class="badge badge-primary" style="font-size: 10px; padding: 1px 6px;">My Team</span>
                                             <?php endif; ?>
                                         </div>
-                                        <small class="text-muted" style="font-size: var(--text-xs);"><?php echo e($emp['designation'] ?: '—'); ?></small>
+                                        <?php if (!empty($emp['designation'])): ?>
+                                            <div class="table-user-designation"><?php echo e($emp['designation']); ?></div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </td>
                             <td>
                                 <?php if ($isMine): ?>
-                                    <strong style="color: var(--color-primary); font-size: 12px;">You</strong>
+                                    <span class="badge badge-primary" style="font-size: 11px; font-weight: 600;"><i class="fa-solid fa-user-check" style="margin-right: 4px;"></i> You</span>
                                 <?php else: ?>
-                                    <span class="text-muted" style="font-size: 12px;"><?php echo e($emp['manager_name'] ?? 'Unassigned'); ?></span>
+                                    <span style="font-size: 12.5px; color: var(--color-text-secondary);"><?php echo e($emp['manager_name'] ?? 'Unassigned'); ?></span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php echo e($emp['email']); ?><br>
-                                <small class="text-muted"><?php echo e($emp['contact_no'] ?: '—'); ?></small>
+                                <div style="display: flex; flex-direction: column; gap: 3px;">
+                                    <span style="font-size: 12.5px; color: var(--color-text); font-weight: 500;"><?php echo e($emp['email']); ?></span>
+                                    <?php if (!empty($emp['contact_no'])): ?>
+                                        <span style="font-size: 11.5px; color: var(--color-text-muted); display: inline-flex; align-items: center; gap: 4px;">
+                                            <i class="fa-solid fa-phone" style="font-size: 9px; opacity: 0.7;"></i>
+                                            <?php echo e($emp['contact_no']); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
                             </td>
-                            <td>
+                            <td style="text-align: center;">
                                 <?php
                                 $hasJoined = isEmployeeJoinedOnDate($today, $emp['joining_date'] ?? null, $emp['created_at'] ?? null);
                                 if (!$hasJoined) {
@@ -536,11 +545,11 @@ include __DIR__ . '/../includes/header.php';
                                 }
                                 ?>
                             </td>
-                            <td><span class="badge badge-warning"><?php echo (int)$emp['pending_tasks']; ?></span></td>
-                            <td><span class="badge badge-success"><?php echo (int)$emp['completed_tasks']; ?></span></td>
-                            <td><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
+                            <td style="text-align: center;"><span class="badge badge-warning" style="min-width: 28px; justify-content: center; font-weight: 600;"><?php echo (int)$emp['pending_tasks']; ?></span></td>
+                            <td style="text-align: center;"><span class="badge badge-success" style="min-width: 28px; justify-content: center; font-weight: 600;"><?php echo (int)$emp['completed_tasks']; ?></span></td>
+                            <td style="text-align: center;"><span class="badge <?php echo userStatusBadge($emp['status']); ?>"><?php echo ucfirst(e($emp['status'])); ?></span></td>
                             <td style="text-align: right;">
-                                <div class="table-actions" style="display: inline-flex; gap: 4px;">
+                                <div class="table-actions" style="display: inline-flex; gap: 4px; justify-content: flex-end;">
                                     <a href="?action=edit&id=<?php echo $emp['id']; ?>" class="btn btn-ghost btn-sm" title="Edit Employee">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </a>
