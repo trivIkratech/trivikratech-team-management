@@ -133,24 +133,67 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
             </header>
 
             <script>
-            function toggleSidebarNav() {
+            window.toggleSidebarNav = function(e) {
+                if (e && e.preventDefault) e.preventDefault();
+                if (e && e.stopPropagation) e.stopPropagation();
+
                 const isDesktop = window.innerWidth > 1024;
                 const sidebar = document.querySelector('.sidebar');
                 const backdrop = document.querySelector('.sidebar-backdrop');
                 const appLayout = document.querySelector('.app-layout');
 
                 if (isDesktop) {
-                    const isCollapsed = document.documentElement.classList.toggle('sidebar-collapsed');
-                    if (appLayout) appLayout.classList.toggle('sidebar-collapsed', isCollapsed);
-                    localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+                    const isCurrentlyCollapsed = document.documentElement.classList.contains('sidebar-collapsed') ||
+                                                 (appLayout && appLayout.classList.contains('sidebar-collapsed')) ||
+                                                 document.body.classList.contains('sidebar-collapsed');
+
+                    if (isCurrentlyCollapsed) {
+                        document.documentElement.classList.remove('sidebar-collapsed');
+                        document.body.classList.remove('sidebar-collapsed');
+                        if (appLayout) appLayout.classList.remove('sidebar-collapsed');
+                        localStorage.setItem('sidebar_collapsed', 'false');
+                    } else {
+                        document.documentElement.classList.add('sidebar-collapsed');
+                        document.body.classList.add('sidebar-collapsed');
+                        if (appLayout) appLayout.classList.add('sidebar-collapsed');
+                        localStorage.setItem('sidebar_collapsed', 'true');
+                    }
                 } else {
                     if (sidebar) {
-                        const isOpen = sidebar.classList.toggle('open');
-                        if (backdrop) backdrop.classList.toggle('active', isOpen);
-                        document.body.style.overflow = isOpen ? 'hidden' : '';
+                        const isOpen = sidebar.classList.contains('open');
+                        if (isOpen) {
+                            sidebar.classList.remove('open');
+                            if (backdrop) backdrop.classList.remove('active');
+                            document.body.style.overflow = '';
+                        } else {
+                            sidebar.classList.add('open');
+                            if (backdrop) backdrop.classList.add('active');
+                            document.body.style.overflow = 'hidden';
+                        }
                     }
                 }
-            }
+            };
+
+            window.closeSidebarNav = function(e) {
+                if (e && e.preventDefault) e.preventDefault();
+                if (e && e.stopPropagation) e.stopPropagation();
+
+                const isDesktop = window.innerWidth > 1024;
+                const sidebar = document.querySelector('.sidebar');
+                const backdrop = document.querySelector('.sidebar-backdrop');
+                const appLayout = document.querySelector('.app-layout');
+
+                if (isDesktop) {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                    document.body.classList.add('sidebar-collapsed');
+                    if (appLayout) appLayout.classList.add('sidebar-collapsed');
+                    localStorage.setItem('sidebar_collapsed', 'true');
+                } else {
+                    if (sidebar) sidebar.classList.remove('open');
+                    if (backdrop) backdrop.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            };
 
             function toggleAppTheme() {
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
