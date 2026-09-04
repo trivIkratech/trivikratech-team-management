@@ -935,9 +935,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Listen for postMessage from embedded chat iframe when messages are read
+    // Listen for postMessage from embedded chat iframe (sound, toasts & badge sync)
     window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'chat_unread_updated') {
+        if (!event.data) return;
+        if (event.data.type === 'play_sound') {
+            if (typeof window.playNotificationSound === 'function') {
+                window.playNotificationSound();
+            }
+        }
+        if (event.data.type === 'show_toast' && event.data.notif) {
+            if (typeof window.showToastNotification === 'function') {
+                window.showToastNotification(event.data.notif);
+            }
+        }
+        if (event.data.type === 'chat_unread_updated') {
             window.updateChatNotificationBadges(event.data.unread_count);
         }
     });

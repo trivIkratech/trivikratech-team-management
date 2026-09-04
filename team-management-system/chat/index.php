@@ -914,11 +914,56 @@ function backToDirectoryOnMobile() {
     if (backBtn) backBtn.style.display = 'none';
 }
 
+function triggerChatNotification(title, message, isIncoming = false) {
+    // 1. Play Sound
+    if (typeof window.playNotificationSound === 'function') {
+        window.playNotificationSound();
+    }
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ type: 'play_sound' }, '*');
+        } catch(e) {}
+    }
+
+    // 2. Show Toast Popup Card at Top-Right
+    const notifObj = {
+        title: title,
+        message: message,
+        category: 'chat',
+        icon: isIncoming ? 'fa-solid fa-comments' : 'fa-solid fa-paper-plane'
+    };
+
+    if (typeof window.showToastNotification === 'function') {
+        window.showToastNotification(notifObj);
+    }
+    if (window.parent && window.parent !== window) {
+        try {
+            window.parent.postMessage({ type: 'show_toast', notif: notifObj }, '*');
+        } catch(e) {}
+    }
+}
+
+let loadedMessageIds = new Set();
+let isFirstLoadOfRoom = true;
+
 function loadMessages(roomId, isSilent = false) {
     fetch(window.BASE_URL + '/api/chat.php?action=get_messages&room_id=' + roomId)
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            if (isSilent && data.messages && data.messages.length > 0) {
+                // Find new incoming messages from others
+                const newIncoming = data.messages.filter(m => !m.is_self && !loadedMessageIds.has(m.id));
+                if (newIncoming.length > 0 && !isFirstLoadOfRoom) {
+                    newIncoming.forEach(m => {
+                        const preview = m.message || (m.file_name ? 'Shared a file: ' + m.file_name : 'New attachment');
+                        triggerChatNotification('New Message from ' + (m.sender_name || 'Team Member'), preview, true);
+                    });
+                }
+            }
+
+            data.messages.forEach(m => loadedMessageIds.add(m.id));
+            isFirstLoadOfRoom = false;
             renderMessages(data.messages);
         }
     });
@@ -1013,6 +1058,8 @@ function sendMessage() {
 
     if (!messageText && !selectedFile) return;
 
+    const previewMsg = messageText ? (messageText.length > 60 ? messageText.substring(0, 60) + '...' : messageText) : (selectedFile ? 'Attachment: ' + selectedFile.name : 'Message sent');
+
     const formData = new FormData();
     formData.append('action', 'send_message');
     formData.append('room_id', currentRoomId);
@@ -1031,6 +1078,9 @@ function sendMessage() {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            // Trigger sound and top-right popup toast notification immediately!
+            triggerChatNotification('Message Sent', previewMsg, false);
+
             input.value = '';
             clearFileAttachment();
             hideMentionPopover();
