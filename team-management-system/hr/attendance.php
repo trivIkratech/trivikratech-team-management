@@ -302,41 +302,53 @@ include __DIR__ . '/../includes/header.php';
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Emp ID</th>
-                    <th>Employee</th>
-                    <th>Manager</th>
-                    <th>Date</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                    <th>Working Time</th>
-                    <th>Status</th>
-                    <th style="text-align: right;">Action</th>
+                    <th style="width: 100px;">Emp ID</th>
+                    <th style="min-width: 220px;">Employee</th>
+                    <th style="min-width: 120px;">Manager</th>
+                    <th style="text-align: center; width: 125px; white-space: nowrap;">Date</th>
+                    <th style="text-align: center; width: 110px; white-space: nowrap;">Check In</th>
+                    <th style="text-align: center; width: 110px; white-space: nowrap;">Check Out</th>
+                    <th style="text-align: center; width: 125px; white-space: nowrap;">Working Time</th>
+                    <th style="text-align: center; min-width: 140px;">Status</th>
+                    <th style="text-align: right; width: 90px;">Action</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($records as $record): ?>
                     <tr>
-                        <td><code><?php echo e($record['employee_id'] ?: '—'); ?></code></td>
+                        <td><span class="badge badge-secondary" style="font-family: var(--font-mono, monospace); font-size: 11.5px;"><?php echo e($record['employee_id'] ?: '—'); ?></span></td>
                         <td>
                             <div class="table-user">
                                 <div class="table-user-avatar"><?php echo e(getInitials($record['name'])); ?></div>
-                                <div>
+                                <div class="table-user-info">
                                     <div class="table-user-name"><?php echo e($record['name']); ?></div>
                                     <div class="table-user-email">
                                         <?php if (!empty($record['designation'])): ?>
-                                            <?php echo e($record['designation']); ?> • 
+                                            <span style="color: var(--color-text-secondary);"><?php echo e($record['designation']); ?></span> • 
                                         <?php endif; ?>
-                                        <?php echo e($record['email']); ?>
+                                        <span><?php echo e($record['email']); ?></span>
                                     </div>
                                 </div>
                             </div>
                         </td>
-                        <td><?php echo e($record['manager_name'] ?: '—'); ?></td>
-                        <td><?php echo formatDate($record['attendance_date']); ?></td>
-                        <td><?php echo !empty($record['check_in']) ? formatTime($record['check_in']) : '<span class="text-muted">—</span>'; ?></td>
-                        <td><?php echo !empty($record['check_out']) ? formatTime($record['check_out']) : '<span class="text-muted">—</span>'; ?></td>
-                        <td><?php echo !empty($record['total_working_time']) ? e($record['total_working_time']) : '<span class="text-muted">—</span>'; ?></td>
-                        <td>
+                        <td><span style="font-size: 12.5px; color: var(--color-text-secondary);"><?php echo e($record['manager_name'] ?: '—'); ?></span></td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <span style="font-weight: 500; font-size: 12.5px;"><?php echo formatDate($record['attendance_date']); ?></span>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php echo !empty($record['check_in']) ? '<span style="font-weight: 500; font-size: 12.5px;">' . formatTime($record['check_in']) . '</span>' : '<span class="text-muted">—</span>'; ?>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php echo !empty($record['check_out']) ? '<span style="font-weight: 500; font-size: 12.5px;">' . formatTime($record['check_out']) . '</span>' : '<span class="text-muted">—</span>'; ?>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php if (!empty($record['total_working_time'])): ?>
+                                <span class="badge badge-secondary" style="font-family: var(--font-mono, monospace); font-size: 11.5px;"><?php echo e($record['total_working_time']); ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="text-align: center;">
                             <?php
                             $resolvedStatus = resolveAttendanceStatus(
                                 $record['check_in'],

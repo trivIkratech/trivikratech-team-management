@@ -105,23 +105,35 @@ include __DIR__ . '/../includes/header.php';
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Check In</th>
-                    <th>Check Out</th>
-                    <th>Working Time</th>
-                    <th>Status</th>
+                    <th style="min-width: 180px;">Date</th>
+                    <th style="text-align: center; width: 130px; white-space: nowrap;">Check In</th>
+                    <th style="text-align: center; width: 130px; white-space: nowrap;">Check Out</th>
+                    <th style="text-align: center; width: 140px; white-space: nowrap;">Working Time</th>
+                    <th style="text-align: center; width: 140px;">Status</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($records as $record): ?>
                     <tr>
-                        <td>
-                            <strong><?php echo formatDate($record['date'], 'D, d M Y'); ?></strong>
+                        <td style="white-space: nowrap;">
+                            <strong style="font-size: 13px;"><?php echo formatDate($record['date'], 'D, d M Y'); ?></strong>
                         </td>
-                        <td><?php echo formatTime($record['check_in']); ?></td>
-                        <td><?php echo formatTime($record['check_out']); ?></td>
-                        <td><?php echo $record['total_working_time'] ?: '—'; ?></td>
-                        <td><span class="badge <?php echo attendanceStatusBadge($record['status']); ?>"><?php echo ucfirst(e($record['status'])); ?></span></td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php echo !empty($record['check_in']) ? '<span style="font-weight: 500;">' . formatTime($record['check_in']) . '</span>' : '<span class="text-muted">—</span>'; ?>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php echo !empty($record['check_out']) ? '<span style="font-weight: 500;">' . formatTime($record['check_out']) . '</span>' : '<span class="text-muted">—</span>'; ?>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <?php if (!empty($record['total_working_time'])): ?>
+                                <span class="badge badge-secondary" style="font-family: var(--font-mono, monospace); font-size: 11.5px;"><?php echo e($record['total_working_time']); ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="text-align: center;">
+                            <span class="badge <?php echo attendanceStatusBadge($record['status']); ?>"><?php echo ucfirst(e($record['status'])); ?></span>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
