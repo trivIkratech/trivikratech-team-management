@@ -1,0 +1,60 @@
+name: CI/CD Subdomain Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'team-management-system/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  # 1. Continuous Integration (CI): Test & Validate PHP syntax
+  lint_and_validate:
+    name: Code Quality & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_mysql
+
+      - name: Validate PHP Syntax across all files
+        run: |
+          echo "Scanning PHP files for syntax errors..."
+          find team-management-system -name "*.php" -exec php -l {} +
+
+  # 2. Continuous Deployment (CD): Deploy to Subdomain via FTP/SFTP
+  deploy:
+    name: Deploy to Subdomain
+    needs: lint_and_validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Sync & Deploy to Subdomain via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp # or 'ftps' / 'sftp'
+          port: ${{ secrets.FTP_PORT || 21 }}
+          local-dir: ./team-management-system/
+          server-dir: ${{ secrets.SUBDOMAIN_PATH || 'public_html/' }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/uploads/**
+            **/database/schema.sql
+            **/.DS_Store
