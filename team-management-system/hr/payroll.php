@@ -22,13 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'update_bas
     requireCsrf();
     $empId = (int)post('user_id');
     $newSalary = (float)post('base_salary');
+    $monthParam = post('month') ?: get('month', date('Y-m'));
     
     if ($empId > 0 && $newSalary >= 0) {
         $stmt = $db->prepare("UPDATE users SET base_salary = ? WHERE id = ?");
         $stmt->execute([$newSalary, $empId]);
         setFlash('success', 'Base salary updated successfully.');
     }
-    header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . get('month', date('Y-m')));
+    header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . urlencode($monthParam));
     exit;
 }
 
@@ -206,38 +207,49 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- Overview 4-Metric Grid -->
+<?php 
+$empCount = count($employees);
+$totalBaseSalary = array_sum(array_map(function($p) {
+    return (float)($p['user']['base_salary'] ?? 0);
+}, $payrollData));
+$totalNetPayable = array_sum(array_column($payrollData, 'net_salary'));
+$avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
+$avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
+?>
 <div class="stats-grid" style="margin-bottom: 24px;">
+    <!-- Card 1: Total Monthly Base Salary Commitment -->
     <div class="stat-card accent-blue fade-in stagger-1">
         <div class="stat-icon bg-blue"><i class="fa-solid fa-file-invoice-dollar"></i></div>
         <div class="stat-content">
-            <?php 
-            $totalPayrollBudget = array_sum(array_column($payrollData, 'net_salary'));
-            $empCount = count($employees);
-            $avgSalary = $empCount > 0 ? ($totalPayrollBudget / $empCount) : 0;
-            ?>
-            <div class="stat-value">₹<?php echo number_format($totalPayrollBudget, 2); ?></div>
-            <div class="stat-label">Total Monthly Payroll (<?php echo date('F Y', strtotime($startDateStr)); ?>)</div>
+            <div class="stat-value">₹<?php echo number_format($totalBaseSalary, 2); ?></div>
+            <div class="stat-label">Total Monthly Base Salary (<?php echo date('F Y', strtotime($startDateStr)); ?>)</div>
         </div>
     </div>
-    <div class="stat-card accent-purple fade-in stagger-2">
-        <div class="stat-icon bg-purple"><i class="fa-solid fa-users"></i></div>
+
+    <!-- Card 2: Total Net Calculated Payable -->
+    <div class="stat-card accent-green fade-in stagger-2">
+        <div class="stat-icon bg-green"><i class="fa-solid fa-sack-dollar"></i></div>
         <div class="stat-content">
-            <div class="stat-value"><?php echo $empCount; ?></div>
-            <div class="stat-label">Total Employees on Payroll</div>
+            <div class="stat-value" style="color: var(--color-success);">₹<?php echo number_format($totalNetPayable, 2); ?></div>
+            <div class="stat-label">Net Payable Salary (Till Date)</div>
         </div>
     </div>
+
+    <!-- Card 3: Average Base Salary per Employee -->
     <div class="stat-card accent-orange fade-in stagger-3">
         <div class="stat-icon bg-warning"><i class="fa-solid fa-chart-pie"></i></div>
         <div class="stat-content">
-            <div class="stat-value">₹<?php echo number_format($avgSalary, 2); ?></div>
-            <div class="stat-label">Average Payout per Employee</div>
+            <div class="stat-value">₹<?php echo number_format($avgBaseSalary, 2); ?></div>
+            <div class="stat-label">Average Base Salary per Employee</div>
         </div>
     </div>
-    <div class="stat-card accent-green fade-in stagger-4">
-        <div class="stat-icon bg-green"><i class="fa-solid fa-calendar-days"></i></div>
+
+    <!-- Card 4: Total Employees & Month Days -->
+    <div class="stat-card accent-purple fade-in stagger-4">
+        <div class="stat-icon bg-purple"><i class="fa-solid fa-users"></i></div>
         <div class="stat-content">
-            <div class="stat-value"><?php echo $daysInMonth; ?> Days</div>
-            <div class="stat-label">Days in <?php echo date('F Y', strtotime($startDateStr)); ?></div>
+            <div class="stat-value"><?php echo $empCount; ?> Employees</div>
+            <div class="stat-label"><?php echo $daysInMonth; ?> Days in <?php echo date('F Y', strtotime($startDateStr)); ?></div>
         </div>
     </div>
 </div>
@@ -451,11 +463,12 @@ include __DIR__ . '/../includes/header.php';
         <form method="POST" action="">
             <?php echo csrfField(); ?>
             <input type="hidden" name="form_action" value="update_base_salary">
+            <input type="hidden" name="month" value="<?php echo e($selectedMonthStr); ?>">
             <input type="hidden" name="user_id" id="edit_user_id" value="">
             
             <div class="form-group" style="margin-bottom: 16px;">
                 <label class="form-label">Base Monthly Salary (₹) *</label>
-                <input type="number" step="500" name="base_salary" id="edit_base_salary" class="form-input" required placeholder="e.g. 35000">
+                <input type="number" step="0.01" name="base_salary" id="edit_base_salary" class="form-input" required placeholder="e.g. 35000">
             </div>
 
             <div class="form-actions" style="margin-top: 20px;">
