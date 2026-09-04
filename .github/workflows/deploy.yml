@@ -5,9 +5,7 @@ on:
     branches:
       - main
       - master
-    paths:
-      - 'team-management-system/**'
-      - '.github/workflows/deploy.yml'
+  workflow_dispatch: # Allows manual 1-click execution from GitHub Actions UI
 
 jobs:
   # 1. Continuous Integration (CI): Test & Validate PHP syntax
@@ -29,7 +27,7 @@ jobs:
           echo "Scanning PHP files for syntax errors..."
           find team-management-system -name "*.php" -exec php -l {} +
 
-  # 2. Continuous Deployment (CD): Deploy to Subdomain via FTP/SFTP
+  # 2. Continuous Deployment (CD): Deploy to Subdomain via FTP
   deploy:
     name: Deploy to Subdomain
     needs: lint_and_validate
@@ -46,10 +44,10 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp # or 'ftps' / 'sftp'
-          port: ${{ secrets.FTP_PORT || 21 }}
+          protocol: ftp
+          port: 21
           local-dir: ./team-management-system/
-          server-dir: ${{ secrets.SUBDOMAIN_PATH || 'public_html/' }}
+          server-dir: ${{ secrets.SUBDOMAIN_PATH || './' }}
           dangerous-clean-slate: false
           exclude: |
             **/.git*
