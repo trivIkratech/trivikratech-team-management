@@ -317,7 +317,6 @@ CREATE TABLE `users` (
   `role` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'employee',
   `manager_id` int DEFAULT NULL,
   `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
-  `last_activity` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

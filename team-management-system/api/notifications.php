@@ -22,9 +22,6 @@ $db = getDB();
 $userId = getUserId();
 $action = post('action') ?: get('action');
 
-// Update user activity for online presence
-updateUserLastActivity($userId);
-
 // Automatically reset / clean notifications older than today
 resetDailyNotifications();
 
