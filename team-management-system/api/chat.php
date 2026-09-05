@@ -30,6 +30,9 @@ $currentUserId = (int)$currentUser['id'];
 $userRole = $currentUser['role'] ?? '';
 $action = post('action') ?: get('action');
 
+// Update current user's activity timestamp
+updateUserLastActivity($currentUserId);
+
 /**
  * Format clickable URLs and @mentions inside text messages
  */
@@ -84,11 +87,11 @@ try {
         $stmt->execute([$currentUserId, $currentUserId]);
         $rooms = $stmt->fetchAll();
         
-        // For direct rooms, format partner name and avatar
+        // For direct rooms, format partner name, avatar, and online status
         foreach ($rooms as &$room) {
             if ($room['type'] === 'direct') {
                 $pStmt = $db->prepare("
-                    SELECT u.id, u.name, u.role, u.designation 
+                    SELECT u.id, u.name, u.role, u.designation, u.last_activity 
                     FROM chat_room_members rm 
                     JOIN users u ON rm.user_id = u.id 
                     WHERE rm.room_id = ? AND rm.user_id != ? 
@@ -102,17 +105,32 @@ try {
                     $room['designation'] = $partner['designation'];
                     $room['partner_id'] = $partner['id'];
                     $room['initials'] = getInitials($partner['name']);
+                    
+                    $st = formatLastSeen($partner['last_activity'] ?? null);
+                    $room['is_online'] = $st['is_online'];
+                    $room['status_text'] = $st['status_text'];
+                    $room['last_seen_text'] = $st['last_seen_text'];
                 }
             } else {
                 $room['initials'] = ($room['id'] == 1) ? '<i class="fa-solid fa-bullhorn"></i>' : '<i class="fa-solid fa-users"></i>';
+                
+                // Count online members in group
+                $onlStmt = $db->prepare("
+                    SELECT COUNT(*) 
+                    FROM chat_room_members rm 
+                    JOIN users u ON rm.user_id = u.id 
+                    WHERE rm.room_id = ? AND u.last_activity >= (NOW() - INTERVAL 150 SECOND)
+                ");
+                $onlStmt->execute([$room['id']]);
+                $room['online_count'] = (int)$onlStmt->fetchColumn();
             }
             $room['formatted_time'] = $room['last_time'] ? timeAgo($room['last_time']) : '';
             $room['can_clear_history'] = ($room['type'] === 'direct' || $room['created_by'] == $currentUserId || $userRole === ROLE_FOUNDER);
         }
         
-        // Fetch ALL specific persons categorized by role with accurate per-user unread counts
+        // Fetch ALL specific persons categorized by role with accurate per-user unread counts & online status
         $uStmt = $db->prepare("
-            SELECT u.id, u.name, u.role, u.designation,
+            SELECT u.id, u.name, u.role, u.designation, u.last_activity,
                    (SELECT COUNT(*) 
                     FROM chat_messages m 
                     JOIN chat_rooms r ON m.room_id = r.id 
@@ -128,6 +146,10 @@ try {
 
         foreach ($allUsers as &$u) {
             $u['initials'] = getInitials($u['name']);
+            $st = formatLastSeen($u['last_activity'] ?? null);
+            $u['is_online'] = $st['is_online'];
+            $u['status_text'] = $st['status_text'];
+            $u['last_seen_text'] = $st['last_seen_text'];
         }
         
         echo json_encode([
@@ -301,10 +323,54 @@ try {
             }
         }
         
+        // Fetch active room info and online status
+        $roomInfo = null;
+        $rMetaStmt = $db->prepare("SELECT id, name, type, created_by FROM chat_rooms WHERE id = ?");
+        $rMetaStmt->execute([$roomId]);
+        $rMeta = $rMetaStmt->fetch();
+        if ($rMeta) {
+            if ($rMeta['type'] === 'direct') {
+                $pStmt = $db->prepare("SELECT u.id, u.name, u.role, u.designation, u.last_activity FROM chat_room_members rm JOIN users u ON rm.user_id = u.id WHERE rm.room_id = ? AND rm.user_id != ? LIMIT 1");
+                $pStmt->execute([$roomId, $currentUserId]);
+                $partner = $pStmt->fetch();
+                if ($partner) {
+                    $st = formatLastSeen($partner['last_activity'] ?? null);
+                    $roomInfo = [
+                        'id' => $roomId,
+                        'name' => $partner['name'],
+                        'type' => 'direct',
+                        'role' => $partner['role'],
+                        'designation' => $partner['designation'] ?: ucfirst($partner['role']),
+                        'partner_id' => (int)$partner['id'],
+                        'is_online' => $st['is_online'],
+                        'last_seen_text' => $st['last_seen_text'],
+                        'status_text' => $st['status_text']
+                    ];
+                }
+            } else {
+                $memCountStmt = $db->prepare("SELECT COUNT(*) FROM chat_room_members WHERE room_id = ?");
+                $memCountStmt->execute([$roomId]);
+                $memCount = (int)$memCountStmt->fetchColumn();
+                
+                $onlStmt = $db->prepare("SELECT COUNT(*) FROM chat_room_members rm JOIN users u ON rm.user_id = u.id WHERE rm.room_id = ? AND u.last_activity >= (NOW() - INTERVAL 150 SECOND)");
+                $onlStmt->execute([$roomId]);
+                $onlCount = (int)$onlStmt->fetchColumn();
+                
+                $roomInfo = [
+                    'id' => $roomId,
+                    'name' => $rMeta['name'],
+                    'type' => 'group',
+                    'member_count' => $memCount,
+                    'online_count' => $onlCount
+                ];
+            }
+        }
+        
         echo json_encode([
             'success' => true,
             'messages' => $messages,
             'max_id' => $maxId,
+            'room_info' => $roomInfo,
             'is_incremental' => ($sinceId > 0)
         ]);
         
@@ -574,7 +640,7 @@ try {
         }
         
         $mStmt = $db->prepare("
-            SELECT u.id, u.name, u.role, u.designation, u.email, rm.joined_at,
+            SELECT u.id, u.name, u.role, u.designation, u.email, u.last_activity, rm.joined_at,
                    (u.id = ?) AS is_creator
             FROM chat_room_members rm
             JOIN users u ON rm.user_id = u.id
@@ -587,6 +653,10 @@ try {
         foreach ($members as &$m) {
             $m['initials'] = getInitials($m['name']);
             $m['joined_formatted'] = $m['joined_at'] ? formatDate($m['joined_at']) : '';
+            $st = formatLastSeen($m['last_activity'] ?? null);
+            $m['is_online'] = $st['is_online'];
+            $m['status_text'] = $st['status_text'];
+            $m['last_seen_text'] = $st['last_seen_text'];
         }
         
         $canDeleteGroup = ($room['id'] != 1 && ($room['created_by'] == $currentUserId || $userRole === ROLE_FOUNDER));
@@ -595,9 +665,15 @@ try {
         // Get non-members to allow adding
         $currentMemberIds = array_column($members, 'id');
         $placeholders = implode(',', array_fill(0, count($currentMemberIds), '?'));
-        $nonMemStmt = $db->prepare("SELECT id, name, role, designation FROM users WHERE status = 'active' AND id NOT IN ({$placeholders}) ORDER BY name ASC");
+        $nonMemStmt = $db->prepare("SELECT id, name, role, designation, last_activity FROM users WHERE status = 'active' AND id NOT IN ({$placeholders}) ORDER BY name ASC");
         $nonMemStmt->execute($currentMemberIds);
         $availableUsers = $nonMemStmt->fetchAll();
+        
+        foreach ($availableUsers as &$au) {
+            $st = formatLastSeen($au['last_activity'] ?? null);
+            $au['is_online'] = $st['is_online'];
+            $au['status_text'] = $st['status_text'];
+        }
         
         echo json_encode([
             'success' => true,

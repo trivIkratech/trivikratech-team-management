@@ -562,6 +562,92 @@ body.narrow-embed .hide-on-narrow {
     align-items: center;
     justify-content: center;
 }
+
+/* User Online/Offline Status Dots & Badges */
+.user-status-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 2px solid var(--color-bg-secondary);
+    background: #64748b;
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.user-status-dot.online {
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+}
+
+.user-status-dot.offline {
+    background: #64748b;
+    opacity: 0.75;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.status-pill.online {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.status-pill.offline {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--color-text-muted);
+}
+
+.status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+}
+
+.status-pill.online .dot {
+    box-shadow: 0 0 6px #10b981;
+    animation: statusPulse 2s infinite ease-in-out;
+}
+
+@keyframes statusPulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.user-online-text {
+    font-size: 10px;
+    font-weight: 500;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.user-online-text.online {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.user-online-text.offline {
+    color: var(--color-text-muted);
+}
 </style>
 
 <div class="chat-app-container fade-in">
@@ -876,12 +962,16 @@ function renderDirectory(rooms, users) {
         publicRooms.forEach(r => {
             const isActive = (r.id === currentRoomId) ? 'active' : '';
             const badge = r.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${r.unread_count}</span>` : '';
+            const onlineText = (r.online_count > 0) ? `<span style="color: #10b981; font-weight: 600;"><i class="fa-solid fa-circle" style="font-size: 6px; vertical-align: middle; margin-right: 3px;"></i>${r.online_count} online</span> • ` : '';
             html += `
                 <div class="chat-room-item ${isActive}" onclick="switchRoom(${r.id})">
-                    <div class="chat-room-avatar" style="background: var(--color-primary);"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div class="chat-room-avatar" style="background: var(--color-primary);">
+                        <i class="fa-solid fa-bullhorn"></i>
+                        <span class="user-status-dot online" title="Active Channel"></span>
+                    </div>
                     <div class="chat-room-info">
                         <div class="chat-room-name">${escapeHtml(r.name)}</div>
-                        <div class="chat-room-preview">${escapeHtml(r.last_message || 'Team general discussion')}</div>
+                        <div class="chat-room-preview">${onlineText}${escapeHtml(r.last_message || 'Team general discussion')}</div>
                     </div>
                     ${badge}
                 </div>
@@ -896,12 +986,16 @@ function renderDirectory(rooms, users) {
         customGroups.forEach(r => {
             const isActive = (r.id === currentRoomId) ? 'active' : '';
             const badge = r.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${r.unread_count}</span>` : '';
+            const onlineText = (r.online_count > 0) ? `<span style="color: #10b981; font-weight: 600;">${r.online_count} online</span> • ` : '';
             html += `
                 <div class="chat-room-item ${isActive}" onclick="switchRoom(${r.id})">
-                    <div class="chat-room-avatar" style="background: #8b5cf6;"><i class="fa-solid fa-users"></i></div>
+                    <div class="chat-room-avatar" style="background: #8b5cf6;">
+                        <i class="fa-solid fa-users"></i>
+                        <span class="user-status-dot ${r.online_count > 0 ? 'online' : 'offline'}"></span>
+                    </div>
                     <div class="chat-room-info">
                         <div class="chat-room-name">${escapeHtml(r.name)}</div>
-                        <div class="chat-room-preview"><i class="fa-solid fa-user-group" style="font-size: 10px;"></i> ${r.member_count || 2} members • ${escapeHtml(r.last_message || 'Group created')}</div>
+                        <div class="chat-room-preview"><i class="fa-solid fa-user-group" style="font-size: 10px;"></i> ${onlineText}${r.member_count || 2} members • ${escapeHtml(r.last_message || 'Group created')}</div>
                     </div>
                     ${badge}
                 </div>
@@ -922,16 +1016,24 @@ function renderDirectory(rooms, users) {
             const isActive = (roomId && roomId === currentRoomId) ? 'active' : '';
             const unreadBadge = u.unread_count > 0 ? `<span class="badge badge-danger" style="border-radius: 50%; font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0;">${u.unread_count}</span>` : '';
             const roleBadgeClass = 'badge-role-' + u.role;
+            const isOnline = !!u.is_online;
+            const statusLabel = isOnline ? '● Online' : (u.last_seen_text || 'Offline');
 
             html += `
                 <div class="chat-room-item ${isActive}" onclick="startDMWithUser(${u.id})">
-                    <div class="chat-room-avatar">${u.initials}</div>
+                    <div class="chat-room-avatar">
+                        ${u.initials}
+                        <span class="user-status-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : (u.last_seen_text || 'Offline')}"></span>
+                    </div>
                     <div class="chat-room-info">
-                        <div class="chat-room-name" style="display: flex; align-items: center; gap: 6px;">
-                            <span>${escapeHtml(u.name)}</span>
+                        <div class="chat-room-name" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                            <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(u.name)}</span>
                             <span class="chat-role-badge ${roleBadgeClass}">${u.role}</span>
                         </div>
-                        <div class="chat-room-preview">${escapeHtml(u.designation || ucfirst(u.role))}</div>
+                        <div class="chat-room-preview" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                            <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(u.designation || ucfirst(u.role))}</span>
+                            <span class="user-online-text ${isOnline ? 'online' : 'offline'}">${statusLabel}</span>
+                        </div>
                     </div>
                     ${unreadBadge}
                 </div>
@@ -949,6 +1051,46 @@ function filterDirectory() {
     renderDirectory(filteredRooms, filteredUsers);
 }
 
+function updateActiveRoomHeaderUI(roomInfo) {
+    if (!roomInfo) return;
+    const nameEl = document.getElementById('active-room-name');
+    const subEl = document.getElementById('active-room-subtitle');
+    if (!nameEl || !subEl) return;
+
+    nameEl.textContent = roomInfo.name || 'Chat';
+    
+    if (roomInfo.type === 'direct') {
+        const isOnline = !!roomInfo.is_online;
+        const statusText = isOnline ? 'Online' : (roomInfo.last_seen_text || 'Offline');
+        const roleBadge = roomInfo.role ? `<span class="chat-role-badge badge-role-${roomInfo.role}" style="margin-right: 6px;">${roomInfo.role}</span>` : '';
+        const desig = roomInfo.designation ? `<span class="text-muted" style="font-size: 11px; margin-left: 6px;">(${escapeHtml(roomInfo.designation)})</span>` : '';
+        
+        subEl.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px;">
+                ${roleBadge}
+                <span class="status-pill ${isOnline ? 'online' : 'offline'}">
+                    <span class="dot"></span> ${statusText}
+                </span>
+                ${desig}
+            </div>
+        `;
+    } else {
+        const onlineCount = roomInfo.online_count || 0;
+        const memberCount = roomInfo.member_count || 2;
+        const groupLabel = (roomInfo.id === 1) ? 'Public Team Channel' : `Custom Group`;
+        
+        subEl.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                <span>${groupLabel}</span>
+                <span class="status-pill ${onlineCount > 0 ? 'online' : 'offline'}">
+                    <span class="dot"></span> ${onlineCount} Online
+                </span>
+                <span class="text-muted" style="font-size: 11px;">• ${memberCount} members</span>
+            </div>
+        `;
+    }
+}
+
 function switchRoom(roomId) {
     currentRoomId = roomId;
     isFirstLoadOfRoom = true;
@@ -963,12 +1105,7 @@ function switchRoom(roomId) {
 
     const activeRoom = roomsData.find(r => r.id === roomId);
     if (activeRoom) {
-        document.getElementById('active-room-name').textContent = activeRoom.name;
-        let sub = 'Direct Conversation';
-        if (activeRoom.type === 'group') {
-            sub = (activeRoom.id === 1) ? 'Public Team Channel' : `Custom Group (${activeRoom.member_count || 2} members)`;
-        }
-        document.getElementById('active-room-subtitle').textContent = sub;
+        updateActiveRoomHeaderUI(activeRoom);
         
         const actionsBar = document.getElementById('room-actions-bar');
         if (actionsBar) {
@@ -1144,6 +1281,11 @@ function loadMessages(roomId, isSilent = false) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
+            // Live update header status if available
+            if (data.room_info && currentRoomId === roomId) {
+                updateActiveRoomHeaderUI(data.room_info);
+            }
+
             if (sinceId > 0) {
                 // Incremental fetch
                 if (data.messages && data.messages.length > 0) {
@@ -1446,6 +1588,8 @@ function openViewGroupMembersModal(roomId = null) {
             data.members.forEach(m => {
                 const roleClass = 'badge-role-' + m.role;
                 const adminBadge = (m.is_creator == 1) ? '<span class="badge badge-primary" style="font-size: 9px; padding: 1px 6px; margin-left: 6px;"><i class="fa-solid fa-crown" style="font-size: 8px;"></i> Admin</span>' : '';
+                const isOnline = !!m.is_online;
+                const statusText = isOnline ? 'Online' : (m.last_seen_text || 'Offline');
                 
                 let removeBtn = '';
                 if (data.is_admin_or_founder && m.is_creator != 1) {
@@ -1459,10 +1603,14 @@ function openViewGroupMembersModal(roomId = null) {
                 html += `
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--color-border);">
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">${m.initials}</div>
+                            <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">
+                                ${m.initials}
+                                <span class="user-status-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : (m.last_seen_text || 'Offline')}"></span>
+                            </div>
                             <div>
-                                <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main); display: flex; align-items: center;">
+                                <div style="font-size: 13px; font-weight: 600; color: var(--color-text-main); display: flex; align-items: center; gap: 6px;">
                                     ${escapeHtml(m.name)} ${adminBadge}
+                                    <span class="status-pill ${isOnline ? 'online' : 'offline'}" style="font-size: 9.5px; padding: 1px 6px;"><span class="dot"></span> ${statusText}</span>
                                 </div>
                                 <div style="font-size: 11px; color: var(--color-text-muted);">${escapeHtml(m.designation || ucfirst(m.role))} • Joined: ${m.joined_formatted}</div>
                             </div>
@@ -1711,14 +1859,22 @@ function populateNewDMUsers(users, currentUserId) {
     users.forEach(u => {
         if (u.id === currentUserId) return;
         const roleClass = 'badge-role-' + u.role;
+        const isOnline = !!u.is_online;
+        const statusText = isOnline ? 'Online' : (u.last_seen_text || 'Offline');
         html += `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--color-border); cursor: pointer;" onclick="startDMWithUser(${u.id})">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">${u.initials}</div>
+                    <div class="chat-room-avatar" style="width: 32px; height: 32px; font-size: 11px;">
+                        ${u.initials}
+                        <span class="user-status-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : (u.last_seen_text || 'Offline')}"></span>
+                    </div>
                     <div>
-                        <strong style="font-size: 13px; color: var(--color-text-main);">${escapeHtml(u.name)}</strong>
-                        <span class="chat-role-badge ${roleClass}" style="margin-left: 6px;">${u.role}</span>
-                        <div class="text-muted" style="font-size: 11px;">${escapeHtml(u.designation || ucfirst(u.role))}</div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <strong style="font-size: 13px; color: var(--color-text-main);">${escapeHtml(u.name)}</strong>
+                            <span class="chat-role-badge ${roleClass}">${u.role}</span>
+                            <span class="status-pill ${isOnline ? 'online' : 'offline'}" style="font-size: 9.5px; padding: 1px 6px;"><span class="dot"></span> ${statusText}</span>
+                        </div>
+                        <div class="text-muted" style="font-size: 11px; margin-top: 2px;">${escapeHtml(u.designation || ucfirst(u.role))}</div>
                     </div>
                 </div>
                 <button class="btn btn-primary btn-sm" style="font-size: 11px;"><i class="fa-solid fa-comments"></i> Message</button>

@@ -31,12 +31,12 @@ $announcements = [];
 
 if ($managerId) {
     // Get Manager details
-    $stmt = $db->prepare("SELECT id, name, email, contact_no, designation, employee_id FROM users WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, name, email, contact_no, designation, employee_id, last_activity FROM users WHERE id = ?");
     $stmt->execute([$managerId]);
     $manager = $stmt->fetch();
     
     // Get other team members under the same manager
-    $stmt = $db->prepare("SELECT id, name, email, designation, status FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name ASC");
+    $stmt = $db->prepare("SELECT id, name, email, designation, status, last_activity FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name ASC");
     $stmt->execute([$managerId]);
     $teamMembers = $stmt->fetchAll();
     
@@ -120,16 +120,24 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php else: ?>
     <!-- Assigned Manager Profile Card -->
+    <?php 
+    $mgrStatus = formatLastSeen($manager['last_activity'] ?? null);
+    $mgrOnline = $mgrStatus['is_online'];
+    ?>
     <div class="card fade-in mb-6" style="background: linear-gradient(135deg, rgba(79, 110, 247, 0.08), rgba(139, 92, 246, 0.08)); border: 1px solid var(--color-primary-border); padding: 22px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <div style="width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
+                <div style="position: relative; width: 58px; height: 58px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #ef4444); color: white; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35); flex-shrink: 0;">
                     <?php echo e(getInitials($manager['name'])); ?>
+                    <span class="user-status-dot <?php echo $mgrOnline ? 'online' : 'offline'; ?>" style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--color-bg-card); background: <?php echo $mgrOnline ? '#10b981' : '#64748b'; ?>;" title="<?php echo $mgrOnline ? 'Online' : $mgrStatus['last_seen_text']; ?>"></span>
                 </div>
                 <div>
                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--color-text-white);"><?php echo e($manager['name']); ?></h2>
                         <span class="chat-role-badge badge-role-manager" style="font-size: 11px; padding: 2px 8px;"><i class="fa-solid fa-user-tie"></i> Assigned Reporting Manager</span>
+                        <span class="badge <?php echo $mgrOnline ? 'badge-success' : 'badge-secondary'; ?>" style="font-size: 10.5px; padding: 2px 8px;">
+                            <i class="fa-solid fa-circle" style="font-size: 6px; vertical-align: middle; margin-right: 3px;"></i> <?php echo $mgrOnline ? 'Online' : $mgrStatus['last_seen_text']; ?>
+                        </span>
                     </div>
                     <div style="font-size: 13px; color: var(--color-primary); margin-top: 4px; font-weight: 500;">
                         <?php echo e($manager['designation'] ?: 'Team Manager'); ?>
@@ -198,19 +206,27 @@ include __DIR__ . '/../includes/header.php';
                     <div class="text-muted" style="font-size: var(--text-sm); text-align: center; padding: var(--space-3);">No other team members assigned to this manager yet.</div>
                 <?php else: ?>
                     <?php foreach ($teamMembers as $member): ?>
+                        <?php 
+                        $memStatus = formatLastSeen($member['last_activity'] ?? null);
+                        $memOnline = $memStatus['is_online'];
+                        ?>
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border);">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <div class="table-user-avatar" style="<?php echo $member['id'] == $userId ? 'background: linear-gradient(135deg, #4f6ef7, #06b6d4); color:white;' : 'background: var(--color-bg-tertiary); color: var(--color-text-main);'; ?>">
+                                <div class="table-user-avatar" style="position: relative; <?php echo $member['id'] == $userId ? 'background: linear-gradient(135deg, #4f6ef7, #06b6d4); color:white;' : 'background: var(--color-bg-tertiary); color: var(--color-text-main);'; ?>">
                                     <?php echo e(getInitials($member['name'])); ?>
+                                    <span style="position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--color-bg-card); background: <?php echo $memOnline ? '#10b981' : '#64748b'; ?>;" title="<?php echo $memOnline ? 'Online' : $memStatus['last_seen_text']; ?>"></span>
                                 </div>
                                 <div>
-                                    <div style="font-weight: 600; font-size: 13.5px; color: var(--color-text-white);">
+                                    <div style="font-weight: 600; font-size: 13.5px; color: var(--color-text-white); display: flex; align-items: center; gap: 6px;">
                                         <?php echo e($member['name']); ?> 
                                         <?php if ($member['id'] == $userId): ?>
-                                            <span class="badge badge-primary" style="font-size: 10px; margin-left: 4px;">You</span>
+                                            <span class="badge badge-primary" style="font-size: 10px;">You</span>
                                         <?php endif; ?>
+                                        <span class="badge <?php echo $memOnline ? 'badge-success' : 'badge-secondary'; ?>" style="font-size: 9.5px; padding: 1px 6px;">
+                                            <i class="fa-solid fa-circle" style="font-size: 5px; vertical-align: middle; margin-right: 2px;"></i> <?php echo $memOnline ? 'Online' : $memStatus['last_seen_text']; ?>
+                                        </span>
                                     </div>
-                                    <div style="font-size: 11.5px; color: var(--color-text-muted);"><?php echo e($member['designation'] ?: 'Team Member'); ?> · <?php echo e($member['email']); ?></div>
+                                    <div style="font-size: 11.5px; color: var(--color-text-muted); margin-top: 2px;"><?php echo e($member['designation'] ?: 'Team Member'); ?> · <?php echo e($member['email']); ?></div>
                                 </div>
                             </div>
                             <?php if ($member['id'] != $userId): ?>
