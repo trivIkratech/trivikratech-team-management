@@ -957,9 +957,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Background Poller for All Notifications & Real-Time Sync
     // =============================================
     function initRealtimeNotificationPoller() {
-        if (!window.BASE_URL) return;
+        const uid = parseInt(window.CURRENT_USER_ID || '0', 10);
+        if (!uid) return;
+        const baseUrl = (typeof window.BASE_URL !== 'undefined') ? window.BASE_URL : '';
 
-        const uid = window.CURRENT_USER_ID || '0';
         const userPrefix = 'u_' + uid + '_';
 
         // Daily Reset Check: If the date changes, clear previous session polling state
@@ -986,7 +987,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionStorage.removeItem(userPrefix + 'notif_poller_initialized');
             }
 
-            const url = window.BASE_URL + '/api/notifications.php?action=poll&last_id=' + lastNotifId + (!isInitialized ? '&init=1' : '');
+            const url = baseUrl + '/api/notifications.php?action=poll&last_id=' + lastNotifId + (!isInitialized ? '&init=1' : '');
 
             fetch(url)
             .then(res => res.json())
@@ -1018,19 +1019,19 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => {});
         }
 
-        // Run initial sync and poll every 2 seconds for real-time responsiveness
+        // Run initial sync and poll every 1.5 seconds for real-time responsiveness across all panels
         pollNotifications();
         
         function restartPoller() {
             if (pollerTimer) clearInterval(pollerTimer);
-            const interval = document.visibilityState === 'visible' ? 2000 : 4000;
+            const interval = document.visibilityState === 'visible' ? 1500 : 3000;
             pollerTimer = setInterval(pollNotifications, interval);
         }
         
         restartPoller();
         document.addEventListener('visibilitychange', restartPoller);
 
-        // Cross-tab broadcast listener to trigger instant sync across all pages
+        // Cross-tab broadcast listener to trigger instant sync across all open panels
         if (typeof BroadcastChannel !== 'undefined') {
             try {
                 const globalChatBus = new BroadcastChannel('tms_realtime_chat_bus');

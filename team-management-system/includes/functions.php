@@ -511,8 +511,10 @@ function timeAgo(string $datetime): string {
 function resetDailyNotifications(): void {
     try {
         $db = getDB();
+        $today = date('Y-m-d');
         // Mark all notifications from previous days as read so every day starts fresh with 0 unread
-        $db->exec("UPDATE notifications SET is_read = 1 WHERE DATE(created_at) < CURDATE() AND is_read = 0");
+        $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE DATE(created_at) < ? AND is_read = 0");
+        $stmt->execute([$today]);
     } catch (Exception $e) {
         // Silently fail if table not available
     }
@@ -543,14 +545,16 @@ function getUnreadNotifications(int $userId, int $limit = 6): array {
     try {
         resetDailyNotifications();
         $db = getDB();
+        $today = date('Y-m-d');
         $stmt = $db->prepare("
             SELECT * FROM notifications 
-            WHERE user_id = ? AND DATE(created_at) = CURDATE()
+            WHERE user_id = ? AND DATE(created_at) = ?
             ORDER BY is_read ASC, created_at DESC 
             LIMIT ?
         ");
         $stmt->bindValue(1, $userId, PDO::PARAM_INT);
-        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(2, $today, PDO::PARAM_STR);
+        $stmt->bindValue(3, $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     } catch (PDOException $e) {
@@ -565,8 +569,9 @@ function countUnreadNotifications(int $userId): int {
     try {
         resetDailyNotifications();
         $db = getDB();
-        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND DATE(created_at) = CURDATE()");
-        $stmt->execute([$userId]);
+        $today = date('Y-m-d');
+        $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0 AND DATE(created_at) = ?");
+        $stmt->execute([$userId, $today]);
         return (int)$stmt->fetchColumn();
     } catch (PDOException $e) {
         return 0;

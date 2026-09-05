@@ -40,13 +40,14 @@ try {
     } elseif ($action === 'poll') {
         $lastId = (int)($_GET['last_id'] ?? 0);
         $isInit = (bool)($_GET['init'] ?? false);
+        $today = date('Y-m-d');
         
         $unreadCount = countUnreadNotifications($userId);
         $chatUnreadCount = countUnreadChatMessages($userId);
         
         // Get max notification id for today
-        $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ? AND DATE(created_at) = CURDATE()");
-        $stmtMax->execute([$userId]);
+        $stmtMax = $db->prepare("SELECT MAX(id) FROM notifications WHERE user_id = ? AND DATE(created_at) = ?");
+        $stmtMax->execute([$userId, $today]);
         $maxId = (int)$stmtMax->fetchColumn();
         
         if ($isInit || $lastId <= 0) {
@@ -63,11 +64,11 @@ try {
         // Fetch newly arrived notifications since last_id (strictly today's)
         $stmt = $db->prepare("
             SELECT * FROM notifications 
-            WHERE user_id = ? AND id > ? AND DATE(created_at) = CURDATE()
+            WHERE user_id = ? AND id > ? AND DATE(created_at) = ?
             ORDER BY id ASC
             LIMIT 15
         ");
-        $stmt->execute([$userId, $lastId]);
+        $stmt->execute([$userId, $lastId, $today]);
         $rows = $stmt->fetchAll();
         
         $newNotifs = [];
