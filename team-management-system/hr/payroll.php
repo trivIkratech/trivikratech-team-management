@@ -338,71 +338,88 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
     </div>
     
     <div class="table-container" style="border: none; border-radius: 0; overflow-x: auto; width: 100%;">
-        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; min-width: 960px;">
             <thead>
-                <tr>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Emp ID</th>
-                    <th style="min-width: 180px; padding: 12px 16px;">Employee / Staff</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Base Salary</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Per Day Rate</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Work Hours</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Status</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Net Salary</th>
-                    <th style="text-align: right; white-space: nowrap; padding: 12px 16px;">Actions</th>
+                <tr style="border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary);">
+                    <th style="white-space: nowrap; width: 110px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Emp ID</th>
+                    <th style="min-width: 200px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Employee / Staff</th>
+                    <th style="white-space: nowrap; width: 130px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Base Salary</th>
+                    <th style="white-space: nowrap; width: 130px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Per Day Rate</th>
+                    <th style="white-space: nowrap; width: 120px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Work Hours</th>
+                    <th style="white-space: nowrap; width: 160px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Status</th>
+                    <th style="white-space: nowrap; width: 130px; padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Net Salary</th>
+                    <th style="white-space: nowrap; width: 190px; padding: 14px 18px; text-align: right; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary);">Actions</th>
                 </tr>
             </thead>
             <tbody id="payrollTableBody">
                 <?php if (empty($payrollData)): ?>
                     <tr>
-                        <td colspan="8" class="text-center text-muted" style="padding: 36px;">
-                            <i class="fa-solid fa-file-invoice-dollar" style="font-size: 30px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
-                            No employees or staff currently enrolled on payroll.
-                            <div style="margin-top: 12px;">
-                                <button type="button" onclick="openSelectEmployeeModal()" class="btn btn-primary btn-sm">
-                                    <i class="fa-solid fa-user-check"></i> Select Employee & Set Salary
-                                </button>
-                            </div>
+                        <td colspan="8" class="text-center text-muted" style="padding: 40px;">
+                            <i class="fa-solid fa-file-invoice-dollar" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.4;"></i>
+                            <div style="font-size: 14px; font-weight: 500; margin-bottom: 6px;">No staff currently enrolled on payroll.</div>
+                            <div class="text-muted" style="font-size: 12px; margin-bottom: 14px;">Select members from your workforce directory to set their base salary.</div>
+                            <button type="button" onclick="openSelectEmployeeModal()" class="btn btn-primary btn-sm">
+                                <i class="fa-solid fa-user-check"></i> Select Employee & Set Salary
+                            </button>
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($payrollData as $eId => $p): ?>
-                        <tr data-emp-id="<?php echo e($p['user']['employee_id']); ?>" data-emp-name="<?php echo e($p['user']['name']); ?>" data-net-salary="<?php echo $p['net_salary']; ?>" style="vertical-align: middle;">
-                            <td style="padding: 12px 16px;"><code><?php echo e($p['user']['employee_id'] ?: '—'); ?></code></td>
-                            <td style="padding: 12px 16px;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div class="table-user-avatar" style="width: 32px; height: 32px; font-size: 11px;"><?php echo e(getInitials($p['user']['name'])); ?></div>
-                                    <div>
-                                        <strong><?php echo e($p['user']['name']); ?></strong>
-                                        <span class="badge <?php echo roleBadge($p['user']['role']); ?>" style="font-size: 10px; padding: 1px 5px; margin-left: 4px;"><?php echo ucfirst($p['user']['role']); ?></span>
-                                        <br>
-                                        <small class="text-muted"><?php echo e($p['user']['designation'] ?: ucfirst($p['user']['role'])); ?></small>
+                        <tr data-emp-id="<?php echo e($p['user']['employee_id']); ?>" data-emp-name="<?php echo e($p['user']['name']); ?>" data-net-salary="<?php echo $p['net_salary']; ?>" style="border-bottom: 1px solid var(--color-border); vertical-align: middle;">
+                            <td style="padding: 14px 16px; white-space: nowrap;">
+                                <span class="badge badge-secondary" style="font-family: var(--font-mono, monospace); font-size: 12px; font-weight: 600; letter-spacing: 0.5px; white-space: nowrap; padding: 4px 8px; border-radius: var(--radius-sm);">
+                                    <?php echo e($p['user']['employee_id'] ?: '—'); ?>
+                                </span>
+                            </td>
+                            <td style="padding: 14px 16px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div class="table-user-avatar" style="width: 36px; height: 36px; font-size: 12px; font-weight: 700; flex-shrink: 0; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                        <?php echo e(getInitials($p['user']['name'])); ?>
+                                    </div>
+                                    <div style="min-width: 0;">
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                            <span style="font-weight: 600; font-size: 14px; color: var(--color-text-primary);"><?php echo e($p['user']['name']); ?></span>
+                                            <span class="badge <?php echo roleBadge($p['user']['role']); ?>" style="font-size: 10px; padding: 1px 6px; text-transform: uppercase; font-weight: 600;"><?php echo ucfirst($p['user']['role']); ?></span>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--color-text-muted); margin-top: 2px;">
+                                            <?php echo e($p['user']['designation'] ?: ucfirst($p['user']['role'])); ?>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
-                            <td style="padding: 12px 16px;">
-                                <div style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
-                                    <strong>₹<?php echo number_format($p['user']['base_salary'], 2); ?></strong>
-                                    <button type="button" onclick="editSalary(<?php echo $eId; ?>, <?php echo $p['user']['base_salary']; ?>)" style="background:none; border:none; color: var(--color-primary); cursor:pointer; font-size: 13px;" title="Edit Base Salary"><i class="fa-solid fa-pen"></i></button>
+                            <td style="padding: 14px 16px; white-space: nowrap;">
+                                <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                    <span style="font-weight: 700; font-size: 14px; color: var(--color-text-primary);">₹<?php echo number_format($p['user']['base_salary'], 2); ?></span>
+                                    <button type="button" onclick="editSalary(<?php echo $eId; ?>, <?php echo $p['user']['base_salary']; ?>)" style="background: none; border: none; color: var(--color-primary); cursor: pointer; font-size: 12px; padding: 4px; border-radius: 4px; display: inline-flex; align-items: center;" title="Edit Base Salary">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
                                 </div>
                             </td>
-                            <td style="padding: 12px 16px; white-space: nowrap;"><small class="text-muted">₹<?php echo number_format($p['per_day_rate'], 2); ?> / day</small></td>
-                            <td style="padding: 12px 16px; white-space: nowrap;"><strong><?php echo e($p['total_working_hours']); ?></strong></td>
+                            <td style="padding: 14px 16px; white-space: nowrap;">
+                                <span style="font-weight: 500; font-size: 13px; color: var(--color-text-secondary);">₹<?php echo number_format($p['per_day_rate'], 2); ?></span>
+                                <span style="font-size: 11px; color: var(--color-text-muted);">/ day</span>
+                            </td>
+                            <td style="padding: 14px 16px; white-space: nowrap;">
+                                <span style="font-weight: 600; font-size: 13px; color: var(--color-text-primary);">
+                                    <i class="fa-regular fa-clock" style="opacity: 0.6; margin-right: 4px;"></i><?php echo e($p['total_working_hours']); ?>
+                                </span>
+                            </td>
                             
                             <!-- Single Status Badge + Smooth Toggle -->
-                            <td style="padding: 12px 16px; white-space: nowrap;">
+                            <td style="padding: 14px 16px; white-space: nowrap;">
                                 <!-- Collapsed State (Default: 1 Primary Badge + Details Button) -->
-                                <div id="status-collapsed-<?php echo $eId; ?>" style="display: flex; align-items: center; gap: 8px;">
+                                <div id="status-collapsed-<?php echo $eId; ?>" style="display: inline-flex; align-items: center; gap: 8px;">
                                     <?php if ($p['present_days'] > 0): ?>
-                                        <span class="badge badge-success"><?php echo $p['present_days']; ?> Present</span>
+                                        <span class="badge badge-success" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['present_days']; ?> Present</span>
                                     <?php elseif ($p['paid_leaves'] > 0): ?>
-                                        <span class="badge badge-info"><?php echo $p['paid_leaves']; ?> Paid</span>
+                                        <span class="badge badge-info" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['paid_leaves']; ?> Paid</span>
                                     <?php elseif ($p['half_days'] > 0): ?>
-                                        <span class="badge badge-warning"><?php echo $p['half_days']; ?> Half</span>
+                                        <span class="badge badge-warning" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['half_days']; ?> Half</span>
                                     <?php else: ?>
-                                        <span class="badge badge-danger"><?php echo $p['unpaid_leaves']; ?> Absent</span>
+                                        <span class="badge badge-danger" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['unpaid_leaves']; ?> Absent</span>
                                     <?php endif; ?>
 
-                                    <button type="button" onclick="toggleStatus(<?php echo $eId; ?>)" class="btn btn-ghost btn-sm" style="padding: 3px 8px; font-size: 11px; border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;" title="Show full 30-day breakdown badges">
+                                    <button type="button" onclick="toggleStatus(<?php echo $eId; ?>)" class="btn btn-ghost btn-sm" style="padding: 2px 7px; font-size: 11px; border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;" title="Show full 30-day breakdown badges">
                                         ▾ Details
                                     </button>
                                 </div>
@@ -414,23 +431,23 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                                     <span class="badge badge-warning" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['half_days']; ?> Half</span>
                                     <span class="badge badge-danger" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['unpaid_leaves']; ?> Absent</span>
                                     
-                                    <button type="button" onclick="toggleStatus(<?php echo $eId; ?>)" class="btn btn-ghost btn-sm" style="padding: 3px 8px; font-size: 11px; border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;">
+                                    <button type="button" onclick="toggleStatus(<?php echo $eId; ?>)" class="btn btn-ghost btn-sm" style="padding: 2px 7px; font-size: 11px; border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;">
                                         ▴ Hide
                                     </button>
                                 </div>
                             </td>
 
-                            <td style="padding: 12px 16px; white-space: nowrap;">
-                                <strong style="font-size: var(--text-base); color: var(--color-success);">
+                            <td style="padding: 14px 16px; white-space: nowrap;">
+                                <span style="font-size: 15px; font-weight: 700; color: #10b981; letter-spacing: 0.2px;">
                                     ₹<?php echo number_format($p['net_salary'], 2); ?>
-                                </strong>
+                                </span>
                             </td>
-                            <td style="text-align: right; white-space: nowrap; padding: 12px 16px;">
-                                <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end;">
-                                    <a href="?month=<?php echo $selectedMonthStr; ?>&breakdown_emp=<?php echo $eId; ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;">
+                            <td style="text-align: right; white-space: nowrap; padding: 14px 18px;">
+                                <div style="display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                                    <a href="?month=<?php echo $selectedMonthStr; ?>&breakdown_emp=<?php echo $eId; ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; border-radius: var(--radius-md); white-space: nowrap;">
                                         <i class="fa-solid fa-magnifying-glass"></i> 30-Day Breakdown
                                     </a>
-                                    <a href="?month=<?php echo $selectedMonthStr; ?>&delete_emp=<?php echo $eId; ?>" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Are you sure you want to remove <?php echo e($p['user']['name']); ?> from Payroll? (Their user profile and system access will remain active)')" title="Remove from Payroll" style="padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;">
+                                    <a href="?month=<?php echo $selectedMonthStr; ?>&delete_emp=<?php echo $eId; ?>" class="btn btn-ghost btn-sm" onclick="return confirm('Are you sure you want to remove <?php echo e($p['user']['name']); ?> from Payroll? (Their user profile and system access will remain active)')" title="Remove from Payroll" style="padding: 6px 8px; border-radius: var(--radius-md); font-size: 13px; color: #ef4444; display: inline-flex; align-items: center; justify-content: center;">
                                         <i class="fa-solid fa-user-minus"></i>
                                     </a>
                                 </div>
