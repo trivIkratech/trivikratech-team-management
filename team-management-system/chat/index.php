@@ -782,8 +782,10 @@ function handleBroadcastEvent(data) {
                 roomLastMessageId[currentRoomId] = Math.max(roomLastMessageId[currentRoomId] || 0, msg.id);
                 
                 if (!msg.is_self && msg.sender_id != currentUserId) {
-                    const preview = msg.message || (msg.file_name ? 'Shared a file: ' + msg.file_name : 'New message');
-                    triggerChatNotification('New Message from ' + (msg.sender_name || 'Team Member'), preview, true);
+                    // If user is currently looking at this active room, only play chime (no duplicate toast popup)
+                    if (typeof window.playNotificationSound === 'function') {
+                        window.playNotificationSound();
+                    }
                 }
             }
         } else {
@@ -1167,8 +1169,9 @@ function loadMessages(roomId, isSilent = false) {
                         roomLastMessageId[roomId] = Math.max(roomLastMessageId[roomId] || 0, m.id);
                         
                         if (!m.is_self) {
-                            const preview = m.message || (m.file_name ? 'Shared a file: ' + m.file_name : 'New message');
-                            triggerChatNotification('New Message from ' + (m.sender_name || 'Team Member'), preview, true);
+                            if (typeof window.playNotificationSound === 'function') {
+                                window.playNotificationSound();
+                            }
                         }
                     });
                 }
@@ -1249,10 +1252,6 @@ function sendMessage() {
 
     // Instant append to DOM & auto scroll
     appendSingleMessageBubble(optimisticMsg);
-
-    // Instant chime sound and top-right toast notification
-    const previewMsg = messageText ? (messageText.length > 60 ? messageText.substring(0, 60) + '...' : messageText) : (fileToUpload ? 'Attachment: ' + fileToUpload.name : 'Message sent');
-    triggerChatNotification('Message Sent', previewMsg, false);
 
     // Clear input & selection immediately so user can keep typing
     input.value = '';

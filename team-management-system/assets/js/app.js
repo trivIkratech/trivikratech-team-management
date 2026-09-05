@@ -723,7 +723,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('keydown', unlockAppAudio);
     document.addEventListener('touchstart', unlockAppAudio);
 
+    let lastChimeTime = 0;
     window.playNotificationSound = function() {
+        const nowMs = Date.now();
+        if (nowMs - lastChimeTime < 1200) return; // Prevent duplicate chime within 1.2s
+        lastChimeTime = nowMs;
+
         try {
             const ctx = getAppAudioContext();
             if (!ctx) return;
@@ -760,10 +765,27 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // =============================================
-    // Top-Right Popup Toast Notifications System
+    // Top-Right Popup Toast Notifications System (Strictly Deduplicated)
     // =============================================
+    const recentToasts = new Map(); // key -> timestamp
+
     window.showToastNotification = function(notif) {
         if (!notif || !notif.title) return;
+
+        const now = Date.now();
+        // Unique deduplication key based on ID or (title + message)
+        const dedupKey = notif.id ? ('id_' + notif.id) : ('txt_' + notif.title + '_' + (notif.message || ''));
+        if (recentToasts.has(dedupKey) && (now - recentToasts.get(dedupKey)) < 4000) {
+            return; // Strict deduplication: ignore duplicate within 4 seconds
+        }
+        recentToasts.set(dedupKey, now);
+
+        // Prune older cached keys
+        if (recentToasts.size > 50) {
+            for (const [k, ts] of recentToasts.entries()) {
+                if (now - ts > 10000) recentToasts.delete(k);
+            }
+        }
 
         let container = document.getElementById('toast-notification-container');
         if (!container) {
