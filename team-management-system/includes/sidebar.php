@@ -52,6 +52,12 @@ function isActive(string $dir, string $page): string {
             <a href="<?php echo BASE_URL; ?>/founder/teams.php" class="sidebar-nav-item<?php echo isActive('founder', 'teams'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-people-group"></i></span> Teams & Squads
             </a>
+            <a href="<?php echo BASE_URL; ?>/founder/managers.php" class="sidebar-nav-item<?php echo isActive('founder', 'managers'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-user-tie"></i></span> Managers
+            </a>
+            <a href="<?php echo BASE_URL; ?>/founder/employees.php" class="sidebar-nav-item<?php echo isActive('founder', 'employees'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Employees
+            </a>
             <a href="<?php echo BASE_URL; ?>/founder/user-management.php" class="sidebar-nav-item<?php echo isActive('founder', 'user-management'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-gears"></i></span> User Management
             </a>

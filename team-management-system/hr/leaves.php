@@ -97,8 +97,8 @@ $stmt = $db->prepare("SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at
 $stmt->execute([$hrId]);
 $myLeaves = $stmt->fetchAll();
 
-// Fetch Leave Balances per employee
-$employeesList = $db->query("SELECT id, name, employee_id, designation FROM users WHERE role = 'employee' AND status = 'active'")->fetchAll();
+// Fetch Leave Balances per staff member (Employees & Managers)
+$employeesList = $db->query("SELECT id, name, employee_id, designation, role FROM users WHERE role IN ('employee', 'manager') AND status = 'active' ORDER BY role ASC, name ASC")->fetchAll();
 $leaveBalances = [];
 
 foreach ($employeesList as $emp) {

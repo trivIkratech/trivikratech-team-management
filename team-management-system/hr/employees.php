@@ -304,14 +304,25 @@ $allWorkforce = $db->query("
 $teams = [];
 $foundersList = [];
 $hrList = [];
+$managersList = [];
+
+// Pre-populate teams for all active managers
+foreach ($managers as $mgr) {
+    $teams[$mgr['name']] = [];
+}
 
 foreach ($allWorkforce as $person) {
     if ($person['role'] === 'founder') {
         $foundersList[] = $person;
     } elseif ($person['role'] === 'hr') {
         $hrList[] = $person;
+    } elseif ($person['role'] === 'manager') {
+        $managersList[] = $person;
     } elseif ($person['role'] === 'employee') {
         $mgrName = $person['manager_name'] ?? 'Unassigned / Direct HR';
+        if (!isset($teams[$mgrName])) {
+            $teams[$mgrName] = [];
+        }
         $teams[$mgrName][] = $person;
     }
 }
@@ -585,6 +596,31 @@ include __DIR__ . '/../includes/header.php';
         </div>
     <?php endif; ?>
 
+    <!-- Managers & Leads Section -->
+    <?php if (!empty($managersList)): ?>
+        <div style="margin-bottom: var(--space-6);">
+            <h3 style="font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-user-tie" style="color: var(--color-warning);"></i> Active Managers & Team Leads (<?php echo count($managersList); ?>)
+            </h3>
+            <div class="content-grid" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));">
+                <?php foreach ($managersList as $mgr): ?>
+                    <div class="card" style="border-left: 4px solid var(--color-warning);">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <div class="table-user-avatar" style="background: rgba(217, 119, 6, 0.2); color: #d97706;"><?php echo e(getInitials($mgr['name'])); ?></div>
+                                <div>
+                                    <strong style="font-size: 14px;"><?php echo e($mgr['name']); ?></strong><br>
+                                    <small class="text-muted"><?php echo e($mgr['designation'] ?: 'Manager'); ?> · <code><?php echo e($mgr['employee_id'] ?: '—'); ?></code></small>
+                                </div>
+                            </div>
+                            <a href="?tab=profiles&overview=<?php echo $mgr['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-primary);">Overview</a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <!-- Manager & Squad Breakdown -->
     <h3 style="font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
         <i class="fa-solid fa-people-group" style="color: var(--color-primary);"></i> Manager Squads & Direct Teams
@@ -599,21 +635,27 @@ include __DIR__ . '/../includes/header.php';
                 <div class="card">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3 class="card-title" style="font-size: 15px;"><i class="fa-solid fa-user-tie" style="color: var(--color-warning);"></i> <?php echo e($managerName); ?></h3>
-                        <span class="badge badge-info"><?php echo count($members); ?> Member(s)</span>
+                        <span class="badge <?php echo count($members) > 0 ? 'badge-info' : 'badge-secondary'; ?>"><?php echo count($members); ?> Member(s)</span>
                     </div>
                     <div class="activity-list">
-                        <?php foreach ($members as $m): ?>
-                            <div class="activity-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-border);">
-                                <div style="display: flex; align-items: center; gap: var(--space-3);">
-                                    <div class="table-user-avatar" style="width: 32px; height: 32px; font-size: 11px;"><?php echo e(getInitials($m['name'])); ?></div>
-                                    <div>
-                                        <strong><?php echo e($m['name']); ?></strong><br>
-                                        <small class="text-muted"><?php echo e($m['designation'] ?: 'Employee'); ?></small>
-                                    </div>
-                                </div>
-                                <a href="?tab=profiles&overview=<?php echo $m['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-primary);">View</a>
+                        <?php if (empty($members)): ?>
+                            <div style="padding: 16px; text-align: center; color: var(--color-text-muted); font-size: 13px;">
+                                No team members assigned to this manager yet.
                             </div>
-                        <?php endforeach; ?>
+                        <?php else: ?>
+                            <?php foreach ($members as $m): ?>
+                                <div class="activity-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-border);">
+                                    <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                        <div class="table-user-avatar" style="width: 32px; height: 32px; font-size: 11px;"><?php echo e(getInitials($m['name'])); ?></div>
+                                        <div>
+                                            <strong><?php echo e($m['name']); ?></strong><br>
+                                            <small class="text-muted"><?php echo e($m['designation'] ?: 'Employee'); ?></small>
+                                        </div>
+                                    </div>
+                                    <a href="?tab=profiles&overview=<?php echo $m['id']; ?>" class="btn btn-ghost btn-sm" style="color: var(--color-primary);">View</a>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>

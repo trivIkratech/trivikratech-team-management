@@ -297,10 +297,14 @@ include __DIR__ . '/../includes/header.php';
                     <div class="form-group">
                         <label class="form-label">Assign To *</label>
                         <select name="assigned_to" class="form-select" required>
-                            <option value="">Select Employee</option>
+                            <optgroup label="Managers & Team Leads">
+                                <?php foreach ($allManagers as $m): ?>
+                                    <option value="<?php echo $m['id']; ?>"><?php echo e($m['name']); ?> (Manager)</option>
+                                <?php endforeach; ?>
+                            </optgroup>
                             <optgroup label="Entire Manager Teams">
                                 <?php foreach ($allManagers as $m): ?>
-                                    <option value="team_<?php echo $m['id']; ?>">Assign to <?php echo e($m['name']); ?>'s Team</option>
+                                    <option value="team_<?php echo $m['id']; ?>">Assign to <?php echo e($m['name']); ?>'s Entire Team</option>
                                 <?php endforeach; ?>
                             </optgroup>
                             <optgroup label="Individual Employees">

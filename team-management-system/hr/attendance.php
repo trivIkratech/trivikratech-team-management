@@ -27,18 +27,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'save_atten
     $breakEnd = post('break_end') ? (strlen(post('break_end')) === 5 ? post('break_end') . ':00' : post('break_end')) : null;
     $statusOverride = post('status');
     
-    // Permission Verification: HR can ONLY edit employees
+    // Permission Verification: HR can manage employees and managers
     $userStmt = $db->prepare("SELECT id, name, role, email FROM users WHERE id = ?");
     $userStmt->execute([$targetUserId]);
     $targetUser = $userStmt->fetch();
     
     if (!$targetUser) {
-        setFlash('error', 'Selected employee not found.');
+        setFlash('error', 'Selected staff member not found.');
         redirect(BASE_URL . '/hr/attendance.php');
     }
     
-    if ($targetUser['role'] !== ROLE_EMPLOYEE) {
-        setFlash('error', 'Access Denied: HR can only manage attendance for employees.');
+    if (!in_array($targetUser['role'], [ROLE_EMPLOYEE, ROLE_MANAGER])) {
+        setFlash('error', 'Access Denied: HR can only manage attendance for employees and managers.');
         redirect(BASE_URL . '/hr/attendance.php');
     }
     
@@ -112,12 +112,12 @@ $filterEmployee = get('employee_id');
 $filterStatus = get('status');
 $page = max(1, (int)get('page', '1'));
 
-// Employees list
-$allEmployees = $db->query("SELECT id, name, email, designation, employee_id FROM users WHERE role = 'employee' AND status = 'active' ORDER BY name ASC")->fetchAll();
+// Workforce staff list (Employees and Managers)
+$allEmployees = $db->query("SELECT id, name, email, designation, employee_id, role FROM users WHERE role IN ('employee', 'manager') AND status = 'active' ORDER BY role ASC, name ASC")->fetchAll();
 
 // Query for records
 if (!empty($filterDate)) {
-    $where = ["u.role = 'employee'", "u.status = 'active'", "COALESCE(u.joining_date, DATE(u.created_at)) <= ?"];
+    $where = ["u.role IN ('employee', 'manager')", "u.status = 'active'", "COALESCE(u.joining_date, DATE(u.created_at)) <= ?"];
     $params = [$filterDate, $filterDate, $filterDate];
 
     if ($filterEmployee) {
