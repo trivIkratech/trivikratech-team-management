@@ -697,49 +697,35 @@ document.addEventListener('DOMContentLoaded', function() {
     let appAudioCtx = null;
 
     function getAppAudioContext() {
-        if (!appAudioCtx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (AudioContext) {
-                appAudioCtx = new AudioContext();
+        if (!appAudioCtx || appAudioCtx.state === 'closed') {
+            const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtxClass) {
+                appAudioCtx = new AudioCtxClass();
             }
-        }
-        if (appAudioCtx && appAudioCtx.state === 'suspended') {
-            appAudioCtx.resume().catch(() => {});
         }
         return appAudioCtx;
     }
 
-    // Unlock Audio Context on first user interaction to bypass browser autoplay restrictions
+    // Unlock Audio Context on any user interaction to bypass browser autoplay restrictions
     function unlockAppAudio() {
         const ctx = getAppAudioContext();
         if (ctx && ctx.state === 'suspended') {
             ctx.resume().catch(() => {});
         }
-        document.removeEventListener('click', unlockAppAudio);
-        document.removeEventListener('keydown', unlockAppAudio);
-        document.removeEventListener('touchstart', unlockAppAudio);
     }
-    document.addEventListener('click', unlockAppAudio);
-    document.addEventListener('keydown', unlockAppAudio);
-    document.addEventListener('touchstart', unlockAppAudio);
+    ['click', 'keydown', 'touchstart', 'mousedown'].forEach(evt => {
+        document.addEventListener(evt, unlockAppAudio, { passive: true });
+    });
 
-    let lastChimeTime = 0;
-    window.playNotificationSound = function() {
-        const nowMs = Date.now();
-        if (nowMs - lastChimeTime < 1200) return; // Prevent duplicate chime within 1.2s
-        lastChimeTime = nowMs;
-
+    function playChimeNotes(ctx) {
         try {
-            const ctx = getAppAudioContext();
-            if (!ctx) return;
-
             const now = ctx.currentTime;
             
-            // Resonant Glass Pop / Bell Chime: 3 harmonic chord notes (880Hz -> 1174Hz -> 1760Hz)
+            // Crystal Clear Bell Chime: 3 resonant harmonic chord notes (880Hz -> 1174Hz -> 1760Hz)
             const notes = [
-                { freq: 880.00, start: 0, dur: 0.14, vol: 0.22 },   // A5
-                { freq: 1174.66, start: 0.08, dur: 0.18, vol: 0.28 }, // D6
-                { freq: 1760.00, start: 0.16, dur: 0.50, vol: 0.32 }  // A6
+                { freq: 880.00, start: 0, dur: 0.18, vol: 0.35 },   // A5
+                { freq: 1174.66, start: 0.08, dur: 0.22, vol: 0.40 }, // D6
+                { freq: 1760.00, start: 0.16, dur: 0.60, vol: 0.45 }  // A6
             ];
 
             notes.forEach(note => {
@@ -750,15 +736,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 osc.frequency.setValueAtTime(note.freq, now + note.start);
 
                 gain.gain.setValueAtTime(0.0001, now + note.start);
-                gain.gain.linearRampToValueAtTime(note.vol, now + note.start + 0.015);
+                gain.gain.linearRampToValueAtTime(note.vol, now + note.start + 0.02);
                 gain.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.dur);
 
                 osc.connect(gain);
                 gain.connect(ctx.destination);
 
                 osc.start(now + note.start);
-                osc.stop(now + note.start + note.dur);
+                osc.stop(now + note.start + note.dur + 0.05);
             });
+        } catch(e) {
+            console.warn('Audio chime play error:', e);
+        }
+    }
+
+    let lastChimeTime = 0;
+    window.playNotificationSound = function() {
+        const nowMs = Date.now();
+        if (nowMs - lastChimeTime < 1000) return; // Throttle to at most 1 chime per second
+        lastChimeTime = nowMs;
+
+        try {
+            const ctx = getAppAudioContext();
+            if (!ctx) return;
+
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(() => {
+                    playChimeNotes(ctx);
+                }).catch(() => {});
+            } else {
+                playChimeNotes(ctx);
+            }
         } catch(e) {
             console.warn('Audio chime could not be played:', e);
         }
@@ -786,6 +794,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (now - ts > 10000) recentToasts.delete(k);
             }
         }
+
+        // Play crystal chime sound with toast notification
+        window.playNotificationSound();
 
         let container = document.getElementById('toast-notification-container');
         if (!container) {
