@@ -3,8 +3,9 @@
  * HR — Payroll & Salary System
  * 
  * Flow:
- * Payroll -> Employee List -> Employee Status (Hours, Paid Leave, Unpaid Leave, Present, Half-Day) 
+ * Payroll -> Employee/Staff List -> Attendance & Leave Status (Hours, Paid Leave, Unpaid Leave, Present, Half-Day) 
  *         -> Total Salary Calculation -> 30-Day Daily Breakdown (Date & Day, Status, Per-Day Salary Amount, Final Monthly Salary).
+ * Includes quick employee creation directly from Payroll.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -16,6 +17,7 @@ require_once __DIR__ . '/../includes/middleware.php';
 requireRole([ROLE_HR]);
 
 $db = getDB();
+$formErrors = [];
 
 // Handle Base Salary Update Form (if submitted)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'update_base_salary') {
@@ -33,6 +35,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'update_bas
     exit;
 }
 
+// Handle Add Employee / Staff from Payroll
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_payroll_employee') {
+    requireCsrf();
+    
+    $employeeId = trim(post('employee_id'));
+    $name = trim(post('name'));
+    $email = trim(post('email'));
+    $contactNo = trim(post('contact_no'));
+    $designation = trim(post('designation'));
+    $role = post('role', 'employee');
+    $baseSalary = post('base_salary') !== '' ? (float)post('base_salary') : 30000.00;
+    $password = $_POST['password'] ?? '';
+    $pin = post('pin');
+    $managerId = post('manager_id') ? (int)post('manager_id') : null;
+    $joiningDate = post('joining_date') ?: date('Y-m-d');
+    $monthParam = post('month') ?: get('month', date('Y-m'));
+    
+    // Validation
+    if (empty($employeeId)) $formErrors[] = 'Employee ID is required.';
+    if (empty($name)) $formErrors[] = 'Full Name is required.';
+    if (empty($email)) $formErrors[] = 'Email Address is required.';
+    if (empty($password)) $formErrors[] = 'Password is required.';
+    if (strlen($password) < 6) $formErrors[] = 'Password must be at least 6 characters.';
+    if (!empty($pin) && !preg_match('/^\d{4}$/', $pin)) $formErrors[] = 'PIN must be exactly 4 digits.';
+    if (!in_array($role, ['employee', 'manager'])) {
+        $formErrors[] = 'Role must be Employee or Manager.';
+    }
+    
+    // Check Employee ID uniqueness
+    if (empty($formErrors)) {
+        $stmt = $db->prepare("SELECT id FROM users WHERE employee_id = ?");
+        $stmt->execute([$employeeId]);
+        if ($stmt->fetch()) $formErrors[] = 'Employee ID is already registered.';
+    }
+    
+    // Check Email uniqueness
+    if (empty($formErrors)) {
+        $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) $formErrors[] = 'Email is already registered.';
+    }
+    
+    if (empty($formErrors)) {
+        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $usePin = !empty($pin) ? $pin : '1234';
+        $pinHash = password_hash($usePin, PASSWORD_BCRYPT);
+        
+        $stmt = $db->prepare("
+            INSERT INTO users (employee_id, name, email, contact_no, designation, joining_date, base_salary, password, pin, role, manager_id, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+        ");
+        $stmt->execute([
+            $employeeId, 
+            $name, 
+            $email, 
+            $contactNo ?: null, 
+            $designation ?: null, 
+            $joiningDate, 
+            $baseSalary, 
+            $hash, 
+            $pinHash, 
+            $role, 
+            ($role === 'manager' ? null : $managerId)
+        ]);
+        
+        setFlash('success', ucfirst($role) . ' added to Payroll successfully.');
+        header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . urlencode($monthParam));
+        exit;
+    }
+}
+
 // Selected Month and Year (default: current month)
 $selectedMonthStr = get('month', date('Y-m'));
 if (!preg_match('/^\d{4}-\d{2}$/', $selectedMonthStr)) {
@@ -46,12 +119,15 @@ $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
 $startDateStr = sprintf('%04d-%02d-01', $year, $month);
 $endDateStr = sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth);
 
-// Fetch all active/employee users
+// Fetch all managers for dropdown in add modal
+$managersList = $db->query("SELECT id, name, designation FROM users WHERE role = 'manager' AND status = 'active' ORDER BY name ASC")->fetchAll();
+
+// Fetch all staff users on payroll (Employees & Managers)
 $employees = $db->query("
-    SELECT id, employee_id, name, email, designation, base_salary, status
+    SELECT id, employee_id, name, email, designation, base_salary, status, role
     FROM users
-    WHERE role = 'employee'
-    ORDER BY name ASC
+    WHERE role IN ('employee', 'manager')
+    ORDER BY FIELD(role, 'manager', 'employee'), name ASC
 ")->fetchAll();
 
 // Calculate payroll stats for each employee
@@ -197,14 +273,28 @@ include __DIR__ . '/../includes/header.php';
         <p class="page-subtitle">Monthly salary calculation, 30-day daily breakdown, attendance & leave status</p>
     </div>
     
-    <!-- Month Selector -->
-    <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); padding: 8px 16px; border-radius: var(--radius-md); display: flex; align-items: center; gap: 10px;">
-        <label class="form-label" style="margin-bottom: 0; font-weight: 600; color: var(--color-text-secondary);"><i class="fa-solid fa-calendar-days"></i> Month:</label>
-        <form method="GET" action="" style="margin: 0;">
-            <input type="month" name="month" class="form-input" value="<?php echo e($selectedMonthStr); ?>" onchange="this.form.submit()" style="width: auto; padding: 6px 12px;">
-        </form>
+    <!-- Action Controls: Add Employee & Month Selector -->
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <button type="button" onclick="openAddEmployeeModal()" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-user-plus"></i> Add Employee to Payroll
+        </button>
+
+        <!-- Month Selector -->
+        <div style="background: var(--color-bg-card); border: 1px solid var(--color-border); padding: 6px 14px; border-radius: var(--radius-md); display: flex; align-items: center; gap: 8px;">
+            <label class="form-label" style="margin-bottom: 0; font-weight: 600; font-size: 13px; color: var(--color-text-secondary);"><i class="fa-solid fa-calendar-days"></i> Month:</label>
+            <form method="GET" action="" style="margin: 0;">
+                <input type="month" name="month" class="form-input" value="<?php echo e($selectedMonthStr); ?>" onchange="this.form.submit()" style="width: auto; padding: 4px 8px; font-size: 13px;">
+            </form>
+        </div>
     </div>
 </div>
+
+<?php if (!empty($formErrors)): ?>
+    <div class="alert alert-error" style="margin-bottom: var(--space-4);">
+        <span><?php echo e(implode(' ', $formErrors)); ?></span>
+        <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+    </div>
+<?php endif; ?>
 
 <!-- Overview 4-Metric Grid -->
 <?php 
@@ -214,7 +304,6 @@ $totalBaseSalary = array_sum(array_map(function($p) {
 }, $payrollData));
 $totalNetPayable = array_sum(array_column($payrollData, 'net_salary'));
 $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
-$avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
 ?>
 <div class="stats-grid" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
     <!-- Card 1: Total Monthly Base Salary Commitment -->
@@ -262,9 +351,11 @@ $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
 <div class="card fade-in" style="padding: 0; overflow: hidden;">
     <!-- Top Right Corner Filters in Card Header -->
     <div class="card-header" style="padding: 16px 24px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <h3 class="card-title" style="margin: 0;">Employee Salary Summary — <?php echo date('F Y', strtotime($startDateStr)); ?></h3>
+        <div>
+            <h3 class="card-title" style="margin: 0;">Employee Salary Summary — <?php echo date('F Y', strtotime($startDateStr)); ?></h3>
+        </div>
         
-        <!-- Right Corner Filters -->
+        <!-- Right Corner Filters & Add Button -->
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <div style="position: relative;">
                 <input type="text" id="payrollSearchInput" onkeyup="filterPayrollTable()" placeholder="Search Employee / ID..." class="form-input" style="padding: 6px 12px 6px 30px; font-size: 13px; width: 210px; border-radius: var(--radius-md);">
@@ -276,6 +367,10 @@ $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
                 <option value="with_payout"><i class="fa-solid fa-circle-check"></i> Payable (> ₹0)</option>
                 <option value="zero_payout"><i class="fa-solid fa-circle-xmark"></i> Zero Payout (₹0)</option>
             </select>
+
+            <button type="button" onclick="openAddEmployeeModal()" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-plus"></i> Add Employee
+            </button>
         </div>
     </div>
     
@@ -284,7 +379,7 @@ $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
             <thead>
                 <tr>
                     <th style="white-space: nowrap; padding: 12px 16px;">Emp ID</th>
-                    <th style="white-space: nowrap; padding: 12px 16px;">Employee Name</th>
+                    <th style="min-width: 180px; padding: 12px 16px;">Employee / Staff</th>
                     <th style="white-space: nowrap; padding: 12px 16px;">Base Salary</th>
                     <th style="white-space: nowrap; padding: 12px 16px;">Per Day Rate</th>
                     <th style="white-space: nowrap; padding: 12px 16px;">Work Hours</th>
@@ -295,14 +390,31 @@ $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
             </thead>
             <tbody id="payrollTableBody">
                 <?php if (empty($payrollData)): ?>
-                    <tr><td colspan="8" class="text-center text-muted" style="padding: 24px;">No employees registered on payroll.</td></tr>
+                    <tr>
+                        <td colspan="8" class="text-center text-muted" style="padding: 30px;">
+                            <i class="fa-solid fa-users-slash" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
+                            No employees or managers registered on payroll.
+                            <div style="margin-top: 10px;">
+                                <button type="button" onclick="openAddEmployeeModal()" class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-user-plus"></i> Add First Employee
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
                 <?php else: ?>
                     <?php foreach ($payrollData as $eId => $p): ?>
                         <tr data-emp-id="<?php echo e($p['user']['employee_id']); ?>" data-emp-name="<?php echo e($p['user']['name']); ?>" data-net-salary="<?php echo $p['net_salary']; ?>" style="vertical-align: middle;">
-                            <td style="padding: 12px 16px;"><code><?php echo e($p['user']['employee_id']); ?></code></td>
+                            <td style="padding: 12px 16px;"><code><?php echo e($p['user']['employee_id'] ?: '—'); ?></code></td>
                             <td style="padding: 12px 16px;">
-                                <strong><?php echo e($p['user']['name']); ?></strong><br>
-                                <small class="text-muted"><?php echo e($p['user']['designation'] ?: 'Employee'); ?></small>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="table-user-avatar" style="width: 32px; height: 32px; font-size: 11px;"><?php echo e(getInitials($p['user']['name'])); ?></div>
+                                    <div>
+                                        <strong><?php echo e($p['user']['name']); ?></strong>
+                                        <span class="badge <?php echo roleBadge($p['user']['role']); ?>" style="font-size: 10px; padding: 1px 5px; margin-left: 4px;"><?php echo ucfirst($p['user']['role']); ?></span>
+                                        <br>
+                                        <small class="text-muted"><?php echo e($p['user']['designation'] ?: ucfirst($p['user']['role'])); ?></small>
+                                    </div>
+                                </div>
                             </td>
                             <td style="padding: 12px 16px;">
                                 <div style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
@@ -360,6 +472,98 @@ $avgNetPayout = $empCount > 0 ? ($totalNetPayable / $empCount) : 0;
                 <?php endif; ?>
             </tbody>
         </table>
+    </div>
+</div>
+
+<!-- MODAL: ADD EMPLOYEE TO PAYROLL -->
+<div id="addEmployeeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(2px); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
+    <div class="card fade-in" style="max-width: 620px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px;">
+            <h3 class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-user-plus" style="color: var(--color-primary);"></i> Add Employee to Payroll
+            </h3>
+            <button type="button" onclick="closeAddEmployeeModal()" class="btn btn-ghost btn-sm" style="font-size: 18px; color: var(--color-text-secondary);">✕</button>
+        </div>
+        
+        <form method="POST" action="">
+            <?php echo csrfField(); ?>
+            <input type="hidden" name="form_action" value="add_payroll_employee">
+            <input type="hidden" name="month" value="<?php echo e($selectedMonthStr); ?>">
+            
+            <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Role *</label>
+                    <select name="role" id="modal_role_select" class="form-select" required onchange="toggleModalManagerField(this.value)">
+                        <option value="employee">Employee</option>
+                        <option value="manager">Manager</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Employee ID No *</label>
+                    <input type="text" name="employee_id" class="form-input" required placeholder="e.g. EMP-105 / MGR-003">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Full Name *</label>
+                <input type="text" name="name" class="form-input" required placeholder="e.g. Rahul Sharma">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email Address (Login Username) *</label>
+                <input type="email" name="email" class="form-input" required placeholder="e.g. rahul@trivikratech.com">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Contact Number</label>
+                    <input type="text" name="contact_no" class="form-input" placeholder="e.g. 9876543210">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Designation / Role Title</label>
+                    <input type="text" name="designation" class="form-input" placeholder="e.g. Software Developer / QA">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Base Monthly Salary (₹) *</label>
+                    <input type="number" step="0.01" name="base_salary" class="form-input" required placeholder="30000.00" value="30000.00">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Joining Date *</label>
+                    <input type="date" name="joining_date" class="form-input" required value="<?php echo date('Y-m-d'); ?>">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group" id="modal_manager_container">
+                    <label class="form-label">Reporting Manager</label>
+                    <select name="manager_id" id="modal_manager_id" class="form-select">
+                        <option value="">— Direct HR / No Manager —</option>
+                        <?php foreach ($managersList as $mgr): ?>
+                            <option value="<?php echo $mgr['id']; ?>">
+                                <?php echo e($mgr['name']); ?> <?php echo !empty($mgr['designation']) ? '('.e($mgr['designation']).')' : ''; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Security PIN (4 Digits)</label>
+                    <input type="text" name="pin" class="form-input" maxlength="4" placeholder="Default 1234" value="1234">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Account Password *</label>
+                <input type="password" name="password" class="form-input" required placeholder="Minimum 6 characters">
+            </div>
+
+            <div class="form-actions" style="margin-top: 20px; display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Create & Add to Payroll</button>
+                <button type="button" onclick="closeAddEmployeeModal()" class="btn btn-ghost">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -530,6 +734,27 @@ function editSalary(userId, currentSalary) {
 
 function closeSalaryModal() {
     document.getElementById('editSalaryModal').style.display = 'none';
+}
+
+function openAddEmployeeModal() {
+    document.getElementById('addEmployeeModal').style.display = 'flex';
+}
+
+function closeAddEmployeeModal() {
+    document.getElementById('addEmployeeModal').style.display = 'none';
+}
+
+function toggleModalManagerField(role) {
+    const container = document.getElementById('modal_manager_container');
+    const select = document.getElementById('modal_manager_id');
+    if (role === 'manager') {
+        container.style.opacity = '0.5';
+        select.value = '';
+        select.disabled = true;
+    } else {
+        container.style.opacity = '1';
+        select.disabled = false;
+    }
 }
 </script>
 
