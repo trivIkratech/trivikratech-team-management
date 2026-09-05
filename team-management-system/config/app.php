@@ -16,10 +16,12 @@ date_default_timezone_set(APP_TIMEZONE);
 // Session configuration
 define('SESSION_LIFETIME', 3600); // 1 hour
 
-// Base URL — Auto-detects subdomain root for Hostinger production or local dev
+// Base URL — Auto-detects directory path dynamically for localhost, subdirectories, and production subdomains
 if (!defined('BASE_URL')) {
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    if ($host === 'localhost:8000') {
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+    
+    if (strpos($scriptName, '/team-management-system') !== false || strpos($requestUri, '/team-management-system') !== false) {
         define('BASE_URL', '/team-management-system');
     } else {
         // Production Hostinger subdomain (e.g., team.trivikratech.com -> root path '')

@@ -832,15 +832,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function getChatApiUrl(queryString = '') {
+    const base = (typeof window.BASE_URL !== 'undefined') ? window.BASE_URL : '';
+    return base + '/api/chat.php' + (queryString ? (queryString.startsWith('?') ? queryString : '?' + queryString) : '');
+}
+
 function loadRooms(isSilent = false) {
-    fetch(window.BASE_URL + '/api/chat.php?action=get_rooms')
+    const listEl = document.getElementById('chat-room-list');
+    fetch(getChatApiUrl('action=get_rooms'))
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             currentUserId = data.current_user_id || currentUserId;
             currentUserRole = data.current_user_role || currentUserRole;
-            roomsData = data.rooms;
-            usersData = data.users;
+            roomsData = data.rooms || [];
+            usersData = data.users || [];
             renderDirectory(roomsData, usersData);
             populateNewDMUsers(usersData, currentUserId);
             populateGroupMembers(usersData, currentUserId);
@@ -861,6 +867,15 @@ function loadRooms(isSilent = false) {
                     switchRoom(roomsData[0].id);
                 }
             }
+        } else {
+            if (!isSilent && listEl) {
+                listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--color-danger); font-size: 12px;"><i class="fa-solid fa-triangle-exclamation" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>${escapeHtml((data && data.message) ? data.message : 'Unable to load chats.')}<br><button type="button" onclick="loadRooms()" class="btn btn-outline btn-sm" style="margin-top: 10px; font-size: 11px;">Retry</button></div>`;
+            }
+        }
+    })
+    .catch(err => {
+        if (!isSilent && listEl) {
+            listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--color-danger); font-size: 12px;"><i class="fa-solid fa-triangle-exclamation" style="font-size: 20px; display: block; margin-bottom: 8px;"></i>Could not connect to chat server.<br><button type="button" onclick="loadRooms()" class="btn btn-outline btn-sm" style="margin-top: 10px; font-size: 11px;">Retry</button></div>`;
         }
     });
 }
@@ -1140,10 +1155,10 @@ function loadMessages(roomId, isSilent = false) {
     if (!roomId) return;
     const sinceId = (isSilent && roomLastMessageId[roomId]) ? roomLastMessageId[roomId] : 0;
     
-    fetch(window.BASE_URL + '/api/chat.php?action=get_messages&room_id=' + roomId + (sinceId > 0 ? '&since_id=' + sinceId : ''))
+    fetch(getChatApiUrl('action=get_messages&room_id=' + roomId + (sinceId > 0 ? '&since_id=' + sinceId : '')))
     .then(res => res.json())
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             if (sinceId > 0) {
                 // Incremental fetch
                 if (data.messages && data.messages.length > 0) {
@@ -1257,7 +1272,7 @@ function sendMessage() {
     formData.append('csrf_token', csrfToken);
 
     // Send HTTP POST in background
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         body: formData
     })
@@ -1331,7 +1346,7 @@ function saveEditedMessage() {
     updateMessageBubbleText(savedId, newText);
     cancelEditMessage();
 
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=edit_message&message_id=${savedId}&message=${encodeURIComponent(newText)}&csrf_token=${csrfToken}`
@@ -1359,7 +1374,7 @@ function deleteSingleMessage(messageId) {
     removeMessageBubble(messageId);
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=delete_message&message_id=${messageId}&csrf_token=${csrfToken}`
@@ -1387,7 +1402,7 @@ function confirmDeleteHistory() {
 
     const targetRoom = currentRoomId;
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=delete_room_history&room_id=${targetRoom}&csrf_token=${csrfToken}`
@@ -1419,7 +1434,7 @@ function openViewGroupMembersModal(roomId = null) {
     document.getElementById('view-group-members-list').innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-muted); font-size: 12px;">Loading group members...</div>';
     document.getElementById('group-delete-container').innerHTML = '';
 
-    fetch(window.BASE_URL + '/api/chat.php?action=get_group_members&room_id=' + targetRoomId)
+    fetch(getChatApiUrl('action=get_group_members&room_id=' + targetRoomId))
     .then(res => res.json())
     .then(data => {
         if (data.success) {
@@ -1493,7 +1508,7 @@ function removeMemberFromGroup(roomId, userId, userName) {
     if (!confirm(`Are you sure you want to remove "${userName}" from this group?`)) return;
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=remove_group_member&room_id=${roomId}&user_id=${userId}&csrf_token=${csrfToken}`
@@ -1519,7 +1534,7 @@ function addMemberToGroup(roomId) {
     }
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=add_group_member&room_id=${roomId}&user_id=${userId}&csrf_token=${csrfToken}`
@@ -1548,7 +1563,7 @@ function confirmDeleteGroup(roomId = null) {
     if (!confirmed) return;
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=delete_group&room_id=${targetRoomId}&csrf_token=${csrfToken}`
@@ -1770,7 +1785,7 @@ function submitCreateGroup(e) {
     formData.append('members', JSON.stringify(selectedIds));
     formData.append('csrf_token', csrfToken);
 
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         body: formData
     })
@@ -1791,7 +1806,7 @@ function startDMWithUser(partnerId) {
     closeNewDMModal();
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     
-    fetch(window.BASE_URL + '/api/chat.php', {
+    fetch(getChatApiUrl(), {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: `action=get_or_create_dm&partner_id=${partnerId}&csrf_token=${csrfToken}`
