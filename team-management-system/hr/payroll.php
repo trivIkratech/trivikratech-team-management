@@ -5,7 +5,7 @@
  * Flow:
  * Payroll -> Select / Search Employee -> Attendance & Leave Status (Hours, Paid Leave, Unpaid Leave, Present, Half-Day) 
  *         -> Total Salary Calculation -> 30-Day Daily Breakdown (Date & Day, Status, Per-Day Salary Amount, Final Monthly Salary).
- * Includes quick employee selection to configure / update base salaries directly on Payroll.
+ * Includes employee selection to configure / update base salaries and safe removal from payroll without deleting user account.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'set_employ
         $nameStmt->execute([$empId]);
         $empName = $nameStmt->fetchColumn() ?: 'Employee';
         
-        setFlash('success', 'Base salary for ' . $empName . ' updated to ₹' . number_format($newSalary, 2) . ' successfully.');
+        setFlash('success', 'Base salary for ' . $empName . ' updated to ₹' . number_format($newSalary, 2) . ' on Payroll.');
     } else {
         setFlash('error', 'Please select a valid employee and enter a valid salary amount.');
     }
@@ -43,27 +43,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'set_employ
     exit;
 }
 
-// Handle Delete / Remove from Payroll
+// Handle Remove from Payroll (Resets base_salary to 0.00; DOES NOT delete user from system)
 if (isset($_GET['delete_emp']) && is_numeric($_GET['delete_emp'])) {
     $targetUserId = (int)$_GET['delete_emp'];
     $monthParam = get('month', date('Y-m'));
     
-    if ($targetUserId === $currentHrId) {
-        setFlash('error', 'You cannot delete your own account.');
+    $nameStmt = $db->prepare("SELECT name FROM users WHERE id = ?");
+    $nameStmt->execute([$targetUserId]);
+    $targetName = $nameStmt->fetchColumn();
+    
+    if ($targetName) {
+        $stmt = $db->prepare("UPDATE users SET base_salary = 0.00 WHERE id = ?");
+        $stmt->execute([$targetUserId]);
+        
+        setFlash('success', e($targetName) . ' ko payroll se successfully remove kar diya gaya hai. (User account system me active rahega).');
     } else {
-        try {
-            // Delete employee or manager account (protecting founders and other HRs)
-            $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND role IN ('employee', 'manager')");
-            $stmt->execute([$targetUserId]);
-            
-            if ($stmt->rowCount() > 0) {
-                setFlash('success', 'Employee removed from payroll and workforce successfully.');
-            } else {
-                setFlash('error', 'Could not delete employee (permission denied or record not found).');
-            }
-        } catch (PDOException $e) {
-            setFlash('error', 'Could not delete employee due to linked database dependencies.');
-        }
+        setFlash('error', 'User not found.');
     }
     header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . urlencode($monthParam));
     exit;
@@ -82,19 +77,19 @@ $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
 $startDateStr = sprintf('%04d-%02d-01', $year, $month);
 $endDateStr = sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth);
 
-// Fetch all workforce users for the Select Employee dropdown
+// Fetch all active workforce users for the Select Employee dropdown
 $allWorkforceUsers = $db->query("
     SELECT id, employee_id, name, email, designation, role, base_salary, status
     FROM users 
-    WHERE role IN ('employee', 'manager', 'hr')
+    WHERE role IN ('employee', 'manager', 'hr') AND status = 'active'
     ORDER BY FIELD(role, 'manager', 'employee', 'hr'), name ASC
 ")->fetchAll();
 
-// Fetch staff users on payroll (Employees, Managers, HR)
+// Fetch staff users actively enrolled on payroll (base_salary > 0)
 $employees = $db->query("
     SELECT id, employee_id, name, email, designation, base_salary, status, role
     FROM users
-    WHERE role IN ('employee', 'manager', 'hr')
+    WHERE role IN ('employee', 'manager', 'hr') AND base_salary > 0
     ORDER BY FIELD(role, 'manager', 'employee', 'hr'), name ASC
 ")->fetchAll();
 
@@ -309,7 +304,7 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
         <div class="stat-icon bg-purple" style="margin-bottom: 0; flex-shrink: 0;"><i class="fa-solid fa-users"></i></div>
         <div class="stat-content" style="min-width: 0;">
             <div class="stat-value" style="font-size: 22px; white-space: nowrap; margin-bottom: 2px;"><?php echo $empCount; ?> <span style="font-size: 14px; font-weight: 500; color: var(--color-text-secondary);">Staff</span></div>
-            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Total on Payroll</div>
+            <div class="stat-label" style="font-size: 13px; font-weight: 600;">Active on Payroll</div>
             <div style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px; white-space: nowrap;"><?php echo $daysInMonth; ?> Days in Month</div>
         </div>
     </div>
@@ -359,13 +354,13 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
             <tbody id="payrollTableBody">
                 <?php if (empty($payrollData)): ?>
                     <tr>
-                        <td colspan="8" class="text-center text-muted" style="padding: 30px;">
-                            <i class="fa-solid fa-users-slash" style="font-size: 24px; margin-bottom: 8px; display: block; opacity: 0.5;"></i>
-                            No employees or staff found in the workforce.
-                            <div style="margin-top: 10px;">
-                                <a href="<?php echo BASE_URL; ?>/hr/employees.php?tab=add" class="btn btn-primary btn-sm">
-                                    <i class="fa-solid fa-user-plus"></i> Go to Workforce Directory to Add Members
-                                </a>
+                        <td colspan="8" class="text-center text-muted" style="padding: 36px;">
+                            <i class="fa-solid fa-file-invoice-dollar" style="font-size: 30px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                            No employees or staff currently enrolled on payroll.
+                            <div style="margin-top: 12px;">
+                                <button type="button" onclick="openSelectEmployeeModal()" class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-user-check"></i> Select Employee & Set Salary
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -435,8 +430,8 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                                     <a href="?month=<?php echo $selectedMonthStr; ?>&breakdown_emp=<?php echo $eId; ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;">
                                         <i class="fa-solid fa-magnifying-glass"></i> 30-Day Breakdown
                                     </a>
-                                    <a href="?month=<?php echo $selectedMonthStr; ?>&delete_emp=<?php echo $eId; ?>" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Are you sure you want to delete <?php echo e($p['user']['name']); ?> permanently?')" title="Delete Employee" style="padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;">
-                                        <i class="fa-solid fa-trash-can"></i>
+                                    <a href="?month=<?php echo $selectedMonthStr; ?>&delete_emp=<?php echo $eId; ?>" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Are you sure you want to remove <?php echo e($p['user']['name']); ?> from Payroll? (Their user profile and system access will remain active)')" title="Remove from Payroll" style="padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;">
+                                        <i class="fa-solid fa-user-minus"></i>
                                     </a>
                                 </div>
                             </td>
@@ -450,7 +445,7 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
 
 <!-- MODAL: SELECT EMPLOYEE & SET/UPDATE BASE SALARY -->
 <div id="selectEmployeeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(2px); align-items: center; justify-content: center; z-index: 1000; padding: 20px;">
-    <div class="card fade-in" style="max-width: 520px; width: 100%; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+    <div class="card fade-in" style="max-width: 540px; width: 100%; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px;">
             <h3 class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
                 <i class="fa-solid fa-user-check" style="color: var(--color-primary);"></i> Select Employee for Payroll
@@ -469,11 +464,11 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                     <option value="">— Select from Workforce Directory —</option>
                     <?php foreach ($allWorkforceUsers as $u): ?>
                         <option value="<?php echo $u['id']; ?>" 
-                                data-salary="<?php echo $u['base_salary']; ?>" 
+                                data-salary="<?php echo (float)$u['base_salary'] > 0 ? $u['base_salary'] : '30000.00'; ?>" 
                                 data-role="<?php echo ucfirst($u['role']); ?>" 
                                 data-id="<?php echo e($u['employee_id']); ?>"
                                 data-designation="<?php echo e($u['designation'] ?: ucfirst($u['role'])); ?>">
-                            [<?php echo e($u['employee_id'] ?: 'ID'); ?>] <?php echo e($u['name']); ?> (<?php echo ucfirst($u['role']); ?> <?php echo !empty($u['designation']) ? '— ' . e($u['designation']) : ''; ?>)
+                            [<?php echo e($u['employee_id'] ?: 'ID'); ?>] <?php echo e($u['name']); ?> (<?php echo ucfirst($u['role']); ?> <?php echo !empty($u['designation']) ? '— ' . e($u['designation']) : ''; ?>) <?php echo (float)$u['base_salary'] > 0 ? '· [Current: ₹' . number_format($u['base_salary'], 2) . ']' : '· [Not on Payroll]'; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -500,7 +495,7 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
             </div>
 
             <div class="form-actions" style="margin-top: 20px; display: flex; gap: 10px;">
-                <button type="submit" class="btn btn-primary" style="flex: 1;">Save & Update Payroll</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Save & Add to Payroll</button>
                 <button type="button" onclick="closeSelectEmployeeModal()" class="btn btn-ghost">Cancel</button>
             </div>
 
