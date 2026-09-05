@@ -5,7 +5,7 @@
  * Flow:
  * Payroll -> Employee/Staff List -> Attendance & Leave Status (Hours, Paid Leave, Unpaid Leave, Present, Half-Day) 
  *         -> Total Salary Calculation -> 30-Day Daily Breakdown (Date & Day, Status, Per-Day Salary Amount, Final Monthly Salary).
- * Includes quick employee creation directly from Payroll.
+ * Includes quick employee creation & deletion directly from Payroll.
  */
 
 require_once __DIR__ . '/../config/app.php';
@@ -17,6 +17,7 @@ require_once __DIR__ . '/../includes/middleware.php';
 requireRole([ROLE_HR]);
 
 $db = getDB();
+$currentHrId = getUserId();
 $formErrors = [];
 
 // Handle Base Salary Update Form (if submitted)
@@ -104,6 +105,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_payrol
         header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . urlencode($monthParam));
         exit;
     }
+}
+
+// Handle Delete Employee / Staff from Payroll
+if (isset($_GET['delete_emp']) && is_numeric($_GET['delete_emp'])) {
+    $targetUserId = (int)$_GET['delete_emp'];
+    $monthParam = get('month', date('Y-m'));
+    
+    if ($targetUserId === $currentHrId) {
+        setFlash('error', 'You cannot delete your own account.');
+    } else {
+        try {
+            // Delete employee or manager account (protecting founders and other HRs)
+            $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND role IN ('employee', 'manager')");
+            $stmt->execute([$targetUserId]);
+            
+            if ($stmt->rowCount() > 0) {
+                setFlash('success', 'Employee removed from payroll and workforce successfully.');
+            } else {
+                setFlash('error', 'Could not delete employee (permission denied or record not found).');
+            }
+        } catch (PDOException $e) {
+            setFlash('error', 'Could not delete employee due to linked database dependencies.');
+        }
+    }
+    header('Location: ' . BASE_URL . '/hr/payroll.php?month=' . urlencode($monthParam));
+    exit;
 }
 
 // Selected Month and Year (default: current month)
@@ -385,7 +412,7 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                     <th style="white-space: nowrap; padding: 12px 16px;">Work Hours</th>
                     <th style="white-space: nowrap; padding: 12px 16px;">Status</th>
                     <th style="white-space: nowrap; padding: 12px 16px;">Net Salary</th>
-                    <th style="text-align: right; white-space: nowrap; padding: 12px 16px;">Action</th>
+                    <th style="text-align: right; white-space: nowrap; padding: 12px 16px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="payrollTableBody">
@@ -463,9 +490,14 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                                 </strong>
                             </td>
                             <td style="text-align: right; white-space: nowrap; padding: 12px 16px;">
-                                <a href="?month=<?php echo $selectedMonthStr; ?>&breakdown_emp=<?php echo $eId; ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;">
-                                    <i class="fa-solid fa-magnifying-glass"></i> 30-Day Breakdown
-                                </a>
+                                <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end;">
+                                    <a href="?month=<?php echo $selectedMonthStr; ?>&breakdown_emp=<?php echo $eId; ?>" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;">
+                                        <i class="fa-solid fa-magnifying-glass"></i> 30-Day Breakdown
+                                    </a>
+                                    <a href="?month=<?php echo $selectedMonthStr; ?>&delete_emp=<?php echo $eId; ?>" class="btn btn-ghost btn-sm text-danger" onclick="return confirm('Are you sure you want to permanently delete <?php echo e($p['user']['name']); ?> from payroll and workforce?')" title="Delete Employee from Payroll" style="padding: 6px 8px; border-radius: var(--radius-sm); font-size: 13px;">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
