@@ -238,7 +238,8 @@ if ($filterStatus !== 'all') {
             $emp['today_check_out'],
             $emp['today_working_time'],
             $emp['today_att_status'],
-            !empty($emp['today_leave_id']) ? (int)$emp['today_leave_id'] : null
+            !empty($emp['today_leave_id']) ? (int)$emp['today_leave_id'] : null,
+            $today
         );
 
         return $resolved === $filterStatus;
@@ -528,7 +529,9 @@ include __DIR__ . '/../includes/header.php';
                                         $emp['today_check_in'],
                                         $emp['today_check_out'],
                                         $emp['today_working_time'],
-                                        $emp['today_att_status']
+                                        $emp['today_att_status'],
+                                        null,
+                                        $today
                                     );
 
                                     if ($resolved === 'present') {
@@ -537,8 +540,8 @@ include __DIR__ . '/../includes/header.php';
                                     } elseif ($resolved === 'half-day') {
                                         $checkInText = !empty($emp['today_check_in']) ? ' (' . formatTime($emp['today_check_in']) . ')' : '';
                                         echo '<span class="badge badge-warning" title="Working: ' . e($emp['today_working_time'] ?? '') . '"><i class="fa-solid fa-hourglass-half"></i> Half-Day' . $checkInText . '</span>';
-                                    } elseif ($isSunday) {
-                                        echo '<span class="badge badge-secondary"><i class="fa-solid fa-bed"></i> Sunday Off</span>';
+                                    } elseif ($resolved === 'weekly_off' || $isSunday) {
+                                        echo '<span class="badge badge-warning" style="background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3);"><i class="fa-solid fa-mug-hot"></i> Sunday · Weekly Off</span>';
                                     } else {
                                         echo '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Absent</span>';
                                     }

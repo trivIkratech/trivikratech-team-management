@@ -381,7 +381,8 @@ include __DIR__ . '/../includes/header.php';
                                 $record['check_out'],
                                 $record['total_working_time'],
                                 $record['att_status'],
-                                !empty($record['leave_id']) ? (int)$record['leave_id'] : null
+                                !empty($record['leave_id']) ? (int)$record['leave_id'] : null,
+                                $record['attendance_date'] ?? $filterDate ?? null
                             );
                             echo renderAttendanceBadge($resolvedStatus, $record['leave_type'] ?? null, $record['leave_reason'] ?? null);
                             ?>

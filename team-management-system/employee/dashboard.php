@@ -89,10 +89,15 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- Attendance Card -->
+<?php $isTodaySunday = (date('l') === 'Sunday'); ?>
 <div class="attendance-card fade-in">
     <div class="attendance-status">
         <?php if (!$checkedIn): ?>
-            <i class="fa-solid fa-clock"></i>
+            <?php if ($isTodaySunday): ?>
+                <i class="fa-solid fa-mug-hot" style="color: #f59e0b;"></i>
+            <?php else: ?>
+                <i class="fa-solid fa-clock"></i>
+            <?php endif; ?>
         <?php elseif (!$checkedOut): ?>
             <i class="fa-solid fa-circle" style="color: var(--color-success);"></i>
         <?php else: ?>
@@ -102,7 +107,11 @@ include __DIR__ . '/../includes/header.php';
     
     <h2 style="margin-bottom: var(--space-2);">
         <?php if (!$checkedIn): ?>
-            You haven't logged in yet
+            <?php if ($isTodaySunday): ?>
+                Today is Sunday · Weekly Off ☕
+            <?php else: ?>
+                You haven't logged in yet
+            <?php endif; ?>
         <?php elseif (!$checkedOut): ?>
             <?php if (!empty($todayAttendance['break_start']) && empty($todayAttendance['break_end'])): ?>
                 On Break <i class="fa-solid fa-mug-hot"></i> (Work Timer Paused)
@@ -116,6 +125,9 @@ include __DIR__ . '/../includes/header.php';
     
     <p class="text-muted" style="margin-bottom: var(--space-4);">
         <?php echo date('l, d F Y'); ?> · <span id="live-clock"></span>
+        <?php if (!$checkedIn && $isTodaySunday): ?>
+            <br><span style="font-size: 12px; color: #ca8a04; font-weight: 500;">(Official Paid Weekly Off · Optional: You can still log in if working extra)</span>
+        <?php endif; ?>
     </p>
 
     <!-- Official Working Module & Shift Info Banner -->

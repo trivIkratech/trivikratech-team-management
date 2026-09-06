@@ -251,6 +251,7 @@ function attendanceStatusBadge(string $status): string {
         ATTENDANCE_PRESENT  => 'badge-success',
         ATTENDANCE_ABSENT   => 'badge-danger',
         ATTENDANCE_HALF_DAY => 'badge-warning',
+        'weekly_off'        => 'badge-warning',
         default             => 'badge-secondary'
     };
 }
@@ -261,9 +262,10 @@ function attendanceStatusBadge(string $status): string {
  * Shift Rule: >= 6h (21600s) = present, >= 3h (10800s) = half-day, < 3h = absent.
  * If currently checked in (no checkout yet) = present.
  * If on approved leave = leave.
- * If not checked in and no leave = absent.
+ * If Sunday and not checked in and no leave = weekly_off.
+ * If not checked in on working day and no leave = absent.
  */
-function resolveAttendanceStatus(?string $checkIn, ?string $checkOut, ?string $totalWorkingTime, ?string $attStatus, ?int $leaveId = null): string {
+function resolveAttendanceStatus(?string $checkIn, ?string $checkOut, ?string $totalWorkingTime, ?string $attStatus, ?int $leaveId = null, ?string $date = null): string {
     if (!empty($leaveId)) {
         return 'leave';
     }
@@ -307,6 +309,14 @@ function resolveAttendanceStatus(?string $checkIn, ?string $checkOut, ?string $t
         return $attStatus;
     }
 
+    // If date is provided and it is a Sunday, and status was not explicitly forced to absent
+    if (!empty($date)) {
+        $dayOfWeek = date('l', strtotime($date));
+        if ($dayOfWeek === 'Sunday' && $attStatus !== 'absent') {
+            return 'weekly_off';
+        }
+    }
+
     return 'absent';
 }
 
@@ -325,6 +335,8 @@ function renderAttendanceBadge(string $resolvedStatus, ?string $leaveType = null
         } else {
             return '<span class="badge badge-info" title="' . e($leaveReason ?? '') . '"><i class="fa-solid fa-umbrella-beach"></i> ' . ucfirst(e($lt)) . ' Leave</span>';
         }
+    } elseif ($resolvedStatus === 'weekly_off') {
+        return '<span class="badge badge-warning" style="background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3);"><i class="fa-solid fa-mug-hot"></i> Sunday · Weekly Off</span>';
     } elseif ($resolvedStatus === 'present') {
         return '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Present</span>';
     } elseif ($resolvedStatus === 'half-day') {
@@ -618,7 +630,7 @@ function countUnreadChatMessages(int $userId): int {
 function renderWorkingModuleBanner(): string {
     $todayDay = date('l');
     $isWeekend = ($todayDay === 'Sunday');
-    $badgeText = $isWeekend ? 'Sunday · Weekly Off' : 'Mon – Sat · Working Day';
+    $badgeText = $isWeekend ? 'Sunday · Weekly Off (Paid)' : 'Mon – Sat · Working Day';
     $badgeClass = $isWeekend ? 'badge-warning' : 'badge-info';
     
     return '
@@ -629,12 +641,12 @@ function renderWorkingModuleBanner(): string {
             </span>
             <span class="badge ' . $badgeClass . '" style="font-size: 11px;">' . $badgeText . '</span>
         </div>
-        <div style="display: flex; gap: 16px; color: var(--color-text-secondary); font-size: 12px; margin-top: 6px; flex-wrap: wrap; border-top: 1px dashed var(--color-border); padding-top: 8px;">
-            <span><i class="fa-solid fa-calendar-days"></i> <strong>Mon – Sat</strong></span>
+        <div style="display: flex; gap: 14px; color: var(--color-text-secondary); font-size: 12px; margin-top: 6px; flex-wrap: wrap; border-top: 1px dashed var(--color-border); padding-top: 8px;">
+            <span><i class="fa-solid fa-calendar-days"></i> <strong>Mon – Sat (Working)</strong></span>
+            <span><i class="fa-solid fa-mug-hot"></i> <strong>Sun (Weekly Off)</strong></span>
             <span><i class="fa-solid fa-clock"></i> <strong>7h Shift</strong></span>
-            <span><i class="fa-solid fa-mug-hot"></i> <strong>1h Break (Excluded)</strong></span>
             <span><i class="fa-solid fa-laptop-code"></i> <strong>6h Net Work</strong></span>
-            <span><i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Full Day: <strong>≥ 6h</strong> (Half Day: <strong>≥ 3h</strong>)</span>
+            <span><i class="fa-solid fa-circle-check" style="color: var(--color-success);"></i> Full Day: <strong>≥ 6h</strong> (Half: <strong>≥ 3h</strong>)</span>
         </div>
     </div>';
 }

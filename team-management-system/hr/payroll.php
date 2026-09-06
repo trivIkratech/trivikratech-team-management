@@ -135,6 +135,7 @@ foreach ($employees as $emp) {
     $dailyList = [];
     $totalWorkingSeconds = 0;
     $presentCount = 0;
+    $weeklyOffCount = 0;
     $halfDayCount = 0;
     $paidLeaveCount = 0;
     $unpaidLeaveCount = 0;
@@ -143,6 +144,7 @@ foreach ($employees as $emp) {
     for ($d = 1; $d <= $daysInMonth; $d++) {
         $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $d);
         $dayName = date('l', strtotime($dateStr));
+        $isSunday = ($dayName === 'Sunday');
         
         $att = $attendanceRows[$dateStr] ?? null;
         $leaveType = $leaveDays[$dateStr] ?? null;
@@ -162,12 +164,12 @@ foreach ($employees as $emp) {
             }
             
             if ($att['status'] === 'half-day') {
-                $statusLabel = 'Half-Day';
+                $statusLabel = 'Half-Day' . ($isSunday ? ' (Sunday Worked)' : '');
                 $statusKey = 'half-day';
                 $halfDayCount++;
                 $dailyEarned = $perDayRate * 0.5;
             } else {
-                $statusLabel = 'Present';
+                $statusLabel = $isSunday ? 'Present (Weekly Off Worked)' : 'Present';
                 $statusKey = 'present';
                 $presentCount++;
                 $dailyEarned = $perDayRate;
@@ -184,6 +186,12 @@ foreach ($employees as $emp) {
                 $unpaidLeaveCount++;
                 $dailyEarned = 0;
             }
+        } elseif ($isSunday) {
+            // Every Sunday is an official Paid Weekly Off
+            $statusLabel = 'Weekly Off (Sunday)';
+            $statusKey = 'weekly_off';
+            $weeklyOffCount++;
+            $dailyEarned = $perDayRate;
         } else {
             $unpaidLeaveCount++;
             $dailyEarned = 0;
@@ -195,6 +203,7 @@ foreach ($employees as $emp) {
             'day' => $d,
             'date' => $dateStr,
             'day_name' => $dayName,
+            'is_sunday' => $isSunday,
             'status_label' => $statusLabel,
             'status_key' => $statusKey,
             'working_time' => $workTimeStr,
@@ -213,6 +222,7 @@ foreach ($employees as $emp) {
         'per_day_rate' => $perDayRate,
         'total_working_hours' => $formattedTotalHours,
         'present_days' => $presentCount,
+        'weekly_offs' => $weeklyOffCount,
         'half_days' => $halfDayCount,
         'paid_leaves' => $paidLeaveCount,
         'unpaid_leaves' => $unpaidLeaveCount,
@@ -407,16 +417,19 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                             
                             <!-- Single Status Badge + Smooth Toggle -->
                             <td style="padding: 14px 16px; white-space: nowrap;">
-                                <!-- Collapsed State (Default: 1 Primary Badge + Details Button) -->
-                                <div id="status-collapsed-<?php echo $eId; ?>" style="display: inline-flex; align-items: center; gap: 8px;">
+                                <!-- Collapsed State (Default: Present + Weekly Off + Details Button) -->
+                                <div id="status-collapsed-<?php echo $eId; ?>" style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                     <?php if ($p['present_days'] > 0): ?>
-                                        <span class="badge badge-success" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['present_days']; ?> Present</span>
-                                    <?php elseif ($p['paid_leaves'] > 0): ?>
-                                        <span class="badge badge-info" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['paid_leaves']; ?> Paid</span>
-                                    <?php elseif ($p['half_days'] > 0): ?>
-                                        <span class="badge badge-warning" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['half_days']; ?> Half</span>
-                                    <?php else: ?>
-                                        <span class="badge badge-danger" style="font-weight: 600; font-size: 11px; padding: 4px 8px;"><?php echo $p['unpaid_leaves']; ?> Absent</span>
+                                        <span class="badge badge-success" style="font-weight: 600; font-size: 11px; padding: 4px 7px;"><?php echo $p['present_days']; ?> Present</span>
+                                    <?php endif; ?>
+                                    <?php if ($p['weekly_offs'] > 0): ?>
+                                        <span class="badge badge-warning" style="font-weight: 600; font-size: 11px; padding: 4px 7px; background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3);"><i class="fa-solid fa-mug-hot"></i> <?php echo $p['weekly_offs']; ?> Sun Off</span>
+                                    <?php endif; ?>
+                                    <?php if ($p['paid_leaves'] > 0): ?>
+                                        <span class="badge badge-info" style="font-weight: 600; font-size: 11px; padding: 4px 7px;"><?php echo $p['paid_leaves']; ?> Paid</span>
+                                    <?php endif; ?>
+                                    <?php if ($p['present_days'] == 0 && $p['weekly_offs'] == 0 && $p['paid_leaves'] == 0): ?>
+                                        <span class="badge badge-danger" style="font-weight: 600; font-size: 11px; padding: 4px 7px;"><?php echo $p['unpaid_leaves']; ?> Absent</span>
                                     <?php endif; ?>
 
                                     <button type="button" onclick="toggleStatus(<?php echo $eId; ?>)" class="btn btn-ghost btn-sm" style="padding: 2px 7px; font-size: 11px; border: 1px solid var(--color-border); border-radius: 4px; color: var(--color-text-secondary); cursor: pointer;" title="Show full 30-day breakdown badges">
@@ -424,9 +437,10 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                                     </button>
                                 </div>
 
-                                <!-- Expanded State (All 4 Badges + Hide Button) -->
+                                <!-- Expanded State (All Badges + Hide Button) -->
                                 <div id="status-expanded-<?php echo $eId; ?>" style="display: none; align-items: center; gap: 6px; flex-wrap: wrap;">
                                     <span class="badge badge-success" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['present_days']; ?> Present</span>
+                                    <span class="badge badge-warning" style="font-size: 11px; padding: 3px 6px; background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3);"><?php echo $p['weekly_offs']; ?> Sun Off</span>
                                     <span class="badge badge-info" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['paid_leaves']; ?> Paid</span>
                                     <span class="badge badge-warning" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['half_days']; ?> Half</span>
                                     <span class="badge badge-danger" style="font-size: 11px; padding: 3px 6px;"><?php echo $p['unpaid_leaves']; ?> Absent</span>
@@ -546,12 +560,15 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
             <!-- Modal Content Body -->
             <div style="padding: 20px 24px; overflow-y: auto; flex: 1;">
                 <!-- Summary Chips Grid -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;">
                     <div style="background: var(--color-bg-secondary); padding: 10px 14px; border-radius: var(--radius-md); font-size: var(--text-sm);">
                         <i class="fa-solid fa-stopwatch"></i> Working Hours<br><strong><?php echo e($breakdownDetail['total_working_hours']); ?></strong>
                     </div>
                     <div style="background: var(--color-bg-secondary); padding: 10px 14px; border-radius: var(--radius-md); font-size: var(--text-sm);">
                         <i class="fa-solid fa-circle-check"></i> Present Days<br><strong style="color: var(--color-success);"><?php echo $breakdownDetail['present_days']; ?> days</strong>
+                    </div>
+                    <div style="background: var(--color-bg-secondary); padding: 10px 14px; border-radius: var(--radius-md); font-size: var(--text-sm);">
+                        <i class="fa-solid fa-mug-hot"></i> Weekly Off (Sun)<br><strong style="color: #ca8a04;"><?php echo $breakdownDetail['weekly_offs']; ?> days (Paid)</strong>
                     </div>
                     <div style="background: var(--color-bg-secondary); padding: 10px 14px; border-radius: var(--radius-md); font-size: var(--text-sm);">
                         <i class="fa-solid fa-umbrella-beach"></i> Paid Leaves<br><strong style="color: var(--color-info);"><?php echo $breakdownDetail['paid_leaves']; ?> days</strong>
@@ -578,19 +595,24 @@ $avgBaseSalary = $empCount > 0 ? ($totalBaseSalary / $empCount) : 0;
                         </thead>
                         <tbody>
                             <?php foreach ($breakdownDetail['daily_breakdown'] as $dayRow): ?>
-                                <tr>
+                                <tr <?php echo !empty($dayRow['is_sunday']) ? 'style="background: rgba(234, 179, 8, 0.04);"' : ''; ?>>
                                     <td><code>Day <?php echo $dayRow['day']; ?></code></td>
                                     <td>
                                         <strong><?php echo formatDate($dayRow['date']); ?></strong>
                                         <small class="text-muted">(<?php echo $dayRow['day_name']; ?>)</small>
+                                        <?php if (!empty($dayRow['is_sunday'])): ?>
+                                            <span class="badge badge-warning" style="font-size: 10px; padding: 1px 5px; margin-left: 4px; background: rgba(234, 179, 8, 0.15); color: #ca8a04;">Weekly Off</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if ($dayRow['status_key'] === 'present'): ?>
-                                            <span class="badge badge-success">Present (100%)</span>
+                                            <span class="badge badge-success"><?php echo e($dayRow['status_label']); ?> (100%)</span>
+                                        <?php elseif ($dayRow['status_key'] === 'weekly_off'): ?>
+                                            <span class="badge badge-warning" style="background: rgba(234, 179, 8, 0.15); color: #ca8a04; border: 1px solid rgba(234, 179, 8, 0.3);"><i class="fa-solid fa-mug-hot"></i> Weekly Off (Paid 100%)</span>
                                         <?php elseif ($dayRow['status_key'] === 'paid_leave'): ?>
-                                            <span class="badge badge-info"><?php echo e($dayRow['status_label']); ?></span>
+                                            <span class="badge badge-info"><?php echo e($dayRow['status_label']); ?> (100%)</span>
                                         <?php elseif ($dayRow['status_key'] === 'half-day'): ?>
-                                            <span class="badge badge-warning">Half-Day (50%)</span>
+                                            <span class="badge badge-warning"><?php echo e($dayRow['status_label']); ?> (50%)</span>
                                         <?php else: ?>
                                             <span class="badge badge-danger">Unpaid / Absent (0%)</span>
                                         <?php endif; ?>
