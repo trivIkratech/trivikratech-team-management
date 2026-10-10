@@ -132,10 +132,11 @@ function logoutUser(): void {
 function getDashboardUrl(string $role): string {
     $baseRole = function_exists('getRoleBaseType') ? getRoleBaseType($role) : $role;
     return match($baseRole) {
-        ROLE_FOUNDER  => BASE_URL . '/founder/dashboard.php',
-        ROLE_MANAGER  => BASE_URL . '/manager/dashboard.php',
-        ROLE_HR       => BASE_URL . '/hr/dashboard.php',
-        ROLE_EMPLOYEE => BASE_URL . '/employee/dashboard.php',
-        default       => BASE_URL . '/employee/dashboard.php'
+        ROLE_FOUNDER          => BASE_URL . '/founder/dashboard.php',
+        ROLE_MANAGER          => BASE_URL . '/manager/dashboard.php',
+        ROLE_HR               => BASE_URL . '/hr/dashboard.php',
+        ROLE_SALES_COUNSELLOR => BASE_URL . '/sales/dashboard.php',
+        ROLE_EMPLOYEE         => BASE_URL . '/employee/dashboard.php',
+        default               => BASE_URL . '/employee/dashboard.php'
     };
 }

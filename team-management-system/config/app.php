@@ -34,6 +34,16 @@ define('ROLE_FOUNDER', 'founder');
 define('ROLE_MANAGER', 'manager');
 define('ROLE_EMPLOYEE', 'employee');
 define('ROLE_HR', 'hr');
+define('ROLE_SALES_COUNSELLOR', 'sales_counsellor');
+
+// Sales Commission Configuration (₹5,000 per admission)
+define('COMMISSION_PER_ADMISSION', 5000.00);
+
+// Lead status constants
+define('LEAD_NEW', 'new_lead');
+define('LEAD_INTERESTED', 'interested');
+define('LEAD_ENROLLED', 'enrolled');
+define('LEAD_UNINTERESTED', 'uninterested');
 
 // Task status constants
 define('TASK_TODO', 'todo');

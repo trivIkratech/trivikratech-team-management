@@ -35,7 +35,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // =============================================
     // Modal System
     // =============================================
+    function initModals() {
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            if (overlay.parentElement && overlay.parentElement !== document.body) {
+                document.body.appendChild(overlay);
+            }
+            if (!overlay.dataset.modalInit) {
+                overlay.dataset.modalInit = 'true';
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) {
+                        overlay.classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                });
+            }
+        });
+    }
+    initModals();
+    document.addEventListener('DOMContentLoaded', initModals);
+
     window.openModal = function(modalId) {
+        initModals();
         const overlay = document.getElementById(modalId);
         if (overlay) {
             overlay.classList.add('active');
@@ -44,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
                 const firstInput = overlay.querySelector('input, select, textarea');
                 if (firstInput) firstInput.focus();
-            }, 200);
+            }, 100);
         }
     };
 
@@ -55,16 +75,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.style.overflow = '';
         }
     };
-
-    // Close modal on overlay click
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) {
-                overlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        });
-    });
 
     // Close modal on Escape key
     document.addEventListener('keydown', function(e) {

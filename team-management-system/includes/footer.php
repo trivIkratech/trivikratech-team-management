@@ -54,10 +54,14 @@
                 const currentTheme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('app_theme') || 'dark';
                 if (!iframe.getAttribute('src')) {
                     iframe.src = window.BASE_URL + '/chat/index.php?embed=1&theme=' + encodeURIComponent(currentTheme);
-                } else if (iframe.contentDocument) {
-                    iframe.contentDocument.documentElement.setAttribute('data-theme', currentTheme);
-                    if (iframe.contentDocument.body) iframe.contentDocument.body.setAttribute('data-theme', currentTheme);
-                    if (iframe.contentWindow) iframe.contentWindow.postMessage({ theme: currentTheme }, '*');
+                } else {
+                    if (iframe.contentDocument) {
+                        iframe.contentDocument.documentElement.setAttribute('data-theme', currentTheme);
+                        if (iframe.contentDocument.body) iframe.contentDocument.body.setAttribute('data-theme', currentTheme);
+                    }
+                    if (iframe.contentWindow) {
+                        iframe.contentWindow.postMessage({ theme: currentTheme, type: 'floating_opened' }, '*');
+                    }
                 }
             }
         }
@@ -83,6 +87,12 @@
             }
         }
         </script>
+    <?php endif; ?>
+
+    <?php if (isLoggedIn() && !$isChatDashboard): ?>
+        <?php include_once __DIR__ . '/call_modals.php'; ?>
+        <?php include_once __DIR__ . '/whatsapp_modal.php'; ?>
+        <script src="<?php echo BASE_URL; ?>/assets/js/calling.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/calling.js') ?: time(); ?>"></script>
     <?php endif; ?>
 
     <script src="<?php echo BASE_URL; ?>/assets/js/app.js?v=<?php echo @filemtime(__DIR__ . '/../assets/js/app.js') ?: time(); ?>"></script>

@@ -27,7 +27,7 @@ function isActive(string $dir, string $page): string {
         <div class="sidebar-brand-icon"><i class="fa-solid fa-layer-group"></i></div>
         <div class="sidebar-brand-text">
             Team Manager
-            <span><?php echo ucfirst(e($userRole)); ?> Panel</span>
+            <span><?php echo ucwords(str_replace('_', ' ', e($userRole))); ?> Panel</span>
         </div>
         <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" onclick="closeSidebarNav(event)" title="Close / Collapse Sidebar" aria-label="Close sidebar" style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer; width: 32px; height: 32px; border-radius: var(--radius-md); margin-left: auto; border: none; background: transparent; color: var(--color-text-muted); font-size: 16px; transition: color 0.15s, background 0.15s;">
             <i class="fa-solid fa-xmark"></i>
@@ -66,6 +66,18 @@ function isActive(string $dir, string $page): string {
             </a>
 
             <div class="sidebar-nav-label">Modules</div>
+            <a href="<?php echo BASE_URL; ?>/founder/sales.php" class="sidebar-nav-item<?php echo isActive('founder', 'sales'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-funnel-dollar"></i></span> Sales & Leads CRM
+            </a>
+            <a href="<?php echo BASE_URL; ?>/founder/revenue.php" class="sidebar-nav-item<?php echo isActive('founder', 'revenue'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-vault"></i></span> Revenue Model
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/raw_leads.php" class="sidebar-nav-item<?php echo isActive('sales', 'raw_leads'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-address-book"></i></span> Raw Calling Bank
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/offerings.php" class="sidebar-nav-item<?php echo isActive('sales', 'offerings'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-graduation-cap"></i></span> Course Catalogue
+            </a>
             <a href="<?php echo BASE_URL; ?>/founder/attendance.php" class="sidebar-nav-item<?php echo isActive('founder', 'attendance'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-clipboard-user"></i></span> Attendance
             </a>
@@ -102,6 +114,15 @@ function isActive(string $dir, string $page): string {
             </a>
 
             <div class="sidebar-nav-label">Management</div>
+            <a href="<?php echo BASE_URL; ?>/manager/sales.php" class="sidebar-nav-item<?php echo isActive('manager', 'sales'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-funnel-dollar"></i></span> Sales & Leads
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/raw_leads.php" class="sidebar-nav-item<?php echo isActive('sales', 'raw_leads'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-address-book"></i></span> Raw Calling Bank
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/offerings.php" class="sidebar-nav-item<?php echo isActive('sales', 'offerings'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-graduation-cap"></i></span> Course Catalogue
+            </a>
             <a href="<?php echo BASE_URL; ?>/manager/teams.php" class="sidebar-nav-item<?php echo isActive('manager', 'teams'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-people-group"></i></span> My Teams
             </a>
@@ -125,6 +146,45 @@ function isActive(string $dir, string $page): string {
             </a>
             <a href="<?php echo BASE_URL; ?>/manager/announcements.php" class="sidebar-nav-item<?php echo isActive('manager', 'announcements'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Announcements
+            </a>
+
+        <?php elseif ($baseRole === ROLE_SALES_COUNSELLOR): ?>
+            <!-- ===== SALES COUNSELLOR NAVIGATION ===== -->
+            <div class="sidebar-nav-label">Main</div>
+            <a href="<?php echo BASE_URL; ?>/sales/dashboard.php" class="sidebar-nav-item<?php echo isActive('sales', 'dashboard'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-chart-pie"></i></span> Sales Dashboard
+            </a>
+            <a href="<?php echo BASE_URL; ?>/chat/index.php" class="sidebar-nav-item<?php echo isActive('chat', 'index'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Team Chat
+                <span class="sidebar-chat-badge" style="display: <?php echo $sidebarChatUnread > 0 ? 'inline-flex' : 'none'; ?>;"><?php echo $sidebarChatUnread > 99 ? '99+' : $sidebarChatUnread; ?></span>
+            </a>
+
+            <div class="sidebar-nav-label">Lead Pipeline</div>
+            <a href="<?php echo BASE_URL; ?>/sales/leads.php" class="sidebar-nav-item<?php echo (isActive('sales', 'leads') && empty($_GET['offering_type'])) ? ' active' : ''; ?>">
+                <span class="nav-icon"><i class="fa-solid fa-users-rays"></i></span> All Leads (Master)
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/leads.php?offering_type=course" class="sidebar-nav-item<?php echo (isActive('sales', 'leads') && ($_GET['offering_type'] ?? '') === 'course') ? ' active' : ''; ?>">
+                <span class="nav-icon"><i class="fa-solid fa-graduation-cap"></i></span> Course Leads
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/leads.php?offering_type=service" class="sidebar-nav-item<?php echo (isActive('sales', 'leads') && ($_GET['offering_type'] ?? '') === 'service') ? ' active' : ''; ?>">
+                <span class="nav-icon"><i class="fa-solid fa-laptop-code"></i></span> Service Leads
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/raw_leads.php" class="sidebar-nav-item<?php echo isActive('sales', 'raw_leads'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-address-book"></i></span> Raw / Manual Leads
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/tasks.php" class="sidebar-nav-item<?php echo isActive('sales', 'tasks'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-list-check"></i></span> Follow-ups & Tasks
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/offerings.php" class="sidebar-nav-item<?php echo isActive('sales', 'offerings'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-book-open"></i></span> Offerings Catalogue
+            </a>
+
+            <div class="sidebar-nav-label">My Workspace</div>
+            <a href="<?php echo BASE_URL; ?>/sales/attendance.php" class="sidebar-nav-item<?php echo isActive('sales', 'attendance'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-clipboard-user"></i></span> Attendance
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/leaves.php" class="sidebar-nav-item<?php echo isActive('sales', 'leaves'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-umbrella-beach"></i></span> Apply Leave
             </a>
 
         <?php elseif ($baseRole === ROLE_EMPLOYEE): ?>
@@ -177,6 +237,20 @@ function isActive(string $dir, string $page): string {
                 <span class="nav-icon"><i class="fa-solid fa-circle-user"></i></span> My Profile
             </a>
 
+            <div class="sidebar-nav-label">Sales & Leads CRM</div>
+            <a href="<?php echo BASE_URL; ?>/hr/sales.php" class="sidebar-nav-item<?php echo isActive('hr', 'sales'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-funnel-dollar"></i></span> Sales & Leads
+            </a>
+            <a href="<?php echo BASE_URL; ?>/hr/revenue.php" class="sidebar-nav-item<?php echo isActive('hr', 'revenue'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-vault"></i></span> Revenue Model
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/raw_leads.php" class="sidebar-nav-item<?php echo isActive('sales', 'raw_leads'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-address-book"></i></span> Raw Calling Bank
+            </a>
+            <a href="<?php echo BASE_URL; ?>/sales/offerings.php" class="sidebar-nav-item<?php echo isActive('sales', 'offerings'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-book-open"></i></span> Offerings Catalogue
+            </a>
+
             <div class="sidebar-nav-label">People & Workforce</div>
             <a href="<?php echo BASE_URL; ?>/hr/employees.php" class="sidebar-nav-item<?php echo isActive('hr', 'employees'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Employees
@@ -204,7 +278,6 @@ function isActive(string $dir, string $page): string {
             <a href="<?php echo BASE_URL; ?>/hr/team.php" class="sidebar-nav-item<?php echo isActive('hr', 'team'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Team & Communication
             </a>
-
         <?php endif; ?>
     </nav>
 
@@ -214,7 +287,7 @@ function isActive(string $dir, string $page): string {
             <div class="sidebar-user-avatar"><?php echo e($userInitials); ?></div>
             <div class="sidebar-user-info">
                 <div class="sidebar-user-name"><?php echo e($currentUser['name'] ?? 'User'); ?></div>
-                <div class="sidebar-user-role"><?php echo ucfirst(e($userRole)); ?></div>
+                <div class="sidebar-user-role"><?php echo ucwords(str_replace('_', ' ', e($userRole))); ?></div>
             </div>
         </a>
     </div>

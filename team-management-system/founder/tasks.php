@@ -13,6 +13,104 @@ requireRole([ROLE_FOUNDER]);
 
 $db = getDB();
 
+// Handle CSV export (Founder Only)
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    $expStatus = get('status');
+    $expPriority = get('priority');
+    $expAssignee = get('assigned_to');
+    $expTeam = get('team_id');
+    
+    $expWhere = ['1=1'];
+    $expParams = [];
+    
+    if ($expStatus) { $expWhere[] = "t.status = ?"; $expParams[] = $expStatus; }
+    if ($expPriority) { $expWhere[] = "t.priority = ?"; $expParams[] = $expPriority; }
+    if ($expAssignee) { $expWhere[] = "t.assigned_to = ?"; $expParams[] = (int)$expAssignee; }
+    if ($expTeam) { $expWhere[] = "t.team_id = ?"; $expParams[] = (int)$expTeam; }
+    
+    $expWhereClause = implode(' AND ', $expWhere);
+    
+    $expStmt = $db->prepare("
+        SELECT t.*, 
+               u1.name AS assigned_to_name, u1.email AS assigned_to_email, u1.role AS assigned_to_role, u1.designation AS assigned_to_designation,
+               u2.name AS assigned_by_name, u2.email AS assigned_by_email,
+               tm.name AS team_name
+        FROM tasks t
+        JOIN users u1 ON t.assigned_to = u1.id
+        JOIN users u2 ON t.assigned_by = u2.id
+        LEFT JOIN teams tm ON t.team_id = tm.id
+        WHERE {$expWhereClause}
+        ORDER BY t.id DESC
+    ");
+    $expStmt->execute($expParams);
+    $exportTasks = $expStmt->fetchAll();
+    
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    $filename = 'Company_Tasks_Export_' . date('Y-m-d_His') . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    
+    // UTF-8 BOM for Microsoft Excel / Google Sheets compatibility
+    echo "\xEF\xBB\xBF";
+    
+    $out = fopen('php://output', 'w');
+    fputcsv($out, [
+        'Task ID',
+        'Task Title',
+        'Description',
+        'Assigned To (Name)',
+        'Assigned To (Email)',
+        'Designation',
+        'Role',
+        'Assigned By',
+        'Assigned By (Email)',
+        'Team / Squad',
+        'Priority',
+        'Status',
+        'Start Date',
+        'Deadline',
+        'Is Overdue',
+        'Comments / Notes',
+        'Completed At',
+        'Created Date',
+        'Last Updated'
+    ], ',', '"', "\\");
+    
+    foreach ($exportTasks as $t) {
+        $isOverdue = isOverdue($t['deadline'], $t['status']) ? 'Yes' : 'No';
+        fputcsv($out, [
+            $t['id'],
+            $t['title'],
+            $t['description'] ?? '',
+            $t['assigned_to_name'] ?? '',
+            $t['assigned_to_email'] ?? '',
+            $t['assigned_to_designation'] ?? '',
+            ucwords(str_replace('_', ' ', $t['assigned_to_role'] ?? '')),
+            $t['assigned_by_name'] ?? '',
+            $t['assigned_by_email'] ?? '',
+            $t['team_name'] ?? 'Direct Assignment',
+            ucfirst($t['priority'] ?? 'medium'),
+            ucwords(str_replace('_', ' ', $t['status'] ?? 'todo')),
+            $t['start_date'] ? date('Y-m-d', strtotime($t['start_date'])) : '',
+            $t['deadline'] ? date('Y-m-d', strtotime($t['deadline'])) : '',
+            $isOverdue,
+            $t['comments'] ?? '',
+            $t['completed_at'] ? date('Y-m-d H:i:s', strtotime($t['completed_at'])) : '',
+            $t['created_at'] ? date('Y-m-d H:i:s', strtotime($t['created_at'])) : '',
+            $t['updated_at'] ? date('Y-m-d H:i:s', strtotime($t['updated_at'])) : ''
+        ], ',', '"', "\\");
+    }
+    
+    fclose($out);
+    exit;
+}
+
 // Handle task creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_task') {
     requireCsrf();
@@ -198,7 +296,10 @@ include __DIR__ . '/../includes/header.php';
         <h1 class="page-title">Tasks</h1>
         <p class="page-subtitle"><?php echo $totalRecords; ?> task(s) across the company</p>
     </div>
-    <div class="page-header-actions">
+    <div class="page-header-actions" style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+        <a href="<?php echo BASE_URL; ?>/founder/tasks.php?export=csv<?php echo $filterStatus ? '&status=' . urlencode($filterStatus) : ''; ?><?php echo $filterPriority ? '&priority=' . urlencode($filterPriority) : ''; ?><?php echo $filterAssignee ? '&assigned_to=' . urlencode($filterAssignee) : ''; ?><?php echo $filterTeam ? '&team_id=' . urlencode($filterTeam) : ''; ?>" class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;" title="Download all company tasks as CSV (Founder Exclusive)">
+            <i class="fa-solid fa-file-arrow-down"></i> Download Tasks (CSV)
+        </a>
         <button class="btn btn-primary" onclick="openModal('create-task-modal')">+ Create Task</button>
     </div>
 </div>

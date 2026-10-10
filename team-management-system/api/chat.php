@@ -31,32 +31,225 @@ $userRole = $currentUser['role'] ?? '';
 $action = post('action') ?: get('action');
 
 /**
- * Format clickable URLs and @mentions inside text messages
+ * Format rich markdown messages, code blocks, bullet/numbered lists, blockquotes, 
+ * URLs, @mentions, bold, italics, strikethrough, and line breaks inside chat messages.
  */
 function formatChatMessage(?string $text, array $activeUserNames = []): string {
-    if (empty($text)) return '';
-    $escaped = e($text);
+    if ($text === null || $text === '') return '';
     
-    // 1. Auto-link URLs
-    $urlPattern = '/(https?:\/\/[^\s<]+)/i';
-    $formatted = preg_replace($urlPattern, '<a href="$1" target="_blank" rel="noopener" class="chat-link"><i class="fa-solid fa-arrow-up-right-from-square" style="margin-right: 3px; font-size: 10px;"></i>$1</a>', $escaped);
+    // 0. Escape HTML first to prevent XSS
+    $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
     
-    // 2. Format @mentions
+    // 1. Code blocks: ```[lang]\n[code]\n```
+    $codeBlocks = [];
+    $text = preg_replace_callback('/```([a-zA-Z0-9_\-\+]*)\r?\n?([\s\S]*?)```/m', function($m) use (&$codeBlocks) {
+        $placeholder = '###CHAT_CODE_BLOCK_' . count($codeBlocks) . '###';
+        $lang = !empty($m[1]) ? htmlspecialchars($m[1], ENT_QUOTES, 'UTF-8') : 'CODE';
+        $code = trim($m[2]);
+        $codeHtml = '<pre class="chat-code-block"><div class="chat-code-header"><span><i class="fa-solid fa-code" style="margin-right:4px;"></i>' . $lang . '</span><button type="button" class="chat-copy-btn" onclick="copyChatCode(this)"><i class="fa-regular fa-copy"></i> Copy</button></div><code>' . $code . '</code></pre>';
+        $codeBlocks[$placeholder] = $codeHtml;
+        return $placeholder;
+    }, $text);
+    
+    // 2. Inline code: `code`
+    $inlineCodes = [];
+    $text = preg_replace_callback('/`([^`\r\n]+)`/', function($m) use (&$inlineCodes) {
+        $placeholder = '###CHAT_INLINE_CODE_' . count($inlineCodes) . '###';
+        $inlineCodes[$placeholder] = '<code class="chat-inline-code">' . $m[1] . '</code>';
+        return $placeholder;
+    }, $text);
+
+    // 3. Markdown links: [Title](url)
+    $text = preg_replace('/\[([^\]\r\n]+)\]\((https?:\/\/[^\)\s]+)\)/', '<a href="$2" target="_blank" rel="noopener" class="chat-link"><i class="fa-solid fa-link" style="font-size: 10px; margin-right: 3px;"></i>$1</a>', $text);
+
+    // 4. Auto-link plain URLs
+    $urlPattern = '/(?<!href=")(?<!href=\')(https?:\/\/[^\s<"\'\)]+)/i';
+    $text = preg_replace($urlPattern, '<a href="$1" target="_blank" rel="noopener" class="chat-link"><i class="fa-solid fa-arrow-up-right-from-square" style="margin-right: 3px; font-size: 10px;"></i>$1</a>', $text);
+
+    // 5. Format @mentions
     if (!empty($activeUserNames)) {
-        // Sort names by length descending so longer full names match first
         usort($activeUserNames, fn($a, $b) => strlen($b['name']) <=> strlen($a['name']));
         foreach ($activeUserNames as $u) {
-            $uName = e($u['name']);
-            // Case-insensitive replacement for @Name
+            $uName = htmlspecialchars($u['name'], ENT_QUOTES, 'UTF-8');
             $mentionPattern = '/@' . preg_quote($uName, '/') . '\b/i';
-            $formatted = preg_replace($mentionPattern, '<span class="chat-mention" data-user-id="' . $u['id'] . '"><i class="fa-solid fa-at"></i>' . $uName . '</span>', $formatted);
+            $text = preg_replace($mentionPattern, '<span class="chat-mention" data-user-id="' . $u['id'] . '"><i class="fa-solid fa-at"></i>' . $uName . '</span>', $text);
         }
     } else {
-        // Generic fallback for @word
-        $formatted = preg_replace('/@([a-zA-Z0-9_\.\-]+)/', '<span class="chat-mention"><i class="fa-solid fa-at"></i>$1</span>', $formatted);
+        $text = preg_replace('/@([a-zA-Z0-9_\.\-]+)/', '<span class="chat-mention"><i class="fa-solid fa-at"></i>$1</span>', $text);
+    }
+
+    // 6. Bold **bold** or *bold*
+    $text = preg_replace('/\*\*([^\*\r\n]+)\*\*/', '<strong>$1</strong>', $text);
+    $text = preg_replace('/(?<=^|\s|[.,!?;:(\[])\*([^\*\r\n\s]+(?:\s+[^\*\r\n\s]+)*)\*(?=\s|$|[.,!?;:)\]])/', '<strong>$1</strong>', $text);
+
+    // 7. Italic _italic_
+    $text = preg_replace('/(?<=^|\s|[.,!?;:(\[])_([^_\r\n\s]+(?:\s+[^_\r\n\s]+)*)_(?=\s|$|[.,!?;:)\]])/', '<em>$1</em>', $text);
+
+    // 8. Strikethrough ~~strike~~ or ~strike~
+    $text = preg_replace('/~~([^~\r\n]+)~~/', '<del>$1</del>', $text);
+    $text = preg_replace('/(?<=^|\s|[.,!?;:(\[])~([^~\r\n\s]+(?:\s+[^~\r\n\s]+)*)~(?=\s|$|[.,!?;:)\]])/', '<del>$1</del>', $text);
+
+    // 9. Block elements (Blockquotes, Lists, Paragraphs)
+    $rawLines = explode("\n", str_replace("\r\n", "\n", $text));
+    $outBlocks = [];
+    $inQuote = false;
+    $quoteLines = [];
+    $inList = false;
+    $listType = 'ul';
+    $listItems = [];
+
+    $flushQuote = function() use (&$inQuote, &$quoteLines, &$outBlocks) {
+        if ($inQuote) {
+            while (!empty($quoteLines) && trim($quoteLines[0]) === '') {
+                array_shift($quoteLines);
+            }
+            while (!empty($quoteLines) && trim(end($quoteLines)) === '') {
+                array_pop($quoteLines);
+            }
+            if (!empty($quoteLines)) {
+                $content = '';
+                $prevWasEmpty = false;
+                foreach ($quoteLines as $ql) {
+                    $trimmed = trim($ql);
+                    if ($trimmed === '') {
+                        if (!$prevWasEmpty && !empty($content)) {
+                            $content .= '<br><br>';
+                            $prevWasEmpty = true;
+                        }
+                    } else {
+                        if (!empty($content) && !$prevWasEmpty) {
+                            $content .= '<br>';
+                        }
+                        $content .= $trimmed;
+                        $prevWasEmpty = false;
+                    }
+                }
+                $outBlocks[] = '<blockquote class="chat-blockquote">' . $content . '</blockquote>';
+            }
+            $inQuote = false;
+            $quoteLines = [];
+        }
+    };
+
+    $flushList = function() use (&$inList, &$listType, &$listItems, &$outBlocks) {
+        if ($inList) {
+            if (!empty($listItems)) {
+                $outBlocks[] = '<' . $listType . ' class="chat-list">' . implode('', $listItems) . '</' . $listType . '>';
+            }
+            $inList = false;
+            $listItems = [];
+        }
+    };
+
+    foreach ($rawLines as $line) {
+        if (preg_match('/^(?:&gt;|>)[ ]?(.*)$/', $line, $qm)) {
+            $flushList();
+            $inQuote = true;
+            $quoteLines[] = $qm[1];
+        } else {
+            $flushQuote();
+            if (preg_match('/^[ ]*[-*•▪▫◆✓➢–—][ ]+(.+)$/u', $line, $lm)) {
+                if (!$inList || $listType !== 'ul') {
+                    $flushList();
+                    $inList = true;
+                    $listType = 'ul';
+                }
+                $listItems[] = '<li>' . $lm[1] . '</li>';
+            } elseif (preg_match('/^[ ]*(?:[0-9]+[.)]|\([0-9]+\)|[a-zA-Z][.)]|\([a-zA-Z]\))[ ]+(.+)$/u', $line, $lm)) {
+                if (!$inList || $listType !== 'ol') {
+                    $flushList();
+                    $inList = true;
+                    $listType = 'ol';
+                }
+                $listItems[] = '<li>' . $lm[1] . '</li>';
+            } else {
+                $flushList();
+                $outBlocks[] = $line;
+            }
+        }
+    }
+    $flushQuote();
+    $flushList();
+
+    // 10. Assemble final text with line breaks between non-block lines
+    $finalText = '';
+    foreach ($outBlocks as $idx => $block) {
+        $isBlockElem = str_starts_with($block, '<ul') || str_starts_with($block, '<ol') || str_starts_with($block, '<blockquote') || str_starts_with($block, '<pre');
+        if ($isBlockElem) {
+            $finalText .= $block;
+        } else {
+            $prevWasBlock = false;
+            if ($idx > 0) {
+                $prevBlock = $outBlocks[$idx - 1];
+                $prevWasBlock = str_starts_with($prevBlock, '<ul') || str_starts_with($prevBlock, '<ol') || str_starts_with($prevBlock, '<blockquote') || str_starts_with($prevBlock, '<pre');
+            }
+            if ($idx > 0 && !empty($finalText) && !$prevWasBlock) {
+                $finalText .= '<br>' . $block;
+            } else {
+                $finalText .= $block;
+            }
+        }
+    }
+    $text = $finalText;
+
+    // 12. Restore code blocks & inline codes
+    foreach ($codeBlocks as $placeholder => $codeHtml) {
+        $text = str_replace($placeholder, $codeHtml, $text);
+    }
+    foreach ($inlineCodes as $placeholder => $inlineHtml) {
+        $text = str_replace($placeholder, $inlineHtml, $text);
+    }
+
+    return $text;
+}
+
+// Auto update activity timestamp for logged in user
+try {
+    $db->prepare("UPDATE users SET last_active_at = NOW() WHERE id = ?")->execute([$currentUserId]);
+} catch (Exception $e) {}
+
+/**
+ * Compute user real-time presence (online, dnd, away, offline) and status text
+ */
+function computeUserPresence(array $user): array {
+    $status = $user['presence_status'] ?? 'automatic';
+    $lastActive = !empty($user['last_active_at']) ? strtotime($user['last_active_at']) : 0;
+    $diffSeconds = time() - $lastActive;
+    
+    $computed = 'offline';
+    $statusLabel = 'Offline';
+    
+    if ($status === 'dnd') {
+        $computed = 'dnd';
+        $statusLabel = 'Do not disturb';
+    } elseif ($status === 'away') {
+        $computed = 'away';
+        $statusLabel = 'Set as away';
+    } elseif ($status === 'offline') {
+        $computed = 'offline';
+        $statusLabel = 'Offline';
+    } else { // automatic
+        if ($diffSeconds <= 180) { // active within last 3 minutes
+            $computed = 'online';
+            $statusLabel = 'Active';
+        } elseif ($diffSeconds <= 600) { // 3-10 mins idle
+            $computed = 'away';
+            $statusLabel = 'Away';
+        } else {
+            $computed = 'offline';
+            $statusLabel = 'Offline';
+        }
     }
     
-    return $formatted;
+    return [
+        'presence_status' => $status,
+        'computed_status' => $computed,
+        'status_label' => $statusLabel,
+        'custom_status_text' => $user['custom_status_text'] ?? '',
+        'custom_status_emoji' => $user['custom_status_emoji'] ?? '',
+        'last_active_at' => $user['last_active_at'] ?? null,
+        'last_seen_formatted' => $lastActive > 0 ? timeAgo($user['last_active_at']) : 'Offline'
+    ];
 }
 
 try {
@@ -69,6 +262,12 @@ try {
             $db->exec("INSERT IGNORE INTO chat_room_members (room_id, user_id) SELECT 1, id FROM users WHERE status = 'active'");
         } catch (Exception $e) {}
         
+        // Fetch current user details with presence
+        $stmtMe = $db->prepare("SELECT id, name, role, designation, presence_status, custom_status_text, custom_status_emoji, last_active_at FROM users WHERE id = ?");
+        $stmtMe->execute([$currentUserId]);
+        $meData = $stmtMe->fetch() ?: $currentUser;
+        $myPresence = computeUserPresence($meData);
+
         // Fetch all rooms for current user with accurate per-user unread counters
         $stmt = $db->prepare("
             SELECT r.id, r.name, r.type, r.created_by, r.created_at,
@@ -84,11 +283,11 @@ try {
         $stmt->execute([$currentUserId, $currentUserId]);
         $rooms = $stmt->fetchAll();
         
-        // For direct rooms, format partner name and avatar
+        // For direct rooms, format partner name, avatar, and presence
         foreach ($rooms as &$room) {
             if ($room['type'] === 'direct') {
                 $pStmt = $db->prepare("
-                    SELECT u.id, u.name, u.role, u.designation 
+                    SELECT u.id, u.name, u.role, u.designation, u.presence_status, u.custom_status_text, u.custom_status_emoji, u.last_active_at 
                     FROM chat_room_members rm 
                     JOIN users u ON rm.user_id = u.id 
                     WHERE rm.room_id = ? AND rm.user_id != ? 
@@ -102,6 +301,7 @@ try {
                     $room['designation'] = $partner['designation'];
                     $room['partner_id'] = $partner['id'];
                     $room['initials'] = getInitials($partner['name']);
+                    $room['presence'] = computeUserPresence($partner);
                 }
             } else {
                 $room['initials'] = ($room['id'] == 1) ? '<i class="fa-solid fa-bullhorn"></i>' : '<i class="fa-solid fa-users"></i>';
@@ -110,9 +310,9 @@ try {
             $room['can_clear_history'] = ($room['type'] === 'direct' || $room['created_by'] == $currentUserId || $userRole === ROLE_FOUNDER);
         }
         
-        // Fetch ALL specific persons categorized by role with accurate per-user unread counts
+        // Fetch ALL specific persons categorized by role with presence and unread counts
         $uStmt = $db->prepare("
-            SELECT u.id, u.name, u.role, u.designation,
+            SELECT u.id, u.name, u.role, u.designation, u.presence_status, u.custom_status_text, u.custom_status_emoji, u.last_active_at,
                    (SELECT COUNT(*) 
                     FROM chat_messages m 
                     JOIN chat_rooms r ON m.room_id = r.id 
@@ -128,15 +328,61 @@ try {
 
         foreach ($allUsers as &$u) {
             $u['initials'] = getInitials($u['name']);
+            $u['presence'] = computeUserPresence($u);
         }
         
         echo json_encode([
             'success' => true,
             'rooms' => $rooms,
             'users' => $allUsers,
+            'current_user' => [
+                'id' => $currentUserId,
+                'name' => $meData['name'],
+                'role' => $meData['role'],
+                'designation' => $meData['designation'] ?: ucfirst($meData['role']),
+                'initials' => getInitials($meData['name']),
+                'presence' => $myPresence
+            ],
             'current_user_id' => $currentUserId,
             'current_user_role' => $userRole
         ]);
+        exit;
+        
+    } elseif ($action === 'update_presence') {
+        $presenceStatus = post('presence_status');
+        $customText = post('custom_status_text');
+        $customEmoji = post('custom_status_emoji');
+        
+        $validStatuses = ['automatic', 'dnd', 'away', 'offline'];
+        if (!in_array($presenceStatus, $validStatuses, true)) {
+            $presenceStatus = 'automatic';
+        }
+
+        $stmt = $db->prepare("
+            UPDATE users 
+            SET presence_status = ?,
+                custom_status_text = ?,
+                custom_status_emoji = ?,
+                last_active_at = NOW() 
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $presenceStatus,
+            $customText !== null ? trim($customText) : null,
+            $customEmoji !== null ? trim($customEmoji) : null,
+            $currentUserId
+        ]);
+
+        $stmtMe = $db->prepare("SELECT id, name, role, designation, presence_status, custom_status_text, custom_status_emoji, last_active_at FROM users WHERE id = ?");
+        $stmtMe->execute([$currentUserId]);
+        $updatedUser = $stmtMe->fetch();
+
+        echo json_encode([
+            'success' => true,
+            'presence' => computeUserPresence($updatedUser),
+            'message' => 'Status updated successfully.'
+        ]);
+        exit;
         
     } elseif ($action === 'create_group') {
         $groupName = trim(post('group_name'));
@@ -257,6 +503,22 @@ try {
         } catch (Exception $e) {}
         $db->prepare("UPDATE chat_messages SET is_read = 1 WHERE room_id = ? AND sender_id != ?")->execute([$roomId, $currentUserId]);
         
+        // Get room type & partner read progress
+        $rTypeStmt = $db->prepare("SELECT type FROM chat_rooms WHERE id = ?");
+        $rTypeStmt->execute([$roomId]);
+        $roomType = $rTypeStmt->fetchColumn() ?: 'group';
+
+        $partnerLastReadId = 0;
+        $pStmt = $db->prepare("SELECT COALESCE(MAX(last_read_message_id), 0) FROM chat_room_members WHERE room_id = ? AND user_id != ?");
+        $pStmt->execute([$roomId, $currentUserId]);
+        $partnerLastReadId = (int)$pStmt->fetchColumn();
+
+        $maxReadSentStmt = $db->prepare("SELECT COALESCE(MAX(id), 0) FROM chat_messages WHERE room_id = ? AND sender_id = ? AND is_read = 1");
+        $maxReadSentStmt->execute([$roomId, $currentUserId]);
+        $maxReadSentId = (int)$maxReadSentStmt->fetchColumn();
+
+        $effectivePartnerReadId = max($partnerLastReadId, $maxReadSentId);
+        
         // Get active users for mention formatting
         $allUsersStmt = $db->query("SELECT id, name FROM users WHERE status = 'active'");
         $activeUsers = $allUsersStmt->fetchAll();
@@ -290,6 +552,7 @@ try {
             $msg['time'] = date('h:i A', strtotime($msg['created_at']));
             $msg['initials'] = getInitials($msg['sender_name']);
             $msg['is_self'] = ((int)$msg['sender_id'] === $currentUserId);
+            $msg['is_read'] = ((int)($msg['is_read'] ?? 0) === 1 || ($effectivePartnerReadId > 0 && (int)$msg['id'] <= $effectivePartnerReadId)) ? 1 : 0;
             $msg['can_edit'] = ($msg['is_self'] && empty($msg['file_path']));
             $msg['can_delete'] = ($msg['is_self'] || $userRole === ROLE_FOUNDER);
             if ($msg['file_path']) {
@@ -305,6 +568,8 @@ try {
             'success' => true,
             'messages' => $messages,
             'max_id' => $maxId,
+            'partner_last_read_id' => $effectivePartnerReadId,
+            'room_type' => $roomType,
             'is_incremental' => ($sinceId > 0)
         ]);
         
@@ -432,6 +697,7 @@ try {
             'time' => date('h:i A'),
             'initials' => getInitials($currentUser['name']),
             'is_self' => true,
+            'is_read' => 0,
             'can_edit' => empty($filePath),
             'can_delete' => true,
             'is_edited' => 0
@@ -478,9 +744,16 @@ try {
         ");
         $updateStmt->execute([$newMessage, $messageId]);
         
+        $allUsersStmt = $db->query("SELECT id, name FROM users WHERE status = 'active'");
+        $activeUsers = $allUsersStmt->fetchAll();
+        $formattedHtml = formatChatMessage($newMessage, $activeUsers);
+        
         echo json_encode([
             'success' => true,
-            'message' => 'Message updated successfully.'
+            'message' => 'Message updated successfully.',
+            'message_id' => $messageId,
+            'new_text' => $newMessage,
+            'formatted_html' => $formattedHtml
         ]);
         
     } elseif ($action === 'delete_message') {

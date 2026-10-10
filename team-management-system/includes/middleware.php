@@ -78,3 +78,10 @@ function isEmployee(): bool {
 function isHR(): bool {
     return hasRole(ROLE_HR);
 }
+
+/**
+ * Check if current user is Sales Counsellor
+ */
+function isSalesCounsellor(): bool {
+    return hasRole(ROLE_SALES_COUNSELLOR);
+}

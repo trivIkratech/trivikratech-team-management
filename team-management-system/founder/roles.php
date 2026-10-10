@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'create_rol
     if (empty($name)) $formErrors[] = 'Role name is required.';
     if (empty($slug)) $formErrors[] = 'Role identifier (slug) is required.';
     if (!preg_match('/^[a-z0-9_]+$/', $slug)) $formErrors[] = 'Role identifier can only contain lowercase letters, numbers, and underscores.';
-    if (!in_array($baseRole, ['employee', 'manager', 'hr'])) $formErrors[] = 'Please select a valid base access workspace.';
+    if (!in_array($baseRole, ['employee', 'manager', 'hr', 'sales_counsellor'])) $formErrors[] = 'Please select a valid base access workspace.';
     
     // Check slug uniqueness
     if (empty($formErrors)) {
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_role'
         $formErrors[] = 'System default roles cannot be modified.';
     } else {
         if (empty($name)) $formErrors[] = 'Role name is required.';
-        if (!in_array($baseRole, ['employee', 'manager', 'hr'])) $formErrors[] = 'Please select a valid base access workspace.';
+        if (!in_array($baseRole, ['employee', 'manager', 'hr', 'sales_counsellor'])) $formErrors[] = 'Please select a valid base access workspace.';
         
         if (empty($formErrors)) {
             $stmt = $db->prepare("UPDATE roles SET name = ?, description = ?, base_role = ?, updated_at = NOW() WHERE id = ?");
@@ -234,6 +234,9 @@ include __DIR__ . '/../includes/header.php';
                     <option value="employee" <?php echo post('base_role') === 'employee' ? 'selected' : ''; ?>>
                         Employee Workspace (Attendance, Tasks, Meetings, Leaves, Chat, Support)
                     </option>
+                    <option value="sales_counsellor" <?php echo post('base_role') === 'sales_counsellor' ? 'selected' : ''; ?>>
+                        Sales Counsellor Workspace (Leads & CRM Pipeline, Courses/Services Offerings, Attendance, Chat)
+                    </option>
                     <option value="manager" <?php echo post('base_role') === 'manager' ? 'selected' : ''; ?>>
                         Manager Workspace (Team Oversight, Task Supervision, Shift Monitoring, Leaves, Meetings)
                     </option>
@@ -295,6 +298,9 @@ include __DIR__ . '/../includes/header.php';
                 <select name="base_role" class="form-select" required>
                     <option value="employee" <?php echo $editRole['base_role'] === 'employee' ? 'selected' : ''; ?>>
                         Employee Workspace (Attendance, Tasks, Meetings, Leaves, Chat, Support)
+                    </option>
+                    <option value="sales_counsellor" <?php echo $editRole['base_role'] === 'sales_counsellor' ? 'selected' : ''; ?>>
+                        Sales Counsellor Workspace (Leads & CRM Pipeline, Courses/Services Offerings, Attendance, Chat)
                     </option>
                     <option value="manager" <?php echo $editRole['base_role'] === 'manager' ? 'selected' : ''; ?>>
                         Manager Workspace (Team Oversight, Task Supervision, Shift Monitoring, Leaves, Meetings)

@@ -332,6 +332,62 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`id`, `employee_id`, `name`, `email`, `contact_no`, `designation`, `base_salary`, `password`, `pin`, `role`, `manager_id`, `status`, `created_at`, `updated_at`) VALUES ('1', NULL, 'System Founder', 'founder@company.com', NULL, NULL, '30000.00', '$2y$12$2zNy./ZnIVjqQ95aIO9pz.aE7lOE3SjMCRSwbBokJ7Klg657Uf9uy', '$2y$12$X.4J5O9pdjMMdIyE34gUqu3GyoTvq.NqKI8g8zOsLJBwDdABtO.c.', 'founder', NULL, 'active', '2026-08-31 09:35:38', '2026-08-31 09:42:05');
 INSERT INTO `users` (`id`, `employee_id`, `name`, `email`, `contact_no`, `designation`, `base_salary`, `password`, `pin`, `role`, `manager_id`, `status`, `created_at`, `updated_at`) VALUES ('2', 'EMP001', 'Manager User', 'manager@company.com', NULL, NULL, '30000.00', '$2y$12$2zNy./ZnIVjqQ95aIO9pz.aE7lOE3SjMCRSwbBokJ7Klg657Uf9uy', '$2y$12$X.4J5O9pdjMMdIyE34gUqu3GyoTvq.NqKI8g8zOsLJBwDdABtO.c.', 'manager', NULL, 'active', '2026-08-31 09:38:49', '2026-08-31 09:42:05');
 INSERT INTO `users` (`id`, `employee_id`, `name`, `email`, `contact_no`, `designation`, `base_salary`, `password`, `pin`, `role`, `manager_id`, `status`, `created_at`, `updated_at`) VALUES ('3', 'EMP002', 'HR User', 'hr@company.com', NULL, NULL, '30000.00', '$2y$12$2zNy./ZnIVjqQ95aIO9pz.aE7lOE3SjMCRSwbBokJ7Klg657Uf9uy', '$2y$12$X.4J5O9pdjMMdIyE34gUqu3GyoTvq.NqKI8g8zOsLJBwDdABtO.c.', 'hr', NULL, 'active', '2026-08-31 09:38:49', '2026-08-31 09:42:05');
-INSERT INTO `users` (`id`, `employee_id`, `name`, `email`, `contact_no`, `designation`, `base_salary`, `password`, `pin`, `role`, `manager_id`, `status`, `created_at`, `updated_at`) VALUES ('4', 'EMP003', 'Employee User', 'employee@company.com', NULL, NULL, '5000.00', '$2y$12$2zNy./ZnIVjqQ95aIO9pz.aE7lOE3SjMCRSwbBokJ7Klg657Uf9uy', '$2y$12$X.4J5O9pdjMMdIyE34gUqu3GyoTvq.NqKI8g8zOsLJBwDdABtO.c.', 'employee', NULL, 'active', '2026-08-31 09:38:49', '2026-08-31 12:08:20');
+-- Table structure for `call_sessions`
+DROP TABLE IF EXISTS `call_sessions`;
+CREATE TABLE `call_sessions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `caller_id` int NOT NULL,
+  `receiver_id` int NOT NULL,
+  `room_id` int DEFAULT NULL,
+  `call_type` enum('audio','video') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'audio',
+  `status` enum('ringing','connected','rejected','busy','missed','ended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ringing',
+  `sdp_offer` mediumtext COLLATE utf8mb4_unicode_ci,
+  `sdp_answer` mediumtext COLLATE utf8mb4_unicode_ci,
+  `started_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `connected_at` timestamp NULL DEFAULT NULL,
+  `ended_at` timestamp NULL DEFAULT NULL,
+  `duration_seconds` int DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_caller_id` (`caller_id`),
+  KEY `idx_receiver_id` (`receiver_id`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_call_caller` FOREIGN KEY (`caller_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_call_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `call_signals`
+DROP TABLE IF EXISTS `call_signals`;
+CREATE TABLE `call_signals` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `call_id` int NOT NULL,
+  `sender_id` int NOT NULL,
+  `candidate` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_call_id` (`call_id`),
+  KEY `idx_sender_id` (`sender_id`),
+  CONSTRAINT `fk_signal_call` FOREIGN KEY (`call_id`) REFERENCES `call_sessions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `sales_targets`
+DROP TABLE IF EXISTS `sales_targets`;
+CREATE TABLE `sales_targets` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `target_month` varchar(7) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `target_revenue` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `target_enrollments` int NOT NULL DEFAULT '0',
+  `target_leads` int NOT NULL DEFAULT '0',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `set_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_user_month` (`user_id`,`target_month`),
+  KEY `idx_month` (`target_month`),
+  KEY `idx_set_by` (`set_by`),
+  CONSTRAINT `fk_sales_target_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
