@@ -389,5 +389,127 @@ CREATE TABLE `sales_targets` (
   CONSTRAINT `fk_sales_target_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table structure for `course_services`
+DROP TABLE IF EXISTS `course_services`;
+CREATE TABLE `course_services` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('course','service') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'course',
+  `category` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'General',
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `duration` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_type` (`type`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `course_services` (`id`, `name`, `type`, `category`, `price`, `duration`, `description`, `status`) VALUES
+(1, 'UI/UX Design with Gen AI & Agentic AI', 'course', 'Design & AI', 40000.00, '3 Months', 'Master modern UI/UX design workflows powered by Generative AI & Agentic AI automation, Figma, Design Systems, and LLM-driven UX research.', 'active'),
+(2, 'Graphic Design with AI', 'course', 'Design & AI', 30000.00, '2.5 Months', 'Next-generation graphic design, branding, visual identity, Midjourney, Photoshop AI, and AI-accelerated creative production.', 'active'),
+(3, 'Web-Development with AI', 'course', 'Development & AI', 40000.00, '4 Months', 'Modern full-stack web development with Next.js, React, Backend APIs, Cloud deployment, and AI coding agents.', 'active'),
+(4, 'UI UX Design', 'service', 'Design Solutions', 0.00, 'Project-based', 'Custom digital product design, UX audits, mobile & web UI design, design systems, and clickable prototypes.', 'active'),
+(5, 'Development', 'service', 'Engineering & IT', 0.00, 'Project-based', 'End-to-end custom software, web platforms, mobile apps, SaaS applications, and enterprise system engineering.', 'active'),
+(6, 'AI & Business Automation', 'service', 'AI & Automation', 0.00, 'Project-based', 'Custom AI agents, workflow automation, CRM integrations, chatbot solutions, and business process automation.', 'active');
+
+-- Table structure for `leads`
+DROP TABLE IF EXISTS `leads`;
+CREATE TABLE `leads` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `graduation` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `alternate_phone` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `city` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `offering_type` enum('course','service') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'course',
+  `course_service_id` int DEFAULT NULL,
+  `course_service_name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'General Inquiry',
+  `source` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'Raw Calling Data',
+  `is_manual` tinyint(1) NOT NULL DEFAULT '0',
+  `status` enum('new_lead','interested','enrolled','uninterested') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'new_lead',
+  `enrolled_at` datetime DEFAULT NULL,
+  `expected_revenue` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `payment_plan` enum('none','one_time','installment') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
+  `total_installments` tinyint NOT NULL DEFAULT '1',
+  `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `payment_status` enum('unpaid','partially_paid','paid') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unpaid',
+  `assigned_to` int DEFAULT NULL,
+  `assigned_by` int DEFAULT NULL,
+  `next_followup_date` datetime DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_assigned_to` (`assigned_to`),
+  KEY `idx_status` (`status`),
+  KEY `idx_offering_type` (`offering_type`),
+  KEY `idx_next_followup` (`next_followup_date`),
+  KEY `idx_phone` (`phone`),
+  KEY `idx_is_manual` (`is_manual`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `lead_activities`
+DROP TABLE IF EXISTS `lead_activities`;
+CREATE TABLE `lead_activities` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `lead_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `activity_type` enum('call','whatsapp','email','meeting','status_change','note') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'note',
+  `status_from` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status_to` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `remarks` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `next_followup` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_user_id` (`user_id`),
+  CONSTRAINT `fk_lead_act_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `lead_payments`
+DROP TABLE IF EXISTS `lead_payments`;
+CREATE TABLE `lead_payments` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `lead_id` int NOT NULL,
+  `installment_no` tinyint NOT NULL DEFAULT '1',
+  `title` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `due_date` date DEFAULT NULL,
+  `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `paid_at` datetime DEFAULT NULL,
+  `payment_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `transaction_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('pending','paid','partially_paid','overdue') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `recorded_by` int DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_due_date` (`due_date`),
+  CONSTRAINT `fk_lead_pay_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table structure for `commission_refresh_logs`
+DROP TABLE IF EXISTS `commission_refresh_logs`;
+CREATE TABLE `commission_refresh_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `target_month` varchar(7) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `refreshed_by` int DEFAULT NULL,
+  `total_counsellors` int NOT NULL DEFAULT '0',
+  `total_admissions` int NOT NULL DEFAULT '0',
+  `total_commission` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `total_collected_revenue` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `notes` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_refresh_month` (`target_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 

@@ -42,20 +42,45 @@ $lastCommissionRefresh = getLastCommissionRefresh($selectedMonth);
 
 // Month-specific Enrolled Admissions & Commission Pool (Refreshed per month)
 $commRate = defined('COMMISSION_PER_ADMISSION') ? (float)COMMISSION_PER_ADMISSION : 5000.00;
-$mEnrStmt = $db->prepare("
-    SELECT 
-        COUNT(*) as month_enrolled,
-        COALESCE(SUM(expected_revenue), 0) as month_revenue,
-        COALESCE(SUM(paid_amount), 0) as month_collected
-    FROM leads 
-    WHERE status = 'enrolled' 
-      AND (DATE_FORMAT(COALESCE(enrolled_at, updated_at, created_at), '%Y-%m') = ?)
-");
-$mEnrStmt->execute([$selectedMonth]);
-$mEnrData = $mEnrStmt->fetch();
-$monthEnrolledCount = (int)($mEnrData['month_enrolled'] ?? 0);
-$monthCommissionTotal = $monthEnrolledCount * $commRate;
-$monthCollectedTotal = (float)($mEnrData['month_collected'] ?? 0.0);
+$monthEnrolledCount = 0;
+$monthCommissionTotal = 0.0;
+$monthCollectedTotal = 0.0;
+
+try {
+    $mEnrStmt = $db->prepare("
+        SELECT 
+            COUNT(*) as month_enrolled,
+            COALESCE(SUM(expected_revenue), 0) as month_revenue,
+            COALESCE(SUM(paid_amount), 0) as month_collected
+        FROM leads 
+        WHERE status = 'enrolled' 
+          AND (DATE_FORMAT(COALESCE(enrolled_at, updated_at, created_at), '%Y-%m') = ?)
+    ");
+    $mEnrStmt->execute([$selectedMonth]);
+    $mEnrData = $mEnrStmt->fetch();
+    $monthEnrolledCount = (int)($mEnrData['month_enrolled'] ?? 0);
+    $monthCommissionTotal = $monthEnrolledCount * $commRate;
+    $monthCollectedTotal = (float)($mEnrData['month_collected'] ?? 0.0);
+} catch (Throwable $e) {
+    error_log("founder/sales.php mEnrStmt error: " . $e->getMessage());
+    try {
+        $mEnrStmtFallback = $db->prepare("
+            SELECT COUNT(*) as month_enrolled, COALESCE(SUM(expected_revenue), 0) as month_revenue
+            FROM leads 
+            WHERE status = 'enrolled' 
+              AND (DATE_FORMAT(COALESCE(updated_at, created_at), '%Y-%m') = ?)
+        ");
+        $mEnrStmtFallback->execute([$selectedMonth]);
+        $fallbackData = $mEnrStmtFallback->fetch();
+        $monthEnrolledCount = (int)($fallbackData['month_enrolled'] ?? 0);
+        $monthCommissionTotal = $monthEnrolledCount * $commRate;
+        $monthCollectedTotal = (float)($fallbackData['month_revenue'] ?? 0.0);
+    } catch (Throwable $e2) {
+        $monthEnrolledCount = 0;
+        $monthCommissionTotal = 0.0;
+        $monthCollectedTotal = 0.0;
+    }
+}
 
 $filters = [
     'assigned_to' => !empty($counsellorFilter) ? (int)$counsellorFilter : null,
@@ -76,23 +101,29 @@ $globalMetrics = getSalesMetrics();
 $counsellors = getSalesCounsellorsList();
 
 // Counsellor Performance Leaderboard Query
-$perfStmt = $db->query("
-    SELECT 
-        u.id, u.name, u.email, u.role,
-        COUNT(l.id) as total_assigned,
-        SUM(CASE WHEN l.status = 'new_lead' THEN 1 ELSE 0 END) as new_count,
-        SUM(CASE WHEN l.status = 'interested' THEN 1 ELSE 0 END) as interested_count,
-        SUM(CASE WHEN l.status = 'enrolled' THEN 1 ELSE 0 END) as enrolled_count,
-        SUM(CASE WHEN l.status = 'uninterested' THEN 1 ELSE 0 END) as uninterested_count,
-        SUM(CASE WHEN l.status = 'enrolled' THEN l.expected_revenue ELSE 0 END) as total_revenue
-    FROM users u
-    LEFT JOIN leads l ON l.assigned_to = u.id
-    WHERE u.role IN ('sales_counsellor', 'employee', 'manager') AND u.status = 'active'
-    GROUP BY u.id, u.name, u.email, u.role
-    HAVING total_assigned > 0 OR u.role = 'sales_counsellor'
-    ORDER BY enrolled_count DESC, total_revenue DESC, total_assigned DESC
-");
-$counsellorPerf = $perfStmt ? $perfStmt->fetchAll() : [];
+$counsellorPerf = [];
+try {
+    $perfStmt = $db->query("
+        SELECT 
+            u.id, u.name, u.email, u.role,
+            COUNT(l.id) as total_assigned,
+            SUM(CASE WHEN l.status = 'new_lead' THEN 1 ELSE 0 END) as new_count,
+            SUM(CASE WHEN l.status = 'interested' THEN 1 ELSE 0 END) as interested_count,
+            SUM(CASE WHEN l.status = 'enrolled' THEN 1 ELSE 0 END) as enrolled_count,
+            SUM(CASE WHEN l.status = 'uninterested' THEN 1 ELSE 0 END) as uninterested_count,
+            SUM(CASE WHEN l.status = 'enrolled' THEN l.expected_revenue ELSE 0 END) as total_revenue
+        FROM users u
+        LEFT JOIN leads l ON l.assigned_to = u.id
+        WHERE u.role IN ('sales_counsellor', 'employee', 'manager') AND u.status = 'active'
+        GROUP BY u.id, u.name, u.email, u.role
+        HAVING total_assigned > 0 OR u.role = 'sales_counsellor'
+        ORDER BY enrolled_count DESC, total_revenue DESC, total_assigned DESC
+    ");
+    $counsellorPerf = $perfStmt ? $perfStmt->fetchAll() : [];
+} catch (Throwable $e) {
+    error_log("founder/sales.php perfStmt error: " . $e->getMessage());
+    $counsellorPerf = [];
+}
 
 // Offerings list
 $coursesList = getCourseServicesList('course');

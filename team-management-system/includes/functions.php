@@ -215,7 +215,8 @@ function getAllRoles(): array {
 /**
  * Get base role for a given role slug
  */
-function getRoleBaseType(string $slug): string {
+function getRoleBaseType(?string $slug): string {
+    if (!$slug) return '';
     $roles = getAllRoles();
     foreach ($roles as $r) {
         if ($r['slug'] === $slug) {
@@ -228,7 +229,8 @@ function getRoleBaseType(string $slug): string {
 /**
  * Get role display name by slug
  */
-function getRoleDisplayName(string $slug): string {
+function getRoleDisplayName(?string $slug): string {
+    if (!$slug) return '';
     $roles = getAllRoles();
     foreach ($roles as $r) {
         if ($r['slug'] === $slug) {
@@ -951,208 +953,231 @@ function ensureSalesTablesExist(): void {
         }
 
         // 2. Course & Services Catalogue
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `course_services` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `name` varchar(150) NOT NULL,
-              `type` enum('course','service') NOT NULL DEFAULT 'course',
-              `category` varchar(100) DEFAULT 'General',
-              `price` decimal(10,2) NOT NULL DEFAULT '0.00',
-              `duration` varchar(50) DEFAULT NULL,
-              `description` text,
-              `status` enum('active','inactive') NOT NULL DEFAULT 'active',
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              KEY `idx_type` (`type`),
-              KEY `idx_status` (`status`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `course_services` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `name` varchar(150) NOT NULL,
+                  `type` enum('course','service') NOT NULL DEFAULT 'course',
+                  `category` varchar(100) DEFAULT 'General',
+                  `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+                  `duration` varchar(50) DEFAULT NULL,
+                  `description` text,
+                  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_type` (`type`),
+                  KEY `idx_status` (`status`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
 
-        // Seed & Synchronize official 3 Courses & 3 Services
-        $defaultOfferings = [
-            ['UI/UX Design with Gen AI & Agentic AI', 'course', 'Design & AI', 40000.00, '3 Months', 'Master modern UI/UX design workflows powered by Generative AI & Agentic AI automation, Figma, Design Systems, and LLM-driven UX research.'],
-            ['Graphic Design with AI', 'course', 'Design & AI', 30000.00, '2.5 Months', 'Next-generation graphic design, branding, visual identity, Midjourney, Photoshop AI, and AI-accelerated creative production.'],
-            ['Web-Development with AI', 'course', 'Development & AI', 40000.00, '4 Months', 'Modern full-stack web development with Next.js, React, Backend APIs, Cloud deployment, and AI coding agents.'],
-            ['UI UX Design', 'service', 'Design Solutions', 0.00, 'Project-based', 'Custom digital product design, UX audits, mobile & web UI design, design systems, and clickable prototypes.'],
-            ['Development', 'service', 'Engineering & IT', 0.00, 'Project-based', 'End-to-end custom software, web platforms, mobile apps, SaaS applications, and enterprise system engineering.'],
-            ['AI & Business Automation', 'service', 'AI & Automation', 0.00, 'Project-based', 'Custom AI agents, workflow automation, CRM integrations, chatbot solutions, and business process automation.']
-        ];
+            // Seed & Synchronize official 3 Courses & 3 Services
+            $defaultOfferings = [
+                ['UI/UX Design with Gen AI & Agentic AI', 'course', 'Design & AI', 40000.00, '3 Months', 'Master modern UI/UX design workflows powered by Generative AI & Agentic AI automation, Figma, Design Systems, and LLM-driven UX research.'],
+                ['Graphic Design with AI', 'course', 'Design & AI', 30000.00, '2.5 Months', 'Next-generation graphic design, branding, visual identity, Midjourney, Photoshop AI, and AI-accelerated creative production.'],
+                ['Web-Development with AI', 'course', 'Development & AI', 40000.00, '4 Months', 'Modern full-stack web development with Next.js, React, Backend APIs, Cloud deployment, and AI coding agents.'],
+                ['UI UX Design', 'service', 'Design Solutions', 0.00, 'Project-based', 'Custom digital product design, UX audits, mobile & web UI design, design systems, and clickable prototypes.'],
+                ['Development', 'service', 'Engineering & IT', 0.00, 'Project-based', 'End-to-end custom software, web platforms, mobile apps, SaaS applications, and enterprise system engineering.'],
+                ['AI & Business Automation', 'service', 'AI & Automation', 0.00, 'Project-based', 'Custom AI agents, workflow automation, CRM integrations, chatbot solutions, and business process automation.']
+            ];
 
-        $officialNames = array_column($defaultOfferings, 0);
-        foreach ($defaultOfferings as $off) {
-            $chk = $db->prepare("SELECT id FROM `course_services` WHERE `name` = ? LIMIT 1");
-            $chk->execute([$off[0]]);
-            $existing = $chk->fetch();
-            if ($existing) {
-                $upd = $db->prepare("UPDATE `course_services` SET `type` = ?, `category` = ?, `price` = ?, `duration` = ?, `description` = ?, `status` = 'active' WHERE `id` = ?");
-                $upd->execute([$off[1], $off[2], $off[3], $off[4], $off[5], $existing['id']]);
-            } else {
-                $ins = $db->prepare("INSERT INTO `course_services` (name, type, category, price, duration, description, status) VALUES (?, ?, ?, ?, ?, ?, 'active')");
-                $ins->execute([$off[0], $off[1], $off[2], $off[3], $off[4], $off[5]]);
+            $officialNames = array_column($defaultOfferings, 0);
+            foreach ($defaultOfferings as $off) {
+                $chk = $db->prepare("SELECT id FROM `course_services` WHERE `name` = ? LIMIT 1");
+                $chk->execute([$off[0]]);
+                $existing = $chk->fetch();
+                if ($existing) {
+                    $upd = $db->prepare("UPDATE `course_services` SET `type` = ?, `category` = ?, `price` = ?, `duration` = ?, `description` = ?, `status` = 'active' WHERE `id` = ?");
+                    $upd->execute([$off[1], $off[2], $off[3], $off[4], $off[5], $existing['id']]);
+                } else {
+                    $ins = $db->prepare("INSERT INTO `course_services` (name, type, category, price, duration, description, status) VALUES (?, ?, ?, ?, ?, ?, 'active')");
+                    $ins->execute([$off[0], $off[1], $off[2], $off[3], $off[4], $off[5]]);
+                }
             }
+
+            // Deactivate any legacy offerings not in the official 6
+            $placeholders = implode(',', array_fill(0, count($officialNames), '?'));
+            $deactStmt = $db->prepare("UPDATE `course_services` SET `status` = 'inactive' WHERE `name` NOT IN ($placeholders)");
+            $deactStmt->execute($officialNames);
+        } catch (Throwable $e) {
+            error_log("course_services table provisioning error: " . $e->getMessage());
         }
 
-        // Deactivate any legacy offerings not in the official 6
-        $placeholders = implode(',', array_fill(0, count($officialNames), '?'));
-        $deactStmt = $db->prepare("UPDATE `course_services` SET `status` = 'inactive' WHERE `name` NOT IN ($placeholders)");
-        $deactStmt->execute($officialNames);
-
-        // Migrate legacy lead references to official names
-        $db->exec("UPDATE `leads` SET `course_service_name` = 'UI/UX Design with Gen AI & Agentic AI', `expected_revenue` = 40000.00 WHERE `course_service_name` IN ('UI/UX Design Masterclass', 'Artificial Intelligence & Machine Learning')");
-        $db->exec("UPDATE `leads` SET `course_service_name` = 'Graphic Design with AI', `expected_revenue` = 30000.00 WHERE `course_service_name` = 'Digital Marketing & Growth Hacking'");
-        $db->exec("UPDATE `leads` SET `course_service_name` = 'Web-Development with AI', `expected_revenue` = 40000.00 WHERE `course_service_name` = 'Full Stack Web Development (MERN/PHP)'");
-        $db->exec("UPDATE `leads` SET `course_service_name` = 'Development' WHERE `course_service_name` IN ('Custom Web & Portal Development', 'Mobile App Development (Android/iOS)', 'Cloud Migration & DevOps Setup')");
-        $db->exec("UPDATE `leads` SET `course_service_name` = 'UI UX Design' WHERE `course_service_name` = 'Digital Branding & SEO Package'");
-
-        // 3. Leads Table
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `leads` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `name` varchar(150) NOT NULL,
-              `email` varchar(150) DEFAULT NULL,
-              `graduation` varchar(150) DEFAULT NULL,
-              `phone` varchar(30) NOT NULL,
-              `alternate_phone` varchar(30) DEFAULT NULL,
-              `city` varchar(100) DEFAULT NULL,
-              `offering_type` enum('course','service') NOT NULL DEFAULT 'course',
-              `course_service_id` int DEFAULT NULL,
-              `course_service_name` varchar(150) NOT NULL DEFAULT 'General Inquiry',
-              `source` varchar(100) DEFAULT 'Raw Calling Data',
-              `status` enum('new_lead','interested','enrolled','uninterested') NOT NULL DEFAULT 'new_lead',
-              `expected_revenue` decimal(10,2) NOT NULL DEFAULT '0.00',
-              `assigned_to` int DEFAULT NULL,
-              `assigned_by` int DEFAULT NULL,
-              `next_followup_date` datetime DEFAULT NULL,
-              `notes` text,
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              KEY `idx_assigned_to` (`assigned_to`),
-              KEY `idx_status` (`status`),
-              KEY `idx_offering_type` (`offering_type`),
-              KEY `idx_next_followup` (`next_followup_date`),
-              KEY `idx_phone` (`phone`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
-
-        // Ensure graduation column exists if table was previously created
+        // 3. Leads Table (Created FIRST before any updates)
         try {
-            $colCheck = $db->query("SHOW COLUMNS FROM `leads` LIKE 'graduation'");
-            if ($colCheck && !$colCheck->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `graduation` varchar(150) DEFAULT NULL AFTER `email`");
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `leads` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `name` varchar(150) NOT NULL,
+                  `email` varchar(150) DEFAULT NULL,
+                  `graduation` varchar(150) DEFAULT NULL,
+                  `phone` varchar(30) NOT NULL,
+                  `alternate_phone` varchar(30) DEFAULT NULL,
+                  `city` varchar(100) DEFAULT NULL,
+                  `offering_type` enum('course','service') NOT NULL DEFAULT 'course',
+                  `course_service_id` int DEFAULT NULL,
+                  `course_service_name` varchar(150) NOT NULL DEFAULT 'General Inquiry',
+                  `source` varchar(100) DEFAULT 'Raw Calling Data',
+                  `is_manual` tinyint(1) NOT NULL DEFAULT 0,
+                  `status` enum('new_lead','interested','enrolled','uninterested') NOT NULL DEFAULT 'new_lead',
+                  `enrolled_at` datetime DEFAULT NULL,
+                  `expected_revenue` decimal(10,2) NOT NULL DEFAULT '0.00',
+                  `payment_plan` enum('none','one_time','installment') NOT NULL DEFAULT 'none',
+                  `total_installments` tinyint NOT NULL DEFAULT 1,
+                  `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+                  `payment_status` enum('unpaid','partially_paid','paid') NOT NULL DEFAULT 'unpaid',
+                  `assigned_to` int DEFAULT NULL,
+                  `assigned_by` int DEFAULT NULL,
+                  `next_followup_date` datetime DEFAULT NULL,
+                  `notes` text,
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_assigned_to` (`assigned_to`),
+                  KEY `idx_status` (`status`),
+                  KEY `idx_offering_type` (`offering_type`),
+                  KEY `idx_next_followup` (`next_followup_date`),
+                  KEY `idx_phone` (`phone`),
+                  KEY `idx_is_manual` (`is_manual`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            // Ensure all columns exist on pre-existing leads table
+            $alterCols = [
+                'graduation' => "ALTER TABLE `leads` ADD COLUMN `graduation` varchar(150) DEFAULT NULL AFTER `email`",
+                'is_manual' => "ALTER TABLE `leads` ADD COLUMN `is_manual` tinyint(1) NOT NULL DEFAULT 0 AFTER `source`",
+                'enrolled_at' => "ALTER TABLE `leads` ADD COLUMN `enrolled_at` datetime DEFAULT NULL AFTER `status`",
+                'payment_plan' => "ALTER TABLE `leads` ADD COLUMN `payment_plan` enum('none','one_time','installment') NOT NULL DEFAULT 'none' AFTER `expected_revenue`",
+                'total_installments' => "ALTER TABLE `leads` ADD COLUMN `total_installments` tinyint NOT NULL DEFAULT 1 AFTER `payment_plan`",
+                'paid_amount' => "ALTER TABLE `leads` ADD COLUMN `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00' AFTER `total_installments`",
+                'payment_status' => "ALTER TABLE `leads` ADD COLUMN `payment_status` enum('unpaid','partially_paid','paid') NOT NULL DEFAULT 'unpaid' AFTER `paid_amount`",
+            ];
+            foreach ($alterCols as $col => $sql) {
+                try {
+                    $cCheck = $db->query("SHOW COLUMNS FROM `leads` LIKE '$col'");
+                    if ($cCheck && !$cCheck->fetch()) {
+                        $db->exec($sql);
+                    }
+                } catch (Throwable $e) {}
             }
 
-            // Check if payment columns exist in leads
-            $colPayPlan = $db->query("SHOW COLUMNS FROM `leads` LIKE 'payment_plan'");
-            if ($colPayPlan && !$colPayPlan->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `payment_plan` enum('none','one_time','installment') NOT NULL DEFAULT 'none' AFTER `expected_revenue`");
-            }
-            $colTotInst = $db->query("SHOW COLUMNS FROM `leads` LIKE 'total_installments'");
-            if ($colTotInst && !$colTotInst->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `total_installments` tinyint NOT NULL DEFAULT 1 AFTER `payment_plan`");
-            }
-            $colPaidAmt = $db->query("SHOW COLUMNS FROM `leads` LIKE 'paid_amount'");
-            if ($colPaidAmt && !$colPaidAmt->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00' AFTER `total_installments`");
-            }
-            $colPayStat = $db->query("SHOW COLUMNS FROM `leads` LIKE 'payment_status'");
-            if ($colPayStat && !$colPayStat->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `payment_status` enum('unpaid','partially_paid','paid') NOT NULL DEFAULT 'unpaid' AFTER `paid_amount`");
-            }
-        } catch (Throwable $e) {}
+            // Backfill enrolled_at timestamp for past enrolled leads if null
+            try {
+                $db->exec("UPDATE `leads` SET `enrolled_at` = COALESCE(`updated_at`, `created_at`) WHERE `status` = 'enrolled' AND `enrolled_at` IS NULL");
+            } catch (Throwable $e) {}
+
+            // Migrate legacy lead references to official names safely
+            try {
+                $db->exec("UPDATE `leads` SET `course_service_name` = 'UI/UX Design with Gen AI & Agentic AI', `expected_revenue` = 40000.00 WHERE `course_service_name` IN ('UI/UX Design Masterclass', 'Artificial Intelligence & Machine Learning')");
+                $db->exec("UPDATE `leads` SET `course_service_name` = 'Graphic Design with AI', `expected_revenue` = 30000.00 WHERE `course_service_name` = 'Digital Marketing & Growth Hacking'");
+                $db->exec("UPDATE `leads` SET `course_service_name` = 'Web-Development with AI', `expected_revenue` = 40000.00 WHERE `course_service_name` = 'Full Stack Web Development (MERN/PHP)'");
+                $db->exec("UPDATE `leads` SET `course_service_name` = 'Development' WHERE `course_service_name` IN ('Custom Web & Portal Development', 'Mobile App Development (Android/iOS)', 'Cloud Migration & DevOps Setup')");
+                $db->exec("UPDATE `leads` SET `course_service_name` = 'UI UX Design' WHERE `course_service_name` = 'Digital Branding & SEO Package'");
+            } catch (Throwable $e) {}
+
+        } catch (Throwable $e) {
+            error_log("leads table provisioning error: " . $e->getMessage());
+        }
 
         // 4. Lead Activities / Interaction History
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `lead_activities` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `lead_id` int NOT NULL,
-              `user_id` int NOT NULL,
-              `activity_type` enum('call','whatsapp','email','meeting','status_change','note') NOT NULL DEFAULT 'note',
-              `status_from` varchar(50) DEFAULT NULL,
-              `status_to` varchar(50) DEFAULT NULL,
-              `remarks` text NOT NULL,
-              `next_followup` datetime DEFAULT NULL,
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              KEY `idx_lead_id` (`lead_id`),
-              KEY `idx_user_id` (`user_id`),
-              CONSTRAINT `fk_lead_act_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `lead_activities` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `lead_id` int NOT NULL,
+                  `user_id` int NOT NULL,
+                  `activity_type` enum('call','whatsapp','email','meeting','status_change','note') NOT NULL DEFAULT 'note',
+                  `status_from` varchar(50) DEFAULT NULL,
+                  `status_to` varchar(50) DEFAULT NULL,
+                  `remarks` text NOT NULL,
+                  `next_followup` datetime DEFAULT NULL,
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_lead_id` (`lead_id`),
+                  KEY `idx_user_id` (`user_id`),
+                  CONSTRAINT `fk_lead_act_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        } catch (Throwable $e) {
+            error_log("lead_activities table provisioning error: " . $e->getMessage());
+        }
 
         // 5. Lead Payments / Installments Table
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `lead_payments` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `lead_id` int NOT NULL,
-              `installment_no` tinyint NOT NULL DEFAULT 1,
-              `title` varchar(100) NOT NULL,
-              `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
-              `due_date` date DEFAULT NULL,
-              `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
-              `paid_at` datetime DEFAULT NULL,
-              `payment_method` varchar(50) DEFAULT NULL,
-              `transaction_id` varchar(100) DEFAULT NULL,
-              `status` enum('pending','paid','partially_paid','overdue') NOT NULL DEFAULT 'pending',
-              `recorded_by` int DEFAULT NULL,
-              `notes` text,
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              KEY `idx_lead_id` (`lead_id`),
-              KEY `idx_status` (`status`),
-              KEY `idx_due_date` (`due_date`),
-              CONSTRAINT `fk_lead_pay_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `lead_payments` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `lead_id` int NOT NULL,
+                  `installment_no` tinyint NOT NULL DEFAULT 1,
+                  `title` varchar(100) NOT NULL,
+                  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+                  `due_date` date DEFAULT NULL,
+                  `paid_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+                  `paid_at` datetime DEFAULT NULL,
+                  `payment_method` varchar(50) DEFAULT NULL,
+                  `transaction_id` varchar(100) DEFAULT NULL,
+                  `status` enum('pending','paid','partially_paid','overdue') NOT NULL DEFAULT 'pending',
+                  `recorded_by` int DEFAULT NULL,
+                  `notes` text,
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_lead_id` (`lead_id`),
+                  KEY `idx_status` (`status`),
+                  KEY `idx_due_date` (`due_date`),
+                  CONSTRAINT `fk_lead_pay_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        } catch (Throwable $e) {
+            error_log("lead_payments table provisioning error: " . $e->getMessage());
+        }
 
         // 6. Sales Targets Table
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `sales_targets` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `user_id` int NOT NULL,
-              `target_month` varchar(7) NOT NULL,
-              `target_revenue` decimal(12,2) NOT NULL DEFAULT 0.00,
-              `target_enrollments` int NOT NULL DEFAULT 0,
-              `target_leads` int NOT NULL DEFAULT 0,
-              `notes` text DEFAULT NULL,
-              `set_by` int DEFAULT NULL,
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              UNIQUE KEY `idx_user_month` (`user_id`, `target_month`),
-              KEY `idx_month` (`target_month`),
-              KEY `idx_set_by` (`set_by`),
-              CONSTRAINT `fk_sales_target_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
+        try {
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `sales_targets` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `user_id` int NOT NULL,
+                  `target_month` varchar(7) NOT NULL,
+                  `target_revenue` decimal(12,2) NOT NULL DEFAULT 0.00,
+                  `target_enrollments` int NOT NULL DEFAULT 0,
+                  `target_leads` int NOT NULL DEFAULT 0,
+                  `notes` text DEFAULT NULL,
+                  `set_by` int DEFAULT NULL,
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  UNIQUE KEY `idx_user_month` (`user_id`, `target_month`),
+                  KEY `idx_month` (`target_month`),
+                  KEY `idx_set_by` (`set_by`),
+                  CONSTRAINT `fk_sales_target_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        } catch (Throwable $e) {
+            error_log("sales_targets table provisioning error: " . $e->getMessage());
+        }
 
         // 7. Monthly Commission Refresh Logs Table (Founder Audit & Refresh)
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS `commission_refresh_logs` (
-              `id` int NOT NULL AUTO_INCREMENT,
-              `target_month` varchar(7) NOT NULL,
-              `refreshed_by` int DEFAULT NULL,
-              `total_counsellors` int NOT NULL DEFAULT 0,
-              `total_admissions` int NOT NULL DEFAULT 0,
-              `total_commission` decimal(12,2) NOT NULL DEFAULT 0.00,
-              `total_collected_revenue` decimal(12,2) NOT NULL DEFAULT 0.00,
-              `notes` varchar(255) DEFAULT NULL,
-              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (`id`),
-              KEY `idx_refresh_month` (`target_month`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ");
-
-        // Ensure enrolled_at column exists in leads
         try {
-            $colEnrAt = $db->query("SHOW COLUMNS FROM `leads` LIKE 'enrolled_at'");
-            if ($colEnrAt && !$colEnrAt->fetch()) {
-                $db->exec("ALTER TABLE `leads` ADD COLUMN `enrolled_at` datetime DEFAULT NULL AFTER `status`");
-                $db->exec("UPDATE `leads` SET `enrolled_at` = COALESCE(`updated_at`, `created_at`) WHERE `status` = 'enrolled' AND `enrolled_at` IS NULL");
-            }
-        } catch (Throwable $e) {}
+            $db->exec("
+                CREATE TABLE IF NOT EXISTS `commission_refresh_logs` (
+                  `id` int NOT NULL AUTO_INCREMENT,
+                  `target_month` varchar(7) NOT NULL,
+                  `refreshed_by` int DEFAULT NULL,
+                  `total_counsellors` int NOT NULL DEFAULT 0,
+                  `total_admissions` int NOT NULL DEFAULT 0,
+                  `total_commission` decimal(12,2) NOT NULL DEFAULT 0.00,
+                  `total_collected_revenue` decimal(12,2) NOT NULL DEFAULT 0.00,
+                  `notes` varchar(255) DEFAULT NULL,
+                  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_refresh_month` (`target_month`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        } catch (Throwable $e) {
+            error_log("commission_refresh_logs table provisioning error: " . $e->getMessage());
+        }
 
         $salesProvisioned = true;
     } catch (Throwable $e) {
