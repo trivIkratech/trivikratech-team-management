@@ -203,10 +203,105 @@ function formatChatMessage(?string $text, array $activeUserNames = []): string {
     return $text;
 }
 
-// Auto update activity timestamp for logged in user
+// Ensure required chat columns and presence schema are ready (self-healing migration)
+ensureChatSchemaReady($db);
+
+// Auto update activity timestamp for logged in user (if presence columns exist)
 try {
-    $db->prepare("UPDATE users SET last_active_at = NOW() WHERE id = ?")->execute([$currentUserId]);
+    if (hasUserPresenceColumns($db)) {
+        $db->prepare("UPDATE users SET last_active_at = NOW() WHERE id = ?")->execute([$currentUserId]);
+    }
 } catch (Exception $e) {}
+
+/**
+ * Ensure all required chat tables and presence columns exist (Self-healing migration)
+ */
+function ensureChatSchemaReady(PDO $db): void {
+    static $ready = false;
+    if ($ready) return;
+
+    // 1. Ensure presence & activity columns in `users`
+    $userCols = [
+        'presence_status'     => "ALTER TABLE `users` ADD COLUMN `presence_status` ENUM('automatic','dnd','away','offline') NOT NULL DEFAULT 'automatic'",
+        'custom_status_text'  => "ALTER TABLE `users` ADD COLUMN `custom_status_text` VARCHAR(255) NULL DEFAULT NULL",
+        'custom_status_emoji' => "ALTER TABLE `users` ADD COLUMN `custom_status_emoji` VARCHAR(50) NULL DEFAULT NULL",
+        'last_active_at'      => "ALTER TABLE `users` ADD COLUMN `last_active_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        'last_activity'       => "ALTER TABLE `users` ADD COLUMN `last_activity` TIMESTAMP NULL DEFAULT NULL"
+    ];
+    foreach ($userCols as $col => $sql) {
+        try {
+            $chk = $db->query("SHOW COLUMNS FROM `users` LIKE '$col'");
+            if ($chk && !$chk->fetch()) {
+                $db->exec($sql);
+            }
+        } catch (Throwable $e) {
+            try { $db->exec($sql); } catch (Throwable $ignored) {}
+        }
+    }
+
+    // 2. Ensure chat_room_members has last_read_message_id
+    try {
+        $chk = $db->query("SHOW COLUMNS FROM `chat_room_members` LIKE 'last_read_message_id'");
+        if ($chk && !$chk->fetch()) {
+            $db->exec("ALTER TABLE `chat_room_members` ADD COLUMN `last_read_message_id` INT NOT NULL DEFAULT 0");
+        }
+    } catch (Throwable $e) {
+        try { $db->exec("ALTER TABLE `chat_room_members` ADD COLUMN `last_read_message_id` INT NOT NULL DEFAULT 0"); } catch (Throwable $ignored) {}
+    }
+
+    // 3. Ensure chat_messages has is_edited and edited_at
+    $msgCols = [
+        'is_edited' => "ALTER TABLE `chat_messages` ADD COLUMN `is_edited` TINYINT(1) DEFAULT 0",
+        'edited_at' => "ALTER TABLE `chat_messages` ADD COLUMN `edited_at` TIMESTAMP NULL DEFAULT NULL"
+    ];
+    foreach ($msgCols as $col => $sql) {
+        try {
+            $chk = $db->query("SHOW COLUMNS FROM `chat_messages` LIKE '$col'");
+            if ($chk && !$chk->fetch()) {
+                $db->exec($sql);
+            }
+        } catch (Throwable $e) {
+            try { $db->exec($sql); } catch (Throwable $ignored) {}
+        }
+    }
+
+    // 4. Ensure #General Team Chat (Room 1) exists and active users are members
+    try {
+        $chkRoom = $db->query("SELECT id FROM `chat_rooms` WHERE id = 1")->fetch();
+        if (!$chkRoom) {
+            $db->exec("INSERT IGNORE INTO `chat_rooms` (`id`, `name`, `type`, `created_by`, `created_at`) VALUES (1, 'General Team Chat', 'group', 1, NOW())");
+        }
+        $db->exec("INSERT IGNORE INTO `chat_room_members` (`room_id`, `user_id`) SELECT 1, id FROM `users` WHERE status = 'active'");
+    } catch (Throwable $e) {}
+
+    $ready = true;
+}
+
+/**
+ * Check if users table has presence columns
+ */
+function hasUserPresenceColumns(PDO $db): bool {
+    static $hasCols = null;
+    if ($hasCols !== null) return $hasCols;
+    try {
+        $chk = $db->query("SHOW COLUMNS FROM `users` LIKE 'presence_status'");
+        $hasCols = ($chk && $chk->fetch()) ? true : false;
+    } catch (Throwable $e) {
+        $hasCols = false;
+    }
+    return $hasCols;
+}
+
+/**
+ * Safely generate SELECT clause for user presence columns
+ */
+function getUserPresenceSelectFields(PDO $db, string $alias = ''): string {
+    $prefix = $alias ?: '';
+    if (hasUserPresenceColumns($db)) {
+        return "{$prefix}presence_status, {$prefix}custom_status_text, {$prefix}custom_status_emoji, {$prefix}last_active_at";
+    }
+    return "'automatic' AS presence_status, NULL AS custom_status_text, NULL AS custom_status_emoji, NULL AS last_active_at";
+}
 
 /**
  * Compute user real-time presence (online, dnd, away, offline) and status text
@@ -256,14 +351,14 @@ try {
     if ($action === 'get_rooms') {
         // Ensure all active users are enrolled in #General Team Chat (room 1)
         try {
-            $db->exec("ALTER TABLE chat_room_members ADD COLUMN last_read_message_id INT NOT NULL DEFAULT 0");
-        } catch (Exception $e) {}
-        try {
             $db->exec("INSERT IGNORE INTO chat_room_members (room_id, user_id) SELECT 1, id FROM users WHERE status = 'active'");
         } catch (Exception $e) {}
         
+        $myPresenceFields = getUserPresenceSelectFields($db, '');
+        $uPresenceFields = getUserPresenceSelectFields($db, 'u.');
+
         // Fetch current user details with presence
-        $stmtMe = $db->prepare("SELECT id, name, role, designation, presence_status, custom_status_text, custom_status_emoji, last_active_at FROM users WHERE id = ?");
+        $stmtMe = $db->prepare("SELECT id, name, role, designation, {$myPresenceFields} FROM users WHERE id = ?");
         $stmtMe->execute([$currentUserId]);
         $meData = $stmtMe->fetch() ?: $currentUser;
         $myPresence = computeUserPresence($meData);
@@ -287,7 +382,7 @@ try {
         foreach ($rooms as &$room) {
             if ($room['type'] === 'direct') {
                 $pStmt = $db->prepare("
-                    SELECT u.id, u.name, u.role, u.designation, u.presence_status, u.custom_status_text, u.custom_status_emoji, u.last_active_at 
+                    SELECT u.id, u.name, u.role, u.designation, {$uPresenceFields}
                     FROM chat_room_members rm 
                     JOIN users u ON rm.user_id = u.id 
                     WHERE rm.room_id = ? AND rm.user_id != ? 
@@ -312,7 +407,7 @@ try {
         
         // Fetch ALL specific persons categorized by role with presence and unread counts
         $uStmt = $db->prepare("
-            SELECT u.id, u.name, u.role, u.designation, u.presence_status, u.custom_status_text, u.custom_status_emoji, u.last_active_at,
+            SELECT u.id, u.name, u.role, u.designation, {$uPresenceFields},
                    (SELECT COUNT(*) 
                     FROM chat_messages m 
                     JOIN chat_rooms r ON m.room_id = r.id 
@@ -358,24 +453,27 @@ try {
             $presenceStatus = 'automatic';
         }
 
-        $stmt = $db->prepare("
-            UPDATE users 
-            SET presence_status = ?,
-                custom_status_text = ?,
-                custom_status_emoji = ?,
-                last_active_at = NOW() 
-            WHERE id = ?
-        ");
-        $stmt->execute([
-            $presenceStatus,
-            $customText !== null ? trim($customText) : null,
-            $customEmoji !== null ? trim($customEmoji) : null,
-            $currentUserId
-        ]);
+        if (hasUserPresenceColumns($db)) {
+            $stmt = $db->prepare("
+                UPDATE users 
+                SET presence_status = ?,
+                    custom_status_text = ?,
+                    custom_status_emoji = ?,
+                    last_active_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $presenceStatus,
+                $customText !== null ? trim($customText) : null,
+                $customEmoji !== null ? trim($customEmoji) : null,
+                $currentUserId
+            ]);
+        }
 
-        $stmtMe = $db->prepare("SELECT id, name, role, designation, presence_status, custom_status_text, custom_status_emoji, last_active_at FROM users WHERE id = ?");
+        $myPresenceFields = getUserPresenceSelectFields($db, '');
+        $stmtMe = $db->prepare("SELECT id, name, role, designation, {$myPresenceFields} FROM users WHERE id = ?");
         $stmtMe->execute([$currentUserId]);
-        $updatedUser = $stmtMe->fetch();
+        $updatedUser = $stmtMe->fetch() ?: $currentUser;
 
         echo json_encode([
             'success' => true,

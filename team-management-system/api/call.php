@@ -30,6 +30,51 @@ $currentUser = getCurrentUser();
 $currentUserId = (int)$currentUser['id'];
 $action = post('action') ?: get('action');
 
+/**
+ * Ensure WebRTC calling signaling tables exist (Self-healing migration)
+ */
+function ensureCallingSchemaReady(PDO $db): void {
+    static $ready = false;
+    if ($ready) return;
+    try {
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `call_sessions` (
+              `id` int NOT NULL AUTO_INCREMENT,
+              `caller_id` int NOT NULL,
+              `receiver_id` int NOT NULL,
+              `room_id` int DEFAULT NULL,
+              `call_type` enum('audio','video') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'audio',
+              `status` enum('ringing','connected','rejected','busy','missed','ended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ringing',
+              `sdp_offer` mediumtext COLLATE utf8mb4_unicode_ci,
+              `sdp_answer` mediumtext COLLATE utf8mb4_unicode_ci,
+              `started_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+              `connected_at` timestamp NULL DEFAULT NULL,
+              `ended_at` timestamp NULL DEFAULT NULL,
+              `duration_seconds` int DEFAULT '0',
+              PRIMARY KEY (`id`),
+              KEY `idx_caller_id` (`caller_id`),
+              KEY `idx_receiver_id` (`receiver_id`),
+              KEY `idx_status` (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `call_signals` (
+              `id` int NOT NULL AUTO_INCREMENT,
+              `call_id` int NOT NULL,
+              `sender_id` int NOT NULL,
+              `candidate` text COLLATE utf8mb4_unicode_ci NOT NULL,
+              `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              KEY `idx_call_id` (`call_id`),
+              KEY `idx_sender_id` (`sender_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ");
+    } catch (Throwable $e) {}
+    $ready = true;
+}
+
+ensureCallingSchemaReady($db);
+
 // Clean up stale ringing calls older than 45 seconds automatically
 try {
     $db->exec("
