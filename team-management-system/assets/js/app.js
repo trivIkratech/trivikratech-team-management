@@ -21,12 +21,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto close mobile/tablet drawer when nav link is clicked
+    // Auto close mobile/tablet drawer when same-page link / anchor is clicked,
+    // but ensure normal navigation links work properly on phone and tablet!
     if (sidebar) {
-        sidebar.querySelectorAll('.sidebar-nav-item').forEach(link => {
+        sidebar.querySelectorAll('.sidebar-nav-item, .sidebar-user').forEach(link => {
             link.addEventListener('click', function(e) {
-                if (window.innerWidth <= 1024 && typeof window.closeSidebarNav === 'function') {
-                    window.closeSidebarNav(e);
+                if (window.innerWidth <= 1024) {
+                    const href = link.getAttribute('href');
+                    // Empty or hash anchors: close drawer without navigating
+                    if (!href || href === '#' || href.startsWith('javascript:')) {
+                        if (e && e.preventDefault) e.preventDefault();
+                        if (typeof window.closeSidebarNav === 'function') {
+                            window.closeSidebarNav();
+                        }
+                        return;
+                    }
+
+                    // If user clicked the link of the page they are ALREADY on:
+                    try {
+                        const targetUrl = new URL(link.href, window.location.origin);
+                        if (targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search) {
+                            if (e && e.preventDefault) e.preventDefault();
+                            if (typeof window.closeSidebarNav === 'function') {
+                                window.closeSidebarNav();
+                            }
+                            return;
+                        }
+                    } catch (err) {}
+
+                    // For navigation to other pages: DO NOT call e.preventDefault()!
+                    // Restore body overflow so the page navigation is smooth and unblocked
+                    document.body.style.overflow = '';
                 }
             });
         });

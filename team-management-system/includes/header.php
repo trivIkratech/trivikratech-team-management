@@ -164,6 +164,11 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
                     }
                 } else {
                     if (sidebar) {
+                        // Clear any desktop collapsed flags when operating drawer on mobile/tablet
+                        document.documentElement.classList.remove('sidebar-collapsed');
+                        document.body.classList.remove('sidebar-collapsed');
+                        if (appLayout) appLayout.classList.remove('sidebar-collapsed');
+
                         const isOpen = sidebar.classList.contains('open');
                         if (isOpen) {
                             sidebar.classList.remove('open');
@@ -179,8 +184,15 @@ $unreadNotifs = isLoggedIn() ? getUnreadNotifications(getUserId(), 6) : [];
             };
 
             window.closeSidebarNav = function(e) {
-                if (e && e.preventDefault) e.preventDefault();
-                if (e && e.stopPropagation) e.stopPropagation();
+                if (e) {
+                    // Only preventDefault if not a valid destination link click
+                    const anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+                    const href = anchor ? anchor.getAttribute('href') : null;
+                    if (!anchor || !href || href === '#' || href.startsWith('javascript:')) {
+                        if (e.preventDefault) e.preventDefault();
+                    }
+                    if (e.stopPropagation) e.stopPropagation();
+                }
 
                 const isDesktop = window.innerWidth > 1024;
                 const sidebar = document.querySelector('.sidebar');

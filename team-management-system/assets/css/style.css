@@ -401,8 +401,10 @@ body.sidebar-collapsed .main-wrapper,
 
 .sidebar-nav {
     flex: 1;
+    min-height: 0;
     padding: var(--space-4) 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: var(--color-border) transparent;
 }
@@ -417,6 +419,7 @@ body.sidebar-collapsed .main-wrapper,
 }
 
 .sidebar-nav-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -429,6 +432,9 @@ body.sidebar-collapsed .main-wrapper,
     transition: all var(--transition-fast);
     cursor: pointer;
     white-space: nowrap;
+    text-decoration: none;
+    -webkit-tap-highlight-color: rgba(79, 110, 247, 0.15);
+    touch-action: manipulation;
 }
 
 .sidebar-nav-item:hover {
@@ -2115,13 +2121,15 @@ form.filter-bar {
     .sidebar {
         width: 280px;
         max-width: 85vw;
+        height: 100vh;
+        height: 100dvh;
         transform: translateX(-100%);
         z-index: 1200;
         box-shadow: var(--shadow-xl);
     }
 
     .sidebar.open {
-        transform: translateX(0);
+        transform: translateX(0) !important;
     }
 
     .sidebar-close-btn {
@@ -2138,6 +2146,8 @@ form.filter-bar {
         -webkit-backdrop-filter: blur(4px);
         z-index: 1150;
         display: none;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .sidebar-backdrop.active {
