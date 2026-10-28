@@ -46,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'add_user')
     if (empty($password)) $formErrors[] = 'Password is required.';
     if (strlen($password) < 6) $formErrors[] = 'Password must be at least 6 characters.';
     if (!empty($pin) && !preg_match('/^\d{4}$/', $pin)) $formErrors[] = 'PIN must be exactly 4 digits.';
-    if (!in_array($role, ['employee', 'manager'])) {
-        $formErrors[] = 'HR can only create Employee or Manager accounts.';
+    if (!in_array($role, ['employee', 'manager', 'sales_counsellor'])) {
+        $formErrors[] = 'HR can only create Employee, Manager, or Sales Counsellor accounts.';
     }
     
     // Check Employee ID Uniqueness
@@ -111,20 +111,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_user'
     $newPassword = $_POST['new_password'] ?? '';
     $pin = post('pin');
     
-    // Validate HR permission: target must be employee or manager
+    // Validate HR permission: target must be employee, manager, or sales counsellor
     $checkStmt = $db->prepare("SELECT role FROM users WHERE id = ?");
     $checkStmt->execute([$targetUserId]);
     $existingRole = $checkStmt->fetchColumn();
     
-    if (!$existingRole || !in_array($existingRole, ['employee', 'manager'])) {
-        $formErrors[] = 'Access Denied: HR can only edit Employee or Manager accounts.';
+    if (!$existingRole || !in_array($existingRole, ['employee', 'manager', 'sales_counsellor'])) {
+        $formErrors[] = 'Access Denied: HR can only edit Employee, Manager, or Sales Counsellor accounts.';
     }
     
     if (empty($employeeId)) $formErrors[] = 'Employee ID is required.';
     if (empty($name)) $formErrors[] = 'Name is required.';
     if (empty($email)) $formErrors[] = 'Email is required.';
     if (!empty($pin) && !preg_match('/^\d{4}$/', $pin)) $formErrors[] = 'PIN must be exactly 4 digits.';
-    if (!in_array($role, ['employee', 'manager'])) {
+    if (!in_array($role, ['employee', 'manager', 'sales_counsellor'])) {
         $formErrors[] = 'Invalid role specified.';
     }
     
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('form_action') === 'edit_user'
                 $params[] = password_hash($pin, PASSWORD_BCRYPT);
             }
             
-            $query .= " WHERE id = ? AND role IN ('employee', 'manager')";
+            $query .= " WHERE id = ? AND role IN ('employee', 'manager', 'sales_counsellor')";
             $params[] = $targetUserId;
             
             $stmt = $db->prepare($query);
@@ -180,7 +180,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
         setFlash('error', 'You cannot delete your own account.');
     } else {
         try {
-            $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND role IN ('employee', 'manager')");
+            $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND role IN ('employee', 'manager', 'sales_counsellor')");
             $stmt->execute([$targetUserId]);
             if ($stmt->rowCount() > 0) {
                 setFlash('success', 'User deleted successfully.');
@@ -198,7 +198,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 // Fetch user for edit tab (Employee or Manager)
 if ($tab === 'edit' && isset($_GET['id']) && is_numeric($_GET['id'])) {
     $editId = (int)$_GET['id'];
-    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND role IN ('employee', 'manager')");
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND role IN ('employee', 'manager', 'sales_counsellor')");
     $stmt->execute([$editId]);
     $editUser = $stmt->fetch();
     
@@ -262,7 +262,7 @@ if (!empty($search)) {
     $params[] = "%{$search}%";
 }
 
-if ($filterRole !== 'all' && in_array($filterRole, ['founder', 'manager', 'employee', 'hr'])) {
+if ($filterRole !== 'all' && in_array($filterRole, ['founder', 'manager', 'employee', 'hr', 'sales_counsellor'])) {
     $where[] = "u.role = ?";
     $params[] = $filterRole;
 }
@@ -280,7 +280,7 @@ $query = "
     FROM users u 
     LEFT JOIN users m ON u.manager_id = m.id
     {$whereClause}
-    ORDER BY FIELD(u.role, 'founder', 'hr', 'manager', 'employee'), u.status ASC, u.name ASC
+    ORDER BY FIELD(u.role, 'founder', 'hr', 'manager', 'sales_counsellor', 'employee'), u.status ASC, u.name ASC
 ";
 $stmt = $db->prepare($query);
 $stmt->execute($params);
@@ -289,6 +289,7 @@ $employees = $stmt->fetchAll();
 // Workforce Counts for Quick Badges / Metrics
 $totalAllUsers = $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
 $countEmployees = $db->query("SELECT COUNT(*) FROM users WHERE role = 'employee'")->fetchColumn();
+$countSales = $db->query("SELECT COUNT(*) FROM users WHERE role = 'sales_counsellor'")->fetchColumn();
 $countManagers = $db->query("SELECT COUNT(*) FROM users WHERE role = 'manager'")->fetchColumn();
 $countFounders = $db->query("SELECT COUNT(*) FROM users WHERE role = 'founder'")->fetchColumn();
 $countHR = $db->query("SELECT COUNT(*) FROM users WHERE role = 'hr'")->fetchColumn();
@@ -298,7 +299,7 @@ $allWorkforce = $db->query("
     SELECT u.*, m.name AS manager_name
     FROM users u 
     LEFT JOIN users m ON u.manager_id = m.id
-    ORDER BY FIELD(u.role, 'founder', 'hr', 'manager', 'employee'), u.name ASC
+    ORDER BY FIELD(u.role, 'founder', 'hr', 'manager', 'sales_counsellor', 'employee'), u.name ASC
 ")->fetchAll();
 
 $teams = [];
@@ -318,7 +319,7 @@ foreach ($allWorkforce as $person) {
         $hrList[] = $person;
     } elseif ($person['role'] === 'manager') {
         $managersList[] = $person;
-    } elseif ($person['role'] === 'employee') {
+    } elseif ($person['role'] === 'employee' || $person['role'] === 'sales_counsellor') {
         $mgrName = $person['manager_name'] ?? 'Unassigned / Direct HR';
         if (!isset($teams[$mgrName])) {
             $teams[$mgrName] = [];
@@ -426,6 +427,7 @@ include __DIR__ . '/../includes/header.php';
                 <select name="role_filter" class="form-select">
                     <option value="all" <?php echo $filterRole === 'all' ? 'selected' : ''; ?>>All Roles (<?php echo $totalAllUsers; ?>)</option>
                     <option value="employee" <?php echo $filterRole === 'employee' ? 'selected' : ''; ?>>Employees (<?php echo $countEmployees; ?>)</option>
+                    <option value="sales_counsellor" <?php echo $filterRole === 'sales_counsellor' ? 'selected' : ''; ?>>Sales Counsellors (<?php echo $countSales; ?>)</option>
                     <option value="manager" <?php echo $filterRole === 'manager' ? 'selected' : ''; ?>>Managers (<?php echo $countManagers; ?>)</option>
                     <option value="founder" <?php echo $filterRole === 'founder' ? 'selected' : ''; ?>>Founders (<?php echo $countFounders; ?>)</option>
                     <option value="hr" <?php echo $filterRole === 'hr' ? 'selected' : ''; ?>>HR Team (<?php echo $countHR; ?>)</option>
@@ -481,7 +483,7 @@ include __DIR__ . '/../includes/header.php';
                 <?php else: ?>
                     <?php foreach ($employees as $emp): ?>
                         <?php 
-                            $canManage = in_array($emp['role'], ['employee', 'manager']);
+                            $canManage = in_array($emp['role'], ['employee', 'manager', 'sales_counsellor']);
                         ?>
                         <tr>
                             <td>
@@ -714,6 +716,7 @@ include __DIR__ . '/../includes/header.php';
                     <label class="form-label">Role *</label>
                     <select name="role" id="add-role-select" class="form-select" required onchange="toggleManagerField(this.value)">
                         <option value="employee" <?php echo post('role') === 'employee' ? 'selected' : ''; ?>>Employee</option>
+                        <option value="sales_counsellor" <?php echo post('role') === 'sales_counsellor' ? 'selected' : ''; ?>>Sales Counsellor</option>
                         <option value="manager" <?php echo post('role') === 'manager' ? 'selected' : ''; ?>>Manager</option>
                     </select>
                 </div>
@@ -819,6 +822,7 @@ include __DIR__ . '/../includes/header.php';
                     <label class="form-label">Role *</label>
                     <select name="role" id="edit-role-select" class="form-select" required onchange="toggleEditManagerField(this.value)">
                         <option value="employee" <?php echo post('role', $editUser['role']) === 'employee' ? 'selected' : ''; ?>>Employee</option>
+                        <option value="sales_counsellor" <?php echo post('role', $editUser['role']) === 'sales_counsellor' ? 'selected' : ''; ?>>Sales Counsellor</option>
                         <option value="manager" <?php echo post('role', $editUser['role']) === 'manager' ? 'selected' : ''; ?>>Manager</option>
                     </select>
                 </div>

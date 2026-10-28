@@ -186,6 +186,20 @@ function isActive(string $dir, string $page): string {
             <a href="<?php echo BASE_URL; ?>/sales/leaves.php" class="sidebar-nav-item<?php echo isActive('sales', 'leaves'); ?>">
                 <span class="nav-icon"><i class="fa-solid fa-umbrella-beach"></i></span> Apply Leave
             </a>
+            <a href="<?php echo BASE_URL; ?>/employee/meetings.php" class="sidebar-nav-item<?php echo isActive('employee', 'meetings'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span> Meetings
+            </a>
+            <a href="<?php echo BASE_URL; ?>/employee/announcements.php" class="sidebar-nav-item<?php echo isActive('employee', 'announcements'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span> Announcements
+            </a>
+            <a href="<?php echo BASE_URL; ?>/employee/team.php" class="sidebar-nav-item<?php echo isActive('employee', 'team'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-users"></i></span> My Team
+            </a>
+
+            <div class="sidebar-nav-label">Help Desk</div>
+            <a href="<?php echo BASE_URL; ?>/employee/support.php" class="sidebar-nav-item<?php echo isActive('employee', 'support'); ?>">
+                <span class="nav-icon"><i class="fa-solid fa-headset"></i></span> Support & Help
+            </a>
 
         <?php elseif ($baseRole === ROLE_EMPLOYEE): ?>
             <!-- ===== EMPLOYEE NAVIGATION ===== -->

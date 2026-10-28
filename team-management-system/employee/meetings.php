@@ -9,7 +9,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/middleware.php';
 
-requireRole([ROLE_EMPLOYEE]);
+requireRole([ROLE_EMPLOYEE, ROLE_SALES_COUNSELLOR]);
 
 $db = getDB();
 $userId = getUserId();
@@ -131,7 +131,7 @@ $stmt = $db->prepare("
     SELECT id, name, role, email, designation 
     FROM users 
     WHERE id != ? AND status = 'active'
-    ORDER BY FIELD(role, 'founder', 'hr', 'manager', 'employee'), name ASC
+    ORDER BY FIELD(role, 'founder', 'hr', 'manager', 'sales_counsellor', 'employee'), name ASC
 ");
 $stmt->execute([$userId]);
 $usersList = $stmt->fetchAll();

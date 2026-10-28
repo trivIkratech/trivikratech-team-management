@@ -12,7 +12,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/middleware.php';
 
-requireRole([ROLE_EMPLOYEE]);
+requireRole([ROLE_EMPLOYEE, ROLE_SALES_COUNSELLOR]);
 
 $db = getDB();
 $userId = getUserId();
@@ -36,7 +36,7 @@ if ($managerId) {
     $manager = $stmt->fetch();
     
     // Get other team members under the same manager
-    $stmt = $db->prepare("SELECT id, name, email, designation, status FROM users WHERE manager_id = ? AND role = 'employee' AND status = 'active' ORDER BY name ASC");
+    $stmt = $db->prepare("SELECT id, name, email, designation, status, role FROM users WHERE manager_id = ? AND role IN ('employee', 'sales_counsellor') AND status = 'active' ORDER BY name ASC");
     $stmt->execute([$managerId]);
     $teamMembers = $stmt->fetchAll();
     
@@ -45,7 +45,7 @@ if ($managerId) {
         SELECT t.*, u.name AS employee_name, u.email AS employee_email 
         FROM tasks t 
         JOIN users u ON t.assigned_to = u.id 
-        WHERE u.manager_id = ? AND u.role = 'employee'
+        WHERE u.manager_id = ? AND u.role IN ('employee', 'sales_counsellor')
         ORDER BY t.created_at DESC
     ");
     $stmt->execute([$managerId]);
@@ -60,7 +60,7 @@ if ($managerId) {
             SUM(CASE WHEN t.status = 'todo' THEN 1 ELSE 0 END) AS todo
         FROM tasks t
         JOIN users u ON t.assigned_to = u.id
-        WHERE u.manager_id = ? AND u.role = 'employee'
+        WHERE u.manager_id = ? AND u.role IN ('employee', 'sales_counsellor')
     ");
     $stmt->execute([$managerId]);
     $dbStats = $stmt->fetch();

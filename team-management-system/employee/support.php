@@ -12,7 +12,7 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/middleware.php';
 
-requireRole([ROLE_EMPLOYEE]);
+requireRole([ROLE_EMPLOYEE, ROLE_SALES_COUNSELLOR]);
 
 $db = getDB();
 $userId = getUserId();
