@@ -55,7 +55,7 @@ $counsellors = getSalesCounsellorsList();
 // Offerings list for modal
 $coursesList = getCourseServicesList('course');
 $servicesList = getCourseServicesList('service');
-$canAddLeads = in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR]);
+$canAddLeads = in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR, ROLE_SALES_COUNSELLOR]);
 
 // Lead ID from URL if opened directly
 $selectedLeadId = (int)get('lead_id', 0);
@@ -97,16 +97,20 @@ include __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn btn-primary" onclick="openAddLeadModal('course')">
                     <i class="fa-solid fa-graduation-cap"></i> + Add Course Lead
                 </button>
-                <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
-                    <i class="fa-solid fa-file-import"></i> Upload Course Leads
-                </button>
+                <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                    <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
+                        <i class="fa-solid fa-file-import"></i> Upload Course Leads
+                    </button>
+                <?php endif; ?>
             <?php elseif ($offeringFilter === 'service'): ?>
                 <button type="button" class="btn btn-warning" onclick="openAddLeadModal('service')" style="background: #f59e0b; color: #fff; border: none; font-weight: 600;">
                     <i class="fa-solid fa-laptop-code"></i> + Add Service Lead
                 </button>
-                <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('service', 'bulk')">
-                    <i class="fa-solid fa-file-import"></i> Upload Service Leads
-                </button>
+                <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                    <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('service', 'bulk')">
+                        <i class="fa-solid fa-file-import"></i> Upload Service Leads
+                    </button>
+                <?php endif; ?>
             <?php else: ?>
                 <button type="button" class="btn btn-primary" onclick="openAddLeadModal('course')">
                     <i class="fa-solid fa-graduation-cap"></i> + Add Course Lead
@@ -114,9 +118,11 @@ include __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn btn-warning" onclick="openAddLeadModal('service')" style="background: #f59e0b; color: #fff; border: none; font-weight: 600;">
                     <i class="fa-solid fa-laptop-code"></i> + Add Service Lead
                 </button>
-                <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
-                    <i class="fa-solid fa-file-import"></i> Bulk Upload Leads
-                </button>
+                <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                    <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
+                        <i class="fa-solid fa-file-import"></i> Bulk Upload Leads
+                    </button>
+                <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
     </div>
@@ -254,142 +260,287 @@ include __DIR__ . '/../includes/header.php';
             <p style="margin: 0; font-size: 13px;">No inquiries match your current filters.</p>
         </div>
     <?php else: ?>
-        <div style="overflow-x: auto; width: 100%;">
-            <table class="data-table" style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr>
-                        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
-                            <th style="padding: 12px 16px; width: 38px; text-align: center;">
-                                <input type="checkbox" id="selectAllLeads" onchange="toggleSelectAllLeads(this)" style="cursor: pointer; width: 16px; height: 16px;">
-                            </th>
-                        <?php endif; ?>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 200px;">Prospect</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 90px;">Type</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 220px;">Course / Service</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 110px;">Source</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 120px;">Status</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 130px;">Assigned To</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 140px;">Next Follow-up</th>
-                        <th style="padding: 12px 16px; text-align: left; min-width: 100px;">Created</th>
-                        <th style="padding: 12px 16px; text-align: right; min-width: 200px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($leads as $lead): 
-                        $leadId = (int)$lead['id'];
-                    ?>
-                        <tr id="lead-row-<?php echo $leadId; ?>">
+        <!-- 1. DESKTOP VIEW (Visible on tablet landscape and desktop > 768px) -->
+        <div class="leads-table-desktop">
+            <div style="overflow-x: auto; width: 100%;">
+                <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
                             <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
-                                <td style="padding: 12px 16px; text-align: center;">
-                                    <input type="checkbox" class="lead-row-checkbox" value="<?php echo $leadId; ?>" onchange="updateSelectedLeadsCount()" style="cursor: pointer; width: 16px; height: 16px;">
-                                </td>
+                                <th style="padding: 12px 16px; width: 38px; text-align: center;">
+                                    <input type="checkbox" id="selectAllLeads" onchange="toggleSelectAllLeads(this)" style="cursor: pointer; width: 16px; height: 16px;">
+                                </th>
                             <?php endif; ?>
-                            <td style="padding: 12px 16px;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(99, 102, 241, 0.12); color: var(--color-primary-light); font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                        <?php echo strtoupper(substr($lead['name'] ?? 'P', 0, 2)); ?>
-                                    </div>
-                                    <div>
-                                        <div style="font-weight: 600; color: var(--color-text-white); font-size: 13.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                            <?php echo e($lead['name']); ?>
-                                            <?php if (!empty($lead['graduation'])): ?>
-                                                <span class="badge" style="font-size: 10px; padding: 1px 6px; background: rgba(99, 102, 241, 0.15); color: var(--color-primary-light); border: 1px solid rgba(99, 102, 241, 0.3);">
-                                                    <i class="fa-solid fa-user-graduate" style="font-size: 9px; margin-right: 2px;"></i><?php echo e($lead['graduation']); ?>
-                                                </span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div style="font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: monospace;">
-                                            <span><i class="fa-solid fa-phone" style="font-size: 9px;"></i> <?php echo e($lead['phone']); ?></span>
-                                            <?php if (!empty($lead['email'])): ?><span>• <?php echo e($lead['email']); ?></span><?php endif; ?>
-                                            <?php if (!empty($lead['city'])): ?><span>• <i class="fa-solid fa-location-dot" style="font-size: 9px;"></i> <?php echo e($lead['city']); ?></span><?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td style="padding: 12px 16px;">
-                                <span class="badge <?php echo $lead['offering_type'] === 'course' ? 'badge-primary' : 'badge-warning'; ?>" style="font-size: 11px;">
-                                    <?php echo ucfirst($lead['offering_type']); ?>
-                                </span>
-                            </td>
-                            <td style="padding: 12px 16px;">
-                                <div style="font-weight: 500; color: var(--color-text-white);">
-                                    <?php echo e($lead['course_service_name']); ?>
-                                </div>
-                                <?php if ($lead['expected_revenue'] > 0): ?>
-                                    <div style="font-size: 11.5px; color: var(--color-success); margin-top: 2px;">
-                                        Value: ₹<?php echo number_format($lead['expected_revenue']); ?>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if ($lead['status'] === 'enrolled'): ?>
-                                    <div style="margin-top: 4px;">
-                                        <?php echo getPaymentStatusBadge($lead['payment_status'] ?? 'unpaid', (float)($lead['paid_amount'] ?? 0), (float)($lead['expected_revenue'] ?? 0), $lead['payment_plan'] ?? 'none', $lead['offering_type'] ?? 'course'); ?>
-                                    </div>
-                                <?php endif; ?>
-                            </td>
-                            <td style="padding: 12px 16px;">
-                                <span style="font-size: 12.5px; color: var(--color-text-secondary);"><?php echo e($lead['source']); ?></span>
-                            </td>
-                            <td id="status-cell-<?php echo $leadId; ?>" data-lead-status-id="<?php echo $leadId; ?>" style="padding: 12px 16px;"><?php echo getLeadStatusBadge($lead['status']); ?></td>
-                            <td style="padding: 12px 16px;">
-                                <div style="font-size: 12.5px; font-weight: 600; color: var(--color-text-main);">
-                                    <?php echo e($lead['assigned_to_name'] ?: 'Unassigned'); ?>
-                                </div>
-                            </td>
-                            <td style="padding: 12px 16px;">
-                                <?php if (!empty($lead['next_followup_date'])): ?>
-                                    <?php 
-                                        $isPast = (strtotime($lead['next_followup_date']) < time() && $lead['status'] !== 'enrolled');
-                                        $isToday = (date('Y-m-d', strtotime($lead['next_followup_date'])) === date('Y-m-d'));
-                                    ?>
-                                    <div style="font-size: 12px; <?php echo $isPast ? 'color: var(--color-danger); font-weight: 600;' : ($isToday ? 'color: var(--color-warning); font-weight: 600;' : 'color: var(--color-text-secondary);'); ?>">
-                                        <i class="fa-regular fa-clock" style="font-size: 10px; margin-right: 3px;"></i><?php echo formatDate($lead['next_followup_date'], 'd M, h:i A'); ?>
-                                    </div>
-                                <?php else: ?>
-                                    <span style="font-size: 12px; color: var(--color-text-muted);">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td style="padding: 12px 16px;">
-                                <span style="font-size: 12px; color: var(--color-text-muted);"><?php echo formatDate($lead['created_at'], 'd M Y'); ?></span>
-                            </td>
-                            <td style="padding: 12px 16px; text-align: right;">
-                                <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
-                                    <a href="tel:<?php echo e($lead['phone']); ?>" class="btn btn-sm btn-ghost" title="Call Prospect" style="padding: 6px 8px; color: var(--color-primary);">
-                                        <i class="fa-solid fa-phone"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-ghost text-success" title="WhatsApp Message" style="padding: 6px 8px; color: var(--color-success); border: none; background: none; cursor: pointer;" onclick="openWhatsAppModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['phone']); ?>', <?php echo ($lead['is_manual'] ? 2 : 1); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? 'UI/UX Design')); ?>')">
-                                        <i class="fa-brands fa-whatsapp"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="openUpdateStatusModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['status']); ?>', '<?php echo e($lead['offering_type']); ?>', <?php echo (int)($lead['course_service_id'] ?? 0); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? '')); ?>', <?php echo (float)($lead['expected_revenue'] ?? 0); ?>)" title="Update Status" style="padding: 6px 12px; font-size: 12px;">
-                                        <i class="fa-solid fa-pen-to-square"></i> Status
-                                    </button>
-
-                                    <?php if ($lead['status'] === 'enrolled'): ?>
-                                        <button type="button" class="btn btn-sm" onclick="openPaymentModal(<?php echo $leadId; ?>)" title="Manage Course Payments & Installments" style="padding: 6px 10px; font-size: 12px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
-                                            <i class="fa-solid fa-credit-card"></i> Payments
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
-                                        <!-- Reassign Lead (Founder / Manager / HR) -->
-                                        <button type="button" class="btn btn-sm btn-ghost" style="padding: 6px 8px; color: #f59e0b;" title="Reassign to Counsellor" onclick="openAssignModal(<?php echo $leadId; ?>, <?php echo (int)($lead['assigned_to'] ?? 0); ?>, '<?php echo addslashes($lead['name']); ?>')">
-                                            <i class="fa-solid fa-user-gear"></i>
-                                        </button>
-
-                                        <!-- Delete Lead (Founder / Manager / HR) -->
-                                        <button type="button" class="btn btn-sm btn-ghost text-danger" style="padding: 6px 8px; color: var(--color-danger);" title="Delete Lead" onclick="confirmDeleteSingleLead(<?php echo $leadId; ?>, '<?php echo addslashes($lead['name']); ?>')">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <button type="button" class="btn btn-sm btn-outline" onclick="viewLeadDrawer(<?php echo (int)$lead['id']; ?>)" title="History & Notes" style="padding: 6px 10px; font-size: 12px;">
-                                        <i class="fa-solid fa-clock-rotate-left"></i> History (<?php echo (int)$lead['activity_count']; ?>)
-                                    </button>
-                                </div>
-                            </td>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 200px;">Prospect</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 90px;">Type</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 220px;">Course / Service</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 110px;">Source</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 120px;">Status</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 130px;">Assigned To</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 140px;">Next Follow-up</th>
+                            <th style="padding: 12px 16px; text-align: left; min-width: 100px;">Created</th>
+                            <th style="padding: 12px 16px; text-align: right; min-width: 200px;">Actions</th>
                         </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($leads as $lead): 
+                            $leadId = (int)$lead['id'];
+                            $leadName = e($lead['name']);
+                        ?>
+                            <tr id="lead-row-<?php echo $leadId; ?>">
+                                <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                                    <td style="padding: 12px 16px; text-align: center;">
+                                        <input type="checkbox" class="lead-row-checkbox lead-checkbox-<?php echo $leadId; ?>" value="<?php echo $leadId; ?>" onchange="onLeadCheckboxToggle(this)" style="cursor: pointer; width: 16px; height: 16px;">
+                                    </td>
+                                <?php endif; ?>
+                                <td style="padding: 12px 16px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(99, 102, 241, 0.12); color: var(--color-primary-light); font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <?php echo strtoupper(substr($lead['name'] ?? 'P', 0, 2)); ?>
+                                        </div>
+                                        <div>
+                                            <div style="font-weight: 600; color: var(--color-text-white); font-size: 13.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                                <?php echo $leadName; ?>
+                                                <?php if (!empty($lead['graduation'])): ?>
+                                                    <span class="badge" style="font-size: 10px; padding: 1px 6px; background: rgba(99, 102, 241, 0.15); color: var(--color-primary-light); border: 1px solid rgba(99, 102, 241, 0.3);">
+                                                        <i class="fa-solid fa-user-graduate" style="font-size: 9px; margin-right: 2px;"></i><?php echo e($lead['graduation']); ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div style="font-size: 11.5px; color: var(--color-text-secondary); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: monospace;">
+                                                <span><i class="fa-solid fa-phone" style="font-size: 9px;"></i> <?php echo e($lead['phone']); ?></span>
+                                                <?php if (!empty($lead['email'])): ?><span>• <?php echo e($lead['email']); ?></span><?php endif; ?>
+                                                <?php if (!empty($lead['city'])): ?><span>• <i class="fa-solid fa-location-dot" style="font-size: 9px;"></i> <?php echo e($lead['city']); ?></span><?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style="padding: 12px 16px;">
+                                    <span class="badge <?php echo $lead['offering_type'] === 'course' ? 'badge-primary' : 'badge-warning'; ?>" style="font-size: 11px;">
+                                        <?php echo ucfirst($lead['offering_type']); ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 12px 16px;">
+                                    <div style="font-weight: 500; color: var(--color-text-white);">
+                                        <?php echo e($lead['course_service_name']); ?>
+                                    </div>
+                                    <?php if ($lead['expected_revenue'] > 0): ?>
+                                        <div style="font-size: 11.5px; color: var(--color-success); margin-top: 2px;">
+                                            Value: ₹<?php echo number_format($lead['expected_revenue']); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if ($lead['status'] === 'enrolled'): ?>
+                                        <div style="margin-top: 4px;">
+                                            <?php echo getPaymentStatusBadge($lead['payment_status'] ?? 'unpaid', (float)($lead['paid_amount'] ?? 0), (float)($lead['expected_revenue'] ?? 0), $lead['payment_plan'] ?? 'none', $lead['offering_type'] ?? 'course'); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 12px 16px;">
+                                    <span style="font-size: 12.5px; color: var(--color-text-secondary);"><?php echo e($lead['source']); ?></span>
+                                </td>
+                                <td id="status-cell-<?php echo $leadId; ?>" data-lead-status-id="<?php echo $leadId; ?>" style="padding: 12px 16px;"><?php echo getLeadStatusBadge($lead['status']); ?></td>
+                                <td style="padding: 12px 16px;">
+                                    <div style="font-size: 12.5px; font-weight: 600; color: var(--color-text-main);">
+                                        <?php echo e($lead['assigned_to_name'] ?: 'Unassigned'); ?>
+                                    </div>
+                                </td>
+                                <td style="padding: 12px 16px;">
+                                    <?php if (!empty($lead['next_followup_date'])): ?>
+                                        <?php 
+                                            $isPast = (strtotime($lead['next_followup_date']) < time() && $lead['status'] !== 'enrolled');
+                                            $isToday = (date('Y-m-d', strtotime($lead['next_followup_date'])) === date('Y-m-d'));
+                                        ?>
+                                        <div style="font-size: 12px; <?php echo $isPast ? 'color: var(--color-danger); font-weight: 600;' : ($isToday ? 'color: var(--color-warning); font-weight: 600;' : 'color: var(--color-text-secondary);'); ?>">
+                                            <i class="fa-regular fa-clock" style="font-size: 10px; margin-right: 3px;"></i><?php echo formatDate($lead['next_followup_date'], 'd M, h:i A'); ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <span style="font-size: 12px; color: var(--color-text-muted);">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 12px 16px;">
+                                    <span style="font-size: 12px; color: var(--color-text-muted);"><?php echo formatDate($lead['created_at'], 'd M Y'); ?></span>
+                                </td>
+                                <td style="padding: 12px 16px; text-align: right;">
+                                    <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
+                                        <a href="tel:<?php echo e($lead['phone']); ?>" class="btn btn-sm btn-ghost" title="Call Prospect" style="padding: 6px 8px; color: var(--color-primary);">
+                                            <i class="fa-solid fa-phone"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-ghost text-success" title="WhatsApp Message" style="padding: 6px 8px; color: var(--color-success); border: none; background: none; cursor: pointer;" onclick="openWhatsAppModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['phone']); ?>', <?php echo ($lead['is_manual'] ? 2 : 1); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? 'UI/UX Design')); ?>')">
+                                            <i class="fa-brands fa-whatsapp"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="openUpdateStatusModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['status']); ?>', '<?php echo e($lead['offering_type']); ?>', <?php echo (int)($lead['course_service_id'] ?? 0); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? '')); ?>', <?php echo (float)($lead['expected_revenue'] ?? 0); ?>)" title="Update Status" style="padding: 6px 12px; font-size: 12px;">
+                                            <i class="fa-solid fa-pen-to-square"></i> Status
+                                        </button>
+
+                                        <?php if ($lead['status'] === 'enrolled'): ?>
+                                            <button type="button" class="btn btn-sm" onclick="openPaymentModal(<?php echo $leadId; ?>)" title="Manage Course Payments & Installments" style="padding: 6px 10px; font-size: 12px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                                <i class="fa-solid fa-credit-card"></i> Payments
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                                            <!-- Reassign Lead (Founder / Manager / HR) -->
+                                            <button type="button" class="btn btn-sm btn-ghost" style="padding: 6px 8px; color: #f59e0b;" title="Reassign to Counsellor" onclick="openAssignModal(<?php echo $leadId; ?>, <?php echo (int)($lead['assigned_to'] ?? 0); ?>, '<?php echo addslashes($lead['name']); ?>')">
+                                                <i class="fa-solid fa-user-gear"></i>
+                                            </button>
+
+                                            <!-- Delete Lead (Founder / Manager / HR) -->
+                                            <button type="button" class="btn btn-sm btn-ghost text-danger" style="padding: 6px 8px; color: var(--color-danger);" title="Delete Lead" onclick="confirmDeleteSingleLead(<?php echo $leadId; ?>, '<?php echo addslashes($lead['name']); ?>')">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="viewLeadDrawer(<?php echo (int)$lead['id']; ?>)" title="History & Notes" style="padding: 6px 10px; font-size: 12px;">
+                                            <i class="fa-solid fa-clock-rotate-left"></i> History (<?php echo (int)$lead['activity_count']; ?>)
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. MOBILE CARDS VIEW (Visible on mobile screens <= 768px) -->
+        <div class="leads-cards-mobile">
+            <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                <div class="mobile-toolbar-header" style="border-radius: var(--radius-md); margin-bottom: 2px;">
+                    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0;">
+                        <input type="checkbox" id="selectAllLeadsMobile" onchange="toggleSelectAllLeads(this)" style="cursor: pointer; width: 18px; height: 18px;">
+                        <span>Select All on Page</span>
+                    </label>
+                    <span style="font-size: 12px; color: var(--color-text-secondary);"><?php echo count($leads); ?> of <?php echo $totalLeads; ?></span>
+                </div>
+            <?php endif; ?>
+
+            <?php foreach ($leads as $lead): 
+                $leadId = (int)$lead['id'];
+                $leadName = e($lead['name']);
+                $isPast = (!empty($lead['next_followup_date']) && strtotime($lead['next_followup_date']) < time() && $lead['status'] !== 'enrolled');
+                $isToday = (!empty($lead['next_followup_date']) && date('Y-m-d', strtotime($lead['next_followup_date'])) === date('Y-m-d'));
+            ?>
+                <div class="lead-mobile-card" id="lead-card-<?php echo $leadId; ?>">
+                    <!-- Card Top: Checkbox, Avatar, Name & Status -->
+                    <div class="lead-card-header">
+                        <div class="lead-card-identity">
+                            <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                                <input type="checkbox" class="lead-card-checkbox lead-checkbox-<?php echo $leadId; ?>" value="<?php echo $leadId; ?>" onchange="onLeadCheckboxToggle(this)" style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
+                            <?php endif; ?>
+                            <div class="lead-card-avatar">
+                                <?php echo strtoupper(substr($lead['name'] ?? 'P', 0, 2)); ?>
+                            </div>
+                            <div class="lead-card-name-wrap">
+                                <div class="lead-card-name" onclick="viewLeadDrawer(<?php echo $leadId; ?>)">
+                                    <?php echo $leadName; ?>
+                                </div>
+                                <?php if (!empty($lead['graduation'])): ?>
+                                    <div class="lead-card-grad-badge">
+                                        <i class="fa-solid fa-user-graduate"></i> <?php echo e($lead['graduation']); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div id="status-card-<?php echo $leadId; ?>">
+                            <?php echo getLeadStatusBadge($lead['status']); ?>
+                        </div>
+                    </div>
+
+                    <!-- Offering & Deal Value Bar -->
+                    <div class="lead-card-offering-bar">
+                        <div class="lead-card-offering-title">
+                            <span class="badge <?php echo $lead['offering_type'] === 'course' ? 'badge-primary' : 'badge-warning'; ?>" style="font-size: 10px; font-weight: 700; padding: 2px 6px;">
+                                <i class="fa-solid <?php echo $lead['offering_type'] === 'course' ? 'fa-graduation-cap' : 'fa-laptop-code'; ?>" style="margin-right: 2px;"></i><?php echo ucfirst($lead['offering_type']); ?>
+                            </span>
+                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?php echo e($lead['course_service_name']); ?></span>
+                        </div>
+                        <?php if ($lead['expected_revenue'] > 0): ?>
+                            <div class="lead-card-value">
+                                ₹<?php echo number_format($lead['expected_revenue']); ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($lead['status'] === 'enrolled'): ?>
+                        <div style="margin: 2px 0;">
+                            <?php echo getPaymentStatusBadge($lead['payment_status'] ?? 'unpaid', (float)($lead['paid_amount'] ?? 0), (float)($lead['expected_revenue'] ?? 0), $lead['payment_plan'] ?? 'none', $lead['offering_type'] ?? 'course'); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Direct Contact Links -->
+                    <div class="lead-card-contacts">
+                        <div class="lead-card-contact-item">
+                            <i class="fa-solid fa-phone" style="color: var(--color-primary-light); width: 14px;"></i>
+                            <a href="tel:<?php echo e($lead['phone']); ?>">
+                                <?php echo e($lead['phone']); ?>
+                            </a>
+                        </div>
+                        <?php if (!empty($lead['email'])): ?>
+                            <div class="lead-card-contact-item">
+                                <i class="fa-solid fa-envelope" style="color: var(--color-text-muted); width: 14px;"></i>
+                                <span style="overflow: hidden; text-overflow: ellipsis;"><?php echo e($lead['email']); ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($lead['city'])): ?>
+                            <div class="lead-card-contact-item">
+                                <i class="fa-solid fa-location-dot" style="color: var(--color-text-muted); width: 14px;"></i>
+                                <span><?php echo e($lead['city']); ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Meta Details Grid -->
+                    <div class="lead-card-meta-grid">
+                        <div class="lead-card-meta-item">
+                            <span>Assigned:</span>
+                            <strong><?php echo e($lead['assigned_to_name'] ?: 'Unassigned'); ?></strong>
+                        </div>
+                        <div class="lead-card-meta-item">
+                            <span>Source:</span>
+                            <strong><?php echo e($lead['source']); ?></strong>
+                        </div>
+                        <?php if (!empty($lead['next_followup_date'])): ?>
+                            <div class="lead-card-meta-item lead-card-meta-full">
+                                <span>Next Call:</span>
+                                <strong class="<?php echo $isPast ? 'text-danger' : ($isToday ? 'text-warning' : ''); ?>">
+                                    <i class="fa-regular fa-clock" style="margin-right: 3px;"></i><?php echo formatDate($lead['next_followup_date'], 'd M, h:i A'); ?>
+                                    <?php if ($isPast): ?><span class="badge badge-danger" style="font-size: 9px; padding: 1px 4px; margin-left: 4px;">Overdue</span><?php endif; ?>
+                                    <?php if ($isToday): ?><span class="badge badge-warning" style="font-size: 9px; padding: 1px 4px; margin-left: 4px;">Today</span><?php endif; ?>
+                                </strong>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Touch Actions Bar -->
+                    <div class="lead-card-actions">
+                        <a href="tel:<?php echo e($lead['phone']); ?>" class="btn btn-sm btn-outline-primary" title="Call directly">
+                            <i class="fa-solid fa-phone"></i> Call
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-success" title="WhatsApp Message" style="color: #25D366; border-color: rgba(37, 211, 102, 0.4);" onclick="openWhatsAppModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['phone']); ?>', <?php echo ($lead['is_manual'] ? 2 : 1); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? 'UI/UX Design')); ?>')">
+                            <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="openUpdateStatusModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['status']); ?>', '<?php echo e($lead['offering_type']); ?>', <?php echo (int)($lead['course_service_id'] ?? 0); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? '')); ?>', <?php echo (float)($lead['expected_revenue'] ?? 0); ?>)" title="Update Status">
+                            <i class="fa-solid fa-pen-to-square"></i> Status
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary btn-icon-only" onclick="viewLeadDrawer(<?php echo (int)$lead['id']; ?>)" title="History & Notes">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </button>
+                        <?php if ($lead['status'] === 'enrolled'): ?>
+                            <button type="button" class="btn btn-sm btn-icon-only" onclick="openPaymentModal(<?php echo $leadId; ?>)" title="Manage Payments" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <i class="fa-solid fa-credit-card"></i>
+                            </button>
+                        <?php endif; ?>
+                        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                            <button type="button" class="btn btn-sm btn-icon-only" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25);" title="Reassign to Counsellor" onclick="openAssignModal(<?php echo $leadId; ?>, <?php echo (int)($lead['assigned_to'] ?? 0); ?>, '<?php echo addslashes($lead['name']); ?>')">
+                                <i class="fa-solid fa-user-gear"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-icon-only text-danger" style="color: var(--color-danger); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25);" title="Delete Lead" onclick="confirmDeleteSingleLead(<?php echo $leadId; ?>, '<?php echo addslashes($lead['name']); ?>')">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
         </div>
 
         <!-- Pagination -->
@@ -426,6 +577,7 @@ include __DIR__ . '/../includes/header.php';
             <button type="button" class="modal-close" onclick="closeAddLeadModal()">×</button>
         </div>
 
+        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
         <!-- Mode Switcher Tabs (Single Entry vs Bulk Paste) -->
         <div style="display: flex; gap: 8px; padding: 12px 24px 0 24px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary);">
             <button type="button" id="tabSingleBtn" class="btn btn-sm btn-primary" onclick="switchAddLeadTab('single')" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
@@ -435,6 +587,7 @@ include __DIR__ . '/../includes/header.php';
                 <i class="fa-solid fa-file-import"></i> Bulk Paste Calling List
             </button>
         </div>
+        <?php endif; ?>
 
         <!-- TAB 1: SINGLE LEAD ENTRY -->
         <div id="tabSingleContent">
@@ -540,6 +693,7 @@ include __DIR__ . '/../includes/header.php';
             </form>
         </div>
 
+        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
         <!-- TAB 2: BULK RAW DATA PASTE -->
         <div id="tabBulkContent" style="display: none;">
             <form id="bulkImportForm" onsubmit="submitBulkImport(event)">
@@ -648,6 +802,7 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </form>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -1070,16 +1225,21 @@ function closeAddLeadModal() {
 }
 
 function switchAddLeadTab(tab) {
-    if (tab === 'single') {
-        document.getElementById('tabSingleContent').style.display = 'block';
-        document.getElementById('tabBulkContent').style.display = 'none';
-        document.getElementById('tabSingleBtn').className = 'btn btn-sm btn-primary';
-        document.getElementById('tabBulkBtn').className = 'btn btn-sm btn-ghost';
+    const singleContent = document.getElementById('tabSingleContent');
+    const bulkContent = document.getElementById('tabBulkContent');
+    const singleBtn = document.getElementById('tabSingleBtn');
+    const bulkBtn = document.getElementById('tabBulkBtn');
+
+    if (tab === 'single' || !bulkContent) {
+        if (singleContent) singleContent.style.display = 'block';
+        if (bulkContent) bulkContent.style.display = 'none';
+        if (singleBtn) singleBtn.className = 'btn btn-sm btn-primary';
+        if (bulkBtn) bulkBtn.className = 'btn btn-sm btn-ghost';
     } else {
-        document.getElementById('tabSingleContent').style.display = 'none';
-        document.getElementById('tabBulkContent').style.display = 'block';
-        document.getElementById('tabSingleBtn').className = 'btn btn-sm btn-ghost';
-        document.getElementById('tabBulkBtn').className = 'btn btn-sm btn-primary';
+        if (singleContent) singleContent.style.display = 'none';
+        if (bulkContent) bulkContent.style.display = 'block';
+        if (singleBtn) singleBtn.className = 'btn btn-sm btn-ghost';
+        if (bulkBtn) bulkBtn.className = 'btn btn-sm btn-primary';
     }
 }
 
@@ -1823,16 +1983,36 @@ async function submitBulkAssignByCount(e) {
     }
 }
 
-// Table Checkbox Multi-Selection Handlers
+// Table & Mobile Card Checkbox Multi-Selection Handlers
+function onLeadCheckboxToggle(cb) {
+    const leadId = cb.value;
+    const twinCbs = document.querySelectorAll('.lead-checkbox-' + leadId);
+    twinCbs.forEach(c => c.checked = cb.checked);
+    updateSelectedLeadsCount();
+}
+
+function getSelectedLeadIds() {
+    const checked = document.querySelectorAll('.lead-row-checkbox:checked, .lead-card-checkbox:checked');
+    const idSet = new Set();
+    checked.forEach(cb => {
+        if (cb.value) idSet.add(cb.value);
+    });
+    return Array.from(idSet);
+}
+
 function toggleSelectAllLeads(masterCb) {
-    const cbs = document.querySelectorAll('.lead-row-checkbox');
-    cbs.forEach(cb => cb.checked = masterCb.checked);
+    const state = masterCb.checked;
+    document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox').forEach(cb => cb.checked = state);
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+    if (masterDesk) { masterDesk.checked = state; masterDesk.indeterminate = false; }
+    if (masterMob) { masterMob.checked = state; masterMob.indeterminate = false; }
     updateSelectedLeadsCount();
 }
 
 function updateSelectedLeadsCount() {
-    const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked');
-    const count = checkedBoxes.length;
+    const selectedIds = getSelectedLeadIds();
+    const count = selectedIds.length;
     const bar = document.getElementById('floating-bulk-bar');
     const countBadge = document.getElementById('selected-leads-count');
     
@@ -1841,32 +2021,39 @@ function updateSelectedLeadsCount() {
         bar.style.display = (count > 0) ? 'flex' : 'none';
     }
 
-    const masterCb = document.getElementById('selectAllLeads');
-    const allCbs = document.querySelectorAll('.lead-row-checkbox');
-    if (masterCb && allCbs.length > 0) {
-        masterCb.checked = (checkedBoxes.length === allCbs.length);
-        masterCb.indeterminate = (checkedBoxes.length > 0 && checkedBoxes.length < allCbs.length);
-    }
+    const allCheckboxes = document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox');
+    const totalUniqueLeads = new Set(Array.from(allCheckboxes).map(cb => cb.value)).size;
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+
+    [masterDesk, masterMob].forEach(master => {
+        if (master && totalUniqueLeads > 0) {
+            master.checked = (count === totalUniqueLeads);
+            master.indeterminate = (count > 0 && count < totalUniqueLeads);
+        }
+    });
 }
 
 function clearSelectedLeads() {
-    document.querySelectorAll('.lead-row-checkbox').forEach(cb => cb.checked = false);
-    const masterCb = document.getElementById('selectAllLeads');
-    if (masterCb) {
-        masterCb.checked = false;
-        masterCb.indeterminate = false;
-    }
+    document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox').forEach(cb => cb.checked = false);
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+    [masterDesk, masterMob].forEach(master => {
+        if (master) {
+            master.checked = false;
+            master.indeterminate = false;
+        }
+    });
     updateSelectedLeadsCount();
 }
 
 async function submitBulkAssignSelected() {
-    const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked');
-    const leadIds = Array.from(checkedBoxes).map(cb => cb.value);
+    const leadIds = getSelectedLeadIds();
     const targetSelect = document.getElementById('bulk_selected_counsellor');
     const targetValue = targetSelect ? targetSelect.value : '';
 
     if (leadIds.length === 0) {
-        alert('Please select at least one lead from the table.');
+        alert('Please select at least one lead from the table or cards.');
         return;
     }
     if (!targetValue) {

@@ -126,8 +126,8 @@ function confirmBulkDeleteLeads(customIds = null, callback = null) {
     if (Array.isArray(customIds) && customIds.length > 0) {
         ids = customIds.map(id => parseInt(id)).filter(id => id > 0);
     } else {
-        const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked');
-        ids = Array.from(checkedBoxes).map(cb => parseInt(cb.value)).filter(id => id > 0);
+        const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked, .lead-card-checkbox:checked');
+        ids = Array.from(new Set(Array.from(checkedBoxes).map(cb => parseInt(cb.value)).filter(id => id > 0)));
     }
 
     if (ids.length === 0) {

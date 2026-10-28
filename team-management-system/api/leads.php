@@ -231,10 +231,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        // 1. ADD LEAD / RAW DATA PROSPECT (Restricted to Founder, Manager, HR)
+        // 1. ADD LEAD / RAW DATA PROSPECT (Founder, Manager, HR, and Sales Counsellor)
         if ($action === 'add_lead') {
-            if (!in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR])) {
-                echo json_encode(['success' => false, 'message' => 'Permission denied. Only Founder, HR, and Managers can add leads.']);
+            if (!in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR, ROLE_SALES_COUNSELLOR])) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied. You do not have permission to add leads.']);
                 exit;
             }
 

@@ -326,7 +326,7 @@ include __DIR__ . '/../includes/header.php';
     <?php if (empty($leads)): ?>
         <p style="text-align: center; color: var(--color-text-muted); padding: var(--space-8);">No leads match the filter criteria.</p>
     <?php else: ?>
-        <div style="overflow-x: auto;">
+        <div class="table-responsive leads-table-desktop" style="overflow-x: auto;">
             <table class="data-table" style="width: 100%;">
                 <thead>
                     <tr>
@@ -345,7 +345,7 @@ include __DIR__ . '/../includes/header.php';
                     <?php foreach ($leads as $lead): ?>
                         <tr id="lead-row-<?php echo (int)$lead['id']; ?>">
                             <td style="text-align: center;">
-                                <input type="checkbox" class="lead-row-checkbox" value="<?php echo (int)$lead['id']; ?>" onchange="updateSelectedLeadsCount()" style="cursor: pointer; width: 16px; height: 16px;">
+                                <input type="checkbox" class="lead-row-checkbox lead-checkbox-<?php echo (int)$lead['id']; ?>" value="<?php echo (int)$lead['id']; ?>" onchange="onLeadCheckboxToggle(this)" style="cursor: pointer; width: 16px; height: 16px;">
                             </td>
                             <td>
                                 <div style="font-weight: 600; color: var(--color-text-white); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -414,6 +414,126 @@ include __DIR__ . '/../includes/header.php';
                     <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile Cards View (<= 768px) -->
+        <div class="leads-cards-mobile">
+            <div class="mobile-toolbar-header" style="border-radius: var(--radius-md); margin-bottom: 2px;">
+                <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin: 0;">
+                    <input type="checkbox" id="selectAllLeadsMobile" onchange="toggleSelectAllLeads(this)" style="cursor: pointer; width: 18px; height: 18px;">
+                    <span>Select All on Page</span>
+                </label>
+                <span style="font-size: 12px; color: var(--color-text-secondary);"><?php echo count($leads); ?> leads</span>
+            </div>
+
+            <?php foreach ($leads as $lead): 
+                $leadId = (int)$lead['id'];
+                $leadName = e($lead['name']);
+            ?>
+                <div class="lead-mobile-card" id="lead-card-<?php echo $leadId; ?>">
+                    <!-- Card Top: Checkbox, Avatar, Name & Status -->
+                    <div class="lead-card-header">
+                        <div class="lead-card-identity">
+                            <input type="checkbox" class="lead-card-checkbox lead-checkbox-<?php echo $leadId; ?>" value="<?php echo $leadId; ?>" onchange="onLeadCheckboxToggle(this)" style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
+                            <div class="lead-card-avatar">
+                                <?php echo strtoupper(substr($lead['name'] ?? 'P', 0, 2)); ?>
+                            </div>
+                            <div class="lead-card-name-wrap">
+                                <div class="lead-card-name" onclick="viewLeadDrawer(<?php echo $leadId; ?>)">
+                                    <?php echo $leadName; ?>
+                                </div>
+                                <?php if (!empty($lead['graduation'])): ?>
+                                    <div class="lead-card-grad-badge">
+                                        <i class="fa-solid fa-user-graduate"></i> <?php echo e($lead['graduation']); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div id="status-card-<?php echo $leadId; ?>">
+                            <?php echo getLeadStatusBadge($lead['status']); ?>
+                        </div>
+                    </div>
+
+                    <!-- Offering & Deal Value Bar -->
+                    <div class="lead-card-offering-bar">
+                        <div class="lead-card-offering-title">
+                            <span class="badge <?php echo $lead['offering_type'] === 'course' ? 'badge-primary' : 'badge-warning'; ?>" style="font-size: 10px; font-weight: 700; padding: 2px 6px;">
+                                <i class="fa-solid <?php echo $lead['offering_type'] === 'course' ? 'fa-graduation-cap' : 'fa-laptop-code'; ?>" style="margin-right: 2px;"></i><?php echo ucfirst($lead['offering_type']); ?>
+                            </span>
+                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?php echo e($lead['course_service_name']); ?></span>
+                        </div>
+                        <div class="lead-card-deal-val">
+                            ₹<?php echo number_format($lead['expected_revenue']); ?>
+                        </div>
+                    </div>
+
+                    <!-- Payment Status Badge if enrolled -->
+                    <?php if ($lead['status'] === 'enrolled' || (!empty($lead['payment_plan']) && $lead['payment_plan'] !== 'none')): ?>
+                        <div style="margin-bottom: 8px;">
+                            <?php echo getPaymentStatusBadge($lead['payment_status'] ?? 'unpaid', (float)($lead['paid_amount'] ?? 0), (float)($lead['expected_revenue'] ?? 0), $lead['payment_plan'] ?? 'none', $lead['offering_type'] ?? 'course'); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Contact Details -->
+                    <div class="lead-card-contacts">
+                        <a href="tel:<?php echo e($lead['phone']); ?>" class="lead-card-contact-item">
+                            <i class="fa-solid fa-phone" style="color: var(--color-primary); font-size: 11px;"></i>
+                            <span><?php echo e($lead['phone']); ?></span>
+                            <span style="font-size: 10px; background: rgba(99, 102, 241, 0.15); color: var(--color-primary-light); padding: 1px 5px; border-radius: 4px; margin-left: auto;">Tap to call</span>
+                        </a>
+                        <?php if (!empty($lead['email'])): ?>
+                            <a href="mailto:<?php echo e($lead['email']); ?>" class="lead-card-contact-item">
+                                <i class="fa-solid fa-envelope" style="color: var(--color-text-muted); font-size: 11px;"></i>
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?php echo e($lead['email']); ?></span>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Meta Grid (Assigned & Followup) -->
+                    <div class="lead-card-meta-grid">
+                        <div class="lead-meta-cell">
+                            <span class="lead-meta-lbl">Assigned Counsellor</span>
+                            <span class="lead-meta-val" style="font-weight: 600;">
+                                <?php echo !empty($lead['assigned_to_name']) ? e($lead['assigned_to_name']) : '<span style="color: var(--color-danger);">Unassigned</span>'; ?>
+                            </span>
+                        </div>
+                        <div class="lead-meta-cell">
+                            <span class="lead-meta-lbl">Next Follow-up</span>
+                            <span class="lead-meta-val">
+                                <?php if ($lead['next_followup_date']): ?>
+                                    <span style="font-size: 11px;"><?php echo formatDate($lead['next_followup_date'], 'd M, h:i A'); ?></span>
+                                <?php else: ?>
+                                    <span style="color: var(--color-text-muted); font-size: 11px;">—</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons Grid -->
+                    <div class="lead-card-actions">
+                        <a href="tel:<?php echo e($lead['phone']); ?>" class="lead-btn-action" style="color: var(--color-primary); border-color: rgba(99, 102, 241, 0.3); background: rgba(99, 102, 241, 0.08);">
+                            <i class="fa-solid fa-phone"></i> Call
+                        </a>
+                        <button type="button" class="lead-btn-action" style="color: #25D366; border-color: rgba(37, 211, 102, 0.3); background: rgba(37, 211, 102, 0.08);" onclick="openWhatsAppModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', '<?php echo e($lead['phone']); ?>', <?php echo ($lead['is_manual'] ? 2 : 1); ?>, '<?php echo addslashes(e($lead['course_service_name'] ?? 'UI/UX Design')); ?>')">
+                            <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                        </button>
+                        <?php if ($lead['status'] === 'enrolled' || $lead['offering_type'] === 'course'): ?>
+                            <button type="button" class="lead-btn-action" style="color: #10b981; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08);" onclick="openPaymentModal(<?php echo (int)$lead['id']; ?>)">
+                                <i class="fa-solid fa-credit-card"></i> Payment
+                            </button>
+                        <?php endif; ?>
+                        <button type="button" class="lead-btn-action" onclick="openAssignModal(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>', <?php echo (int)($lead['assigned_to'] ?? 0); ?>)">
+                            <i class="fa-solid fa-user-gear"></i> Assign
+                        </button>
+                        <button type="button" class="lead-btn-action" onclick="viewLeadDrawer(<?php echo (int)$lead['id']; ?>)">
+                            <i class="fa-solid fa-clock-rotate-left"></i> History (<?php echo (int)$lead['activity_count']; ?>)
+                        </button>
+                        <button type="button" class="lead-btn-action" style="color: var(--color-danger);" onclick="confirmDeleteSingleLead(<?php echo (int)$lead['id']; ?>, '<?php echo addslashes(e($lead['name'])); ?>')">
+                            <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
         </div>
     <?php endif; ?>
 </div>
@@ -736,16 +856,36 @@ async function submitBulkAssignByCount(e) {
     }
 }
 
-// Table Checkbox Multi-Selection Handlers
+// Table & Mobile Card Checkbox Multi-Selection Handlers
+function onLeadCheckboxToggle(cb) {
+    const leadId = cb.value;
+    const twinCbs = document.querySelectorAll('.lead-checkbox-' + leadId);
+    twinCbs.forEach(c => c.checked = cb.checked);
+    updateSelectedLeadsCount();
+}
+
+function getSelectedLeadIds() {
+    const checked = document.querySelectorAll('.lead-row-checkbox:checked, .lead-card-checkbox:checked');
+    const idSet = new Set();
+    checked.forEach(cb => {
+        if (cb.value) idSet.add(cb.value);
+    });
+    return Array.from(idSet);
+}
+
 function toggleSelectAllLeads(masterCb) {
-    const cbs = document.querySelectorAll('.lead-row-checkbox');
-    cbs.forEach(cb => cb.checked = masterCb.checked);
+    const state = masterCb.checked;
+    document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox').forEach(cb => cb.checked = state);
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+    if (masterDesk) { masterDesk.checked = state; masterDesk.indeterminate = false; }
+    if (masterMob) { masterMob.checked = state; masterMob.indeterminate = false; }
     updateSelectedLeadsCount();
 }
 
 function updateSelectedLeadsCount() {
-    const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked');
-    const count = checkedBoxes.length;
+    const selectedIds = getSelectedLeadIds();
+    const count = selectedIds.length;
     const bar = document.getElementById('floating-bulk-bar');
     const countBadge = document.getElementById('selected-leads-count');
     
@@ -754,32 +894,39 @@ function updateSelectedLeadsCount() {
         bar.style.display = (count > 0) ? 'flex' : 'none';
     }
 
-    const masterCb = document.getElementById('selectAllLeads');
-    const allCbs = document.querySelectorAll('.lead-row-checkbox');
-    if (masterCb && allCbs.length > 0) {
-        masterCb.checked = (checkedBoxes.length === allCbs.length);
-        masterCb.indeterminate = (checkedBoxes.length > 0 && checkedBoxes.length < allCbs.length);
-    }
+    const allCheckboxes = document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox');
+    const totalUniqueLeads = new Set(Array.from(allCheckboxes).map(cb => cb.value)).size;
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+
+    [masterDesk, masterMob].forEach(master => {
+        if (master && totalUniqueLeads > 0) {
+            master.checked = (count === totalUniqueLeads);
+            master.indeterminate = (count > 0 && count < totalUniqueLeads);
+        }
+    });
 }
 
 function clearSelectedLeads() {
-    document.querySelectorAll('.lead-row-checkbox').forEach(cb => cb.checked = false);
-    const masterCb = document.getElementById('selectAllLeads');
-    if (masterCb) {
-        masterCb.checked = false;
-        masterCb.indeterminate = false;
-    }
+    document.querySelectorAll('.lead-row-checkbox, .lead-card-checkbox').forEach(cb => cb.checked = false);
+    const masterDesk = document.getElementById('selectAllLeads');
+    const masterMob = document.getElementById('selectAllLeadsMobile');
+    [masterDesk, masterMob].forEach(master => {
+        if (master) {
+            master.checked = false;
+            master.indeterminate = false;
+        }
+    });
     updateSelectedLeadsCount();
 }
 
 async function submitBulkAssignSelected() {
-    const checkedBoxes = document.querySelectorAll('.lead-row-checkbox:checked');
-    const leadIds = Array.from(checkedBoxes).map(cb => cb.value);
+    const leadIds = getSelectedLeadIds();
     const targetSelect = document.getElementById('bulk_selected_counsellor');
     const targetValue = targetSelect ? targetSelect.value : '';
 
     if (leadIds.length === 0) {
-        alert('Please select at least one lead from the table.');
+        alert('Please select at least one lead from the table or cards.');
         return;
     }
     if (!targetValue) {

@@ -69,7 +69,7 @@ $recentManualLeads = getLeads([
 // 5. Course/Services catalogue for quick add dropdown
 $coursesList = getCourseServicesList('course');
 $servicesList = getCourseServicesList('service');
-$canAddLeads = in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR]);
+$canAddLeads = in_array($baseRole, [ROLE_FOUNDER, ROLE_MANAGER, ROLE_HR, ROLE_SALES_COUNSELLOR]);
 
 // 6. Today's Attendance Info
 $stmt = $db->prepare("SELECT * FROM attendance WHERE user_id = ? AND date = ? LIMIT 1");
@@ -108,9 +108,11 @@ include __DIR__ . '/../includes/header.php';
             <button type="button" class="btn btn-warning" onclick="openAddLeadModal('service')" style="background: #f59e0b; color: #fff; border: none; font-weight: 600;">
                 <i class="fa-solid fa-laptop-code"></i> + Add Service Lead
             </button>
-            <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
-                <i class="fa-solid fa-file-import"></i> Bulk Upload Leads
-            </button>
+            <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
+                <button type="button" class="btn btn-secondary" onclick="openAddLeadModal('course', 'bulk')">
+                    <i class="fa-solid fa-file-import"></i> Bulk Upload Leads
+                </button>
+            <?php endif; ?>
         <?php endif; ?>
         <a href="<?php echo BASE_URL; ?>/sales/leads.php" class="btn btn-secondary">
             <i class="fa-solid fa-users-rays"></i> View Full Pipeline
@@ -1208,6 +1210,7 @@ include __DIR__ . '/../includes/header.php';
             <button type="button" class="modal-close" onclick="closeAddLeadModal()">×</button>
         </div>
 
+        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
         <!-- Mode Switcher Tabs (Single Entry vs Bulk Paste) -->
         <div style="display: flex; gap: 8px; padding: 12px 24px 0 24px; border-bottom: 1px solid var(--color-border); background: var(--color-bg-secondary);">
             <button type="button" id="tabSingleBtn" class="btn btn-sm btn-primary" onclick="switchAddLeadTab('single')" style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
@@ -1217,6 +1220,7 @@ include __DIR__ . '/../includes/header.php';
                 <i class="fa-solid fa-file-import"></i> Bulk Paste Calling List
             </button>
         </div>
+        <?php endif; ?>
 
         <!-- TAB 1: SINGLE LEAD ENTRY -->
         <div id="tabSingleContent">
@@ -1309,6 +1313,7 @@ include __DIR__ . '/../includes/header.php';
             </form>
         </div>
 
+        <?php if ($baseRole !== ROLE_SALES_COUNSELLOR): ?>
         <!-- TAB 2: BULK RAW DATA PASTE -->
         <div id="tabBulkContent" style="display: none;">
             <form id="bulkImportForm" onsubmit="submitBulkImport(event)">
@@ -1368,6 +1373,7 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </form>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -1556,16 +1562,21 @@ function closeAddLeadModal() {
 }
 
 function switchAddLeadTab(tab) {
-    if (tab === 'single') {
-        document.getElementById('tabSingleContent').style.display = 'block';
-        document.getElementById('tabBulkContent').style.display = 'none';
-        document.getElementById('tabSingleBtn').className = 'btn btn-sm btn-primary';
-        document.getElementById('tabBulkBtn').className = 'btn btn-sm btn-ghost';
+    const singleContent = document.getElementById('tabSingleContent');
+    const bulkContent = document.getElementById('tabBulkContent');
+    const singleBtn = document.getElementById('tabSingleBtn');
+    const bulkBtn = document.getElementById('tabBulkBtn');
+
+    if (tab === 'single' || !bulkContent) {
+        if (singleContent) singleContent.style.display = 'block';
+        if (bulkContent) bulkContent.style.display = 'none';
+        if (singleBtn) singleBtn.className = 'btn btn-sm btn-primary';
+        if (bulkBtn) bulkBtn.className = 'btn btn-sm btn-ghost';
     } else {
-        document.getElementById('tabSingleContent').style.display = 'none';
-        document.getElementById('tabBulkContent').style.display = 'block';
-        document.getElementById('tabSingleBtn').className = 'btn btn-sm btn-ghost';
-        document.getElementById('tabBulkBtn').className = 'btn btn-sm btn-primary';
+        if (singleContent) singleContent.style.display = 'none';
+        if (bulkContent) bulkContent.style.display = 'block';
+        if (singleBtn) singleBtn.className = 'btn btn-sm btn-ghost';
+        if (bulkBtn) bulkBtn.className = 'btn btn-sm btn-primary';
     }
 }
 
